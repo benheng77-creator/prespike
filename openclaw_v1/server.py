@@ -644,6 +644,94 @@ def _start_spot_aggro_shadow_scorer() -> None:
     )
 
 
+# Phase 11n-9-aa — Universe Gatekeeper (step 14 enforcement).
+# Every 5 min: refresh Layer 1 cell stats, auto-deprecate admitted
+# cells with Wilson_upper < 0 on ≥ 50 exits, auto-admit candidate
+# cells with Wilson_lower > 0 on ≥ 50 exits.
+@app.on_event("startup")
+def _start_spot_aggro_universe_gatekeeper() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.universe_gatekeeper import run_tick
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("universe_gatekeeper NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 300
+    _FIRST_DELAY_S = 16
+
+    def _tick() -> None:
+        try:
+            t = run_tick()
+            n_adm = len(t.admitted)
+            n_new = len(t.newly_admitted)
+            n_dep = len(t.newly_deprecated)
+            _log.info(
+                "[spot_aggro.universe_gatekeeper] admitted=%d"
+                " newly_admitted=%d newly_deprecated=%d",
+                n_adm, n_new, n_dep,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("universe_gatekeeper tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro universe_gatekeeper scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
+# Phase 11n-9-aa — Trade Readiness flag daemon (mechanical release).
+# Every 60s re-evaluate the 5 conditions. Engine entry paths read the
+# cached flag every tick; this daemon keeps the cache fresh.
+@app.on_event("startup")
+def _start_spot_aggro_trade_readiness() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.trade_readiness import evaluate
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("trade_readiness NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 60
+    _FIRST_DELAY_S = 18
+
+    def _tick() -> None:
+        try:
+            t = evaluate()
+            if t.ready:
+                _log.info("[spot_aggro.trade_readiness] READY")
+            else:
+                _log.info(
+                    "[spot_aggro.trade_readiness] NOT_READY unmet=%s",
+                    t.unmet,
+                )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("trade_readiness tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro trade_readiness scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
 # Phase 11n-8: Auto Orchestrator is 100% auto. Default ON. Set
 # SPOT_AUTO_ORCHESTRATOR=0 only if you need to disable it (tests do,
 # via monkeypatch). On boot we:

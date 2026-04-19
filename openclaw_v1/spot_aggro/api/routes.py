@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-z-2026-04-20"
+SERVER_BUILD = "phase-11n-9-aa-2026-04-20"
 
 
 @router.get("/build")
@@ -101,6 +101,9 @@ def spot_aggro_build() -> dict[str, Any]:
             "decision_quality_gov": True,        # Phase 11n-9-z (Layer 2 decile + rank)
             "card_truth_mismatch_m1_m7": True,   # Phase 11n-9-z (cross-card rules)
             "escalation_ladder_active": True,    # Phase 11n-9-z (T+0/15/30/60 rungs)
+            "universe_gatekeeper": True,         # Phase 11n-9-aa (auto-admit/deprecate cells)
+            "trade_readiness_mechanical": True,  # Phase 11n-9-aa (ready_to_trade flag)
+            "start_endpoint_honors_readiness": True,  # Phase 11n-9-aa (409 when not ready)
         },
     }
 
@@ -353,6 +356,58 @@ def spot_aggro_shadow_scorer_run(
     return {"ok": True, "result": ab.to_dict()}
 
 
+# Phase 11n-9-aa — Trade Readiness flag (mechanical release).
+@router.get("/gov/trade_readiness")
+def spot_aggro_trade_readiness_state() -> dict[str, Any]:
+    """Returns the current ready_to_trade flag + unmet conditions +
+    recent history. Dashboard should render a green/red pill bound to
+    this."""
+    try:
+        from spot_aggro.governance.trade_readiness import (
+            current_state, history,
+        )
+        return {"ok": True, "state": current_state(), "ticks": history(limit=50)}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/trade_readiness/run")
+def spot_aggro_trade_readiness_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Trigger a readiness re-evaluation on demand. Admin-only."""
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.trade_readiness import evaluate
+    t = evaluate()
+    return {"ok": True, "result": t.to_dict()}
+
+
+# Phase 11n-9-aa — Universe Gatekeeper.
+@router.get("/gov/universe")
+def spot_aggro_universe_state() -> dict[str, Any]:
+    """Full admissions table (admitted + deprecated_auto + deprecated_manual)."""
+    try:
+        from spot_aggro.governance.universe_gatekeeper import all_admissions
+        return {
+            "ok": True,
+            "admissions": [a.to_dict() for a in all_admissions()],
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/universe/run")
+def spot_aggro_universe_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Trigger a gatekeeper tick. Applies admission + deprecation
+    lifecycle rules based on the latest Layer 1 verdict. Admin-only."""
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.universe_gatekeeper import run_tick
+    t = run_tick()
+    return {"ok": True, "result": t.to_dict()}
+
+
 # Phase 11l — Win-Rate Research Agent.
 # GET is public (dashboard reads latest + history). POST is admin-only
 # because running the agent can soft-halt tier toggles (execution-lane
@@ -489,12 +544,38 @@ def spot_aggro_status() -> dict[str, Any]:
 
 
 @router.post("/start")
-def spot_aggro_start(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
-    """Start the SPOT AGGRO engine in background."""
+def spot_aggro_start(
+    force: bool = Query(False, description="Admin bypass; requires OPS_ADMIN_TOKEN. Do not use unless you understand the implication."),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Start the SPOT AGGRO engine in background.
+
+    Phase 11n-9-aa: honors the mechanical trade-readiness flag. If
+    ready_to_trade=False, returns HTTP 409 with the unmet-condition
+    list. `force=true` is accepted but logged as a manual override;
+    the flag itself still applies at entry time, so force only
+    affects the start-up acceptance, not whether trades fire.
+    """
     _require_admin(x_ops_token)
+    from spot_aggro.governance.trade_readiness import current_state
+    s = current_state()
+    if not s.get("ready") and not force:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "engine_not_ready_to_trade",
+                "unmet": s.get("unmet", []),
+                "last_evaluated_ts_ms": s.get("last_evaluated_ts_ms"),
+                "hint": ("Fix each unmet condition, wait for the "
+                         "readiness daemon to re-evaluate, then retry. "
+                         "Pass force=true to start anyway; the engine "
+                         "entry path still honors the flag so trades "
+                         "will be skipped until ready."),
+            },
+        )
     from spot_aggro import start_engine
     start_engine()
-    return {"ok": True, "engine": "spot_aggro"}
+    return {"ok": True, "engine": "spot_aggro", "forced": bool(force)}
 
 
 @router.post("/stop")

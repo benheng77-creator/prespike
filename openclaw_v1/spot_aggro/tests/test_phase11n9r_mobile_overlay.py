@@ -55,6 +55,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+
+def _phase_key(suffix):
+    """Phase ordering: length first, then lexicographic.
+    'p' < 'q' < 'z' < 'aa' < 'ab'."""
+    return (len(suffix), suffix)
+
+
 REPO = Path(__file__).resolve().parents[3]
 HTML = (REPO / "web" / "ops" / "index.html").read_text(encoding="utf-8")
 
@@ -228,14 +235,14 @@ def test_body_has_bottom_padding_on_mobile():
 def test_server_build_is_at_least_phase_r():
     from spot_aggro.api.routes import SERVER_BUILD
     import re
-    m = re.match(r"phase-11n-9-([a-z])-2026-04-20$", SERVER_BUILD)
-    assert m and m.group(1) >= "r", f"SERVER_BUILD must be >= phase-r (got {SERVER_BUILD})"
+    m = re.match(r"phase-11n-9-([a-z]+)-2026-04-20$", SERVER_BUILD)
+    assert m and _phase_key(m.group(1)) >= _phase_key("r"), f"SERVER_BUILD must be >= phase-r (got {SERVER_BUILD})"
 
 
 def test_dashboard_build_meta_is_at_least_phase_r():
     import re
-    m = re.search(r'content="phase-11n-9-([a-z])-2026-04-20"', HTML)
-    assert m and m.group(1) >= "r", (
+    m = re.search(r'content="phase-11n-9-([a-z]+)-2026-04-20"', HTML)
+    assert m and _phase_key(m.group(1)) >= _phase_key("r"), (
         f"build tag must be >= phase-r (got {m.group(0) if m else '—'})"
     )
 

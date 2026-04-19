@@ -682,6 +682,57 @@ class SpotAggroEngine:
                     pass
                 continue
 
+            # Phase 11n-9-aa: Trade Readiness gate — the mechanical
+            # release flag. Must pass C1..C5 before anything else
+            # runs. is_ready_to_trade() is a derived read; the
+            # readiness daemon keeps it fresh. Fail-closed on any
+            # probe error.
+            try:
+                from spot_aggro.governance.trade_readiness import is_ready_to_trade
+                if not is_ready_to_trade():
+                    try:
+                        _emit_trade(
+                            "skip", symbol=r["symbol"], tier=tc.tier,
+                            module=tc.module, notional_usd=size,
+                            reason="not_ready_to_trade",
+                            composite=r.get("composite"), spi=r.get("spi"),
+                        )
+                    except Exception:
+                        pass
+                    continue
+            except Exception:  # noqa: BLE001
+                try:
+                    _emit_trade(
+                        "skip", symbol=r["symbol"], tier=tc.tier,
+                        module=tc.module, notional_usd=size,
+                        reason="trade_readiness_probe_error",
+                        composite=r.get("composite"), spi=r.get("spi"),
+                    )
+                except Exception:
+                    pass
+                continue
+
+            # Phase 11n-9-aa: Universe Gatekeeper — cell must be in
+            # admitted state. Seed cells are Tier-C + {ENA, DOT}; the
+            # universe expands by ratchet rule as cells prove edge.
+            try:
+                from spot_aggro.governance.universe_gatekeeper import is_cell_admitted
+                cell_key = f"{tc.tier}|{r['symbol']}"
+                if not is_cell_admitted("tier_symbol", cell_key):
+                    try:
+                        _emit_trade(
+                            "skip", symbol=r["symbol"], tier=tc.tier,
+                            module=tc.module, notional_usd=size,
+                            reason=f"cell_not_admitted:{cell_key}",
+                            composite=r.get("composite"), spi=r.get("spi"),
+                        )
+                    except Exception:
+                        pass
+                    continue
+            except Exception:  # noqa: BLE001
+                # Fail-closed on gatekeeper probe error.
+                continue
+
             # Phase 11n-9-y: Layer 3 Contradiction Freeze gate — must
             # run BEFORE the Layer 8 pre-trade check so a freeze shuts
             # down the entry path even when the pre-trade gate would
@@ -1150,6 +1201,30 @@ class SpotAggroEngine:
                     "note": "not sent to OKX — execution sufficiency guard (BLITZ)",
                 },
             )
+            return
+
+        # Phase 11n-9-aa: Trade Readiness gate (BLITZ).
+        try:
+            from spot_aggro.governance.trade_readiness import is_ready_to_trade
+            if not is_ready_to_trade():
+                log.info("BLITZ blocked: not_ready_to_trade")
+                return
+        except Exception:  # noqa: BLE001
+            log.exception("trade_readiness probe fault — BLITZ blocked")
+            return
+
+        # Phase 11n-9-aa: Universe Gatekeeper (BLITZ is A+; current seed
+        # is Tier-C + {ENA,DOT} so BLITZ is effectively blocked during
+        # the initial post-promotion runtime until a Tier-A+ cell for
+        # the picked symbol earns admission).
+        try:
+            from spot_aggro.governance.universe_gatekeeper import is_cell_admitted
+            blitz_cell_key = f"A+|{best['symbol']}"
+            if not is_cell_admitted("tier_symbol", blitz_cell_key):
+                log.info("BLITZ blocked: cell_not_admitted (%s)", blitz_cell_key)
+                return
+        except Exception:  # noqa: BLE001
+            log.exception("universe_gatekeeper probe fault — BLITZ blocked")
             return
 
         # Phase 11n-9-y: Layer 3 Contradiction Freeze gate (BLITZ).
