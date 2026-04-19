@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-x-2026-04-20"
+SERVER_BUILD = "phase-11n-9-y-2026-04-20"
 
 
 @router.get("/build")
@@ -93,6 +93,10 @@ def spot_aggro_build() -> dict[str, Any]:
             "legacy_purge_gov": True,              # Phase 11n-9-s (Layer 10 trip-wire)
             "legacy_deep_forensic_gov": True,      # Phase 11n-9-t (Layer 11 deep scan)
             "mobile_tab_router": True,           # Phase 11n-9-u (mobile nav tabs route)
+            "economic_truth_gov": True,          # Phase 11n-9-y (Layer 12 Wilson-bounded expectancy)
+            "contradiction_freeze": True,        # Phase 11n-9-y (Layer 3 active freeze)
+            "gate_enforcement_blocked": True,    # Phase 11n-9-y (GateBlocked named exception)
+            "net_pnl_accounting": True,          # Phase 11n-9-y (fees+slippage subtracted)
         },
     }
 
@@ -194,6 +198,72 @@ def spot_aggro_legacy_deep_run(
     from spot_aggro.governance.legacy_deep_forensic_gov import run_once
     r = run_once(purge=purge)
     return {"ok": True, "result": r.to_dict()}
+
+
+# Phase 11n-9-y — Layer 12: Economic Truth Governor (non-enforcing).
+# Returns Wilson-bounded per-cell expectancy. The Contradiction Freeze
+# daemon consumes this to score econ_score. Dashboard shows cell-level
+# pass/warn/fail so the operator sees which (tier, symbol, module)
+# subset is bleeding.
+@router.get("/gov/economic_truth")
+def spot_aggro_economic_truth_latest() -> dict[str, Any]:
+    """Latest Layer 12 verdict + 20-row history."""
+    try:
+        from spot_aggro.governance.economic_truth_gov import latest, history
+        return {
+            "ok": True,
+            "latest": latest(),
+            "history": history(limit=20),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/economic_truth/run")
+def spot_aggro_economic_truth_run(
+    window: int = Query(500, ge=50, le=5000),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Trigger an economic-truth scan on demand. Admin-only because
+    the result is persisted and can influence downstream layers."""
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.economic_truth_gov import run_once
+    v = run_once(window=window)
+    return {"ok": True, "result": v.to_dict()}
+
+
+# Phase 11n-9-y — Layer 3 active: Contradiction Freeze.
+@router.get("/gov/contradiction_freeze")
+def spot_aggro_contradiction_freeze_state() -> dict[str, Any]:
+    """Returns the current freeze state + recent tick history."""
+    try:
+        from spot_aggro.governance.contradiction_freeze import (
+            current_state, history, is_entry_frozen,
+        )
+        return {
+            "ok": True,
+            "entry_frozen": is_entry_frozen(),
+            "state": current_state(),
+            "ticks": history(limit=50),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/contradiction_freeze/ack")
+def spot_aggro_contradiction_freeze_ack(
+    payload: dict[str, Any] = Body(...),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Operator acknowledgement: release the freeze iff the verbatim
+    primary_cause string matches the one stored. Admin-only."""
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.contradiction_freeze import ack
+    cause = (payload.get("primary_cause") or "").strip()
+    if not cause:
+        raise HTTPException(status_code=422, detail="primary_cause required")
+    ok, msg = ack(cause)
+    return {"ok": ok, "message": msg}
 
 
 # Phase 11l — Win-Rate Research Agent.

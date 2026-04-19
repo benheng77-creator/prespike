@@ -78,13 +78,16 @@ CREATE TABLE IF NOT EXISTS trade_log (
     notional_usd    REAL,
     avg_px          REAL,
     fee_usd         REAL,
-    pnl_usd         REAL,
+    pnl_usd         REAL,                     -- gross PnL (no fees, no slippage)
+    slippage_usd    REAL,                     -- Phase 11n-9-y: realized slippage = |fill_px - mid_at_signal| * qty
+    net_pnl         REAL,                     -- Phase 11n-9-y: pnl_usd - fee_usd - slippage_usd
     correlation_id  TEXT,
     payload_json    TEXT,
     tier            TEXT                       -- Phase 11b final: canonical A+/A/B/C or "?" for reconciled
 );
 CREATE INDEX IF NOT EXISTS idx_trade_ts ON trade_log(ts_ms DESC);
 CREATE INDEX IF NOT EXISTS idx_trade_sym ON trade_log(symbol, ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_trade_log_seg ON trade_log(tier, module, symbol, ts_ms DESC);
 -- idx_trade_tier is created inside the migration fn instead, because
 -- on pre-Phase-11b DBs the `tier` column doesn't exist until after ALTER.
 
@@ -216,6 +219,7 @@ def init_schema() -> None:
             # the existence check guards against re-runs, and the backfill
             # only touches rows where tier is NULL.
             _migrate_trade_log_tier_column(con)
+            _migrate_trade_log_net_pnl_column(con)
             con.commit()
         finally:
             con.close()
@@ -277,6 +281,29 @@ def _migrate_trade_log_tier_column(con) -> None:
     )
     # Anything still NULL has unknown provenance; heatmap surfaces it as
     # UNKNOWN, not silently dropped.
+
+
+def _migrate_trade_log_net_pnl_column(con) -> None:
+    """Phase 11n-9-y — add `slippage_usd` + `net_pnl` columns to
+    trade_log. Idempotent via PRAGMA table_info check. Backfill computes
+    net_pnl = pnl_usd − fee_usd − coalesce(slippage_usd, 0). Historical
+    rows have no slippage recorded so slippage defaults 0; going forward
+    the engine writes slippage_usd at every exit and net_pnl is refreshed.
+    """
+    cols = [r[1] for r in con.execute("PRAGMA table_info(trade_log)").fetchall()]
+    if "slippage_usd" not in cols:
+        con.execute("ALTER TABLE trade_log ADD COLUMN slippage_usd REAL")
+    if "net_pnl" not in cols:
+        con.execute("ALTER TABLE trade_log ADD COLUMN net_pnl REAL")
+    con.execute(
+        "UPDATE trade_log SET net_pnl = "
+        "COALESCE(pnl_usd, 0) - COALESCE(fee_usd, 0) - COALESCE(slippage_usd, 0) "
+        "WHERE pnl_usd IS NOT NULL AND net_pnl IS NULL"
+    )
+    con.execute(
+        "CREATE INDEX IF NOT EXISTS idx_trade_log_seg "
+        "ON trade_log(tier, module, symbol, ts_ms DESC)"
+    )
 
 
 # ---------------------------------------------------------------------------

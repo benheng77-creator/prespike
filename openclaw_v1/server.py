@@ -427,6 +427,95 @@ def _start_spot_aggro_legacy_deep_forensic_gov() -> None:
     )
 
 
+# Phase 11n-9-y — Layer 12: Economic Truth Governor.
+# Computes Wilson-bounded expectancy per (symbol, tier, module, cell)
+# every 5 min. Non-enforcing: writes verdicts to
+# spot_economic_truth_verdicts. Layer 13 + contradiction freeze read it.
+@app.on_event("startup")
+def _start_spot_aggro_economic_truth_gov() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.economic_truth_gov import run_once
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("economic_truth_gov NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 300
+    _FIRST_DELAY_S = 8
+
+    def _tick() -> None:
+        try:
+            r = run_once(window=500)
+            _log.info(
+                "[spot_aggro.economic_truth] verdict=%s ok=%d warn=%d fail=%d"
+                " insufficient=%d exits=%d",
+                r.overall_verdict, r.n_cells_ok, r.n_cells_warn,
+                r.n_cells_fail, r.n_cells_insufficient, r.window_n_exits,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("economic_truth_gov tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro economic_truth_gov scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
+# Phase 11n-9-y — Layer 3 active: Contradiction Freeze.
+# Every 5 min: compute tech_score / econ_score / contradiction_index
+# and evaluate triggers T1..T6. If freeze is active, is_entry_frozen()
+# returns True and engine entry paths abort every new trade. Operator
+# acknowledgment via POST /spot_aggro/gov/contradiction_freeze/ack
+# (verbatim primary_cause typed back).
+@app.on_event("startup")
+def _start_spot_aggro_contradiction_freeze() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.contradiction_freeze import tick
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("contradiction_freeze NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 300
+    _FIRST_DELAY_S = 10
+
+    def _tick() -> None:
+        try:
+            ev = tick()
+            _log.info(
+                "[spot_aggro.contradiction_freeze] tech=%.2f econ=%.2f"
+                " ci=%.2f frozen=%s triggers=%s",
+                ev.tech_score, ev.econ_score, ev.contradiction_index,
+                ev.entry_freeze,
+                [t["id"] for t in ev.triggers_fired] or "none",
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("contradiction_freeze tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro contradiction_freeze scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
 # Phase 11n-8: Auto Orchestrator is 100% auto. Default ON. Set
 # SPOT_AUTO_ORCHESTRATOR=0 only if you need to disable it (tests do,
 # via monkeypatch). On boot we:

@@ -37,6 +37,32 @@ from typing import Any, Optional
 DEFAULT_TARGET_PROJ_WR = 0.70
 
 
+class GateBlocked(Exception):
+    """Phase 11n-9-y — named exception raised when the engine tries to
+    place a trade that the pre-trade gate has rejected. The engine's
+    entry paths call `enforce_authorized()` which raises this if
+    `TradeAuthorization.passed is False`. Any code path that reaches
+    the exchange adapter without calling the gate (or ignoring its
+    verdict) is a bypass bug; the regression test plants a pick with
+    passed=0 and asserts this exception fires."""
+    def __init__(self, authz: "TradeAuthorization"):
+        self.authz = authz
+        super().__init__(
+            f"pre-trade gate blocked {authz.symbol} {authz.side} "
+            f"tier={authz.tier}: {authz.rejection_reason}"
+        )
+
+
+def enforce_authorized(authz: "TradeAuthorization") -> None:
+    """Raise GateBlocked iff the authorization did not pass. Engine
+    entry paths MUST call this immediately after authorize_trade(),
+    before any adapter call. The raise-on-reject pattern makes a bypass
+    visible — silent `if authz.passed: ...` blocks can be forgotten,
+    but an uncaught GateBlocked exception is loud."""
+    if not authz.passed:
+        raise GateBlocked(authz)
+
+
 @dataclass
 class TradeAuthorization:
     authz_id: str

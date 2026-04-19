@@ -682,10 +682,45 @@ class SpotAggroEngine:
                     pass
                 continue
 
+            # Phase 11n-9-y: Layer 3 Contradiction Freeze gate — must
+            # run BEFORE the Layer 8 pre-trade check so a freeze shuts
+            # down the entry path even when the pre-trade gate would
+            # have admitted. Fail-closed (is_entry_frozen returns True
+            # on any DB read failure).
+            try:
+                from spot_aggro.governance.contradiction_freeze import is_entry_frozen
+                if is_entry_frozen():
+                    try:
+                        _emit_trade(
+                            "skip", symbol=r["symbol"], tier=tc.tier,
+                            module=tc.module, notional_usd=size,
+                            reason="contradiction_freeze_active",
+                            composite=r.get("composite"), spi=r.get("spi"),
+                        )
+                    except Exception:
+                        pass
+                    continue
+            except Exception:  # noqa: BLE001
+                # Any fault reading the freeze state is treated as
+                # frozen — never default to trading through.
+                try:
+                    _emit_trade(
+                        "skip", symbol=r["symbol"], tier=tc.tier,
+                        module=tc.module, notional_usd=size,
+                        reason="contradiction_freeze_probe_error",
+                        composite=r.get("composite"), spi=r.get("spi"),
+                    )
+                except Exception:
+                    pass
+                continue
+
             # Phase 11n-9-b: Pre-Trade Governor (Layer 8) gates EVERY
             # buy. Fails the trade with an explicit reject reason if
             # any checklist item blocks. Every decision is persisted so
             # the dashboard shows what the gov allowed vs blocked.
+            # Phase 11n-9-y: bypass now raises GateBlocked — an explicit
+            # named exception so any code path that forgets to call the
+            # gate is visibly wrong during regression testing.
             try:
                 from spot_aggro.governance import pre_trade_gov
                 authz = pre_trade_gov.authorize_trade(
@@ -1115,6 +1150,16 @@ class SpotAggroEngine:
                     "note": "not sent to OKX — execution sufficiency guard (BLITZ)",
                 },
             )
+            return
+
+        # Phase 11n-9-y: Layer 3 Contradiction Freeze gate (BLITZ).
+        try:
+            from spot_aggro.governance.contradiction_freeze import is_entry_frozen
+            if is_entry_frozen():
+                log.info("BLITZ blocked: contradiction_freeze_active")
+                return
+        except Exception:  # noqa: BLE001
+            log.exception("contradiction_freeze probe fault — BLITZ blocked")
             return
 
         # Phase 11n-9-b: Pre-Trade Governor gates blitz buys too.

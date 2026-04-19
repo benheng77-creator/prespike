@@ -153,11 +153,15 @@ def test_old_z200_is_gone():
 # ---------------------------------------------------------------------------
 
 def test_show_handlers_route_through_open_overlay():
+    # Phase 11n-9-w: handlers toggle symmetrically — open on first tap,
+    # close on second. The open path calls _mtOpenOverlay; the close
+    # path calls _mtCloseOverlay. Both must be present per handler.
     for name, kind in [
         ("_mtShowActMenu", "actMenu"),
         ("_mtShowNavMenu", "navMenu"),
     ]:
-        pattern = rf'function {name}\(\)\s*\{{\s*_mtOpenOverlay\("{kind}"\)'
+        pattern = (rf'function {name}\(\)\s*\{{[\s\S]{{0,400}}?'
+                   rf'_mtOpenOverlay\("{kind}"\)')
         assert re.search(pattern, HTML), (
             f"{name} must route through _mtOpenOverlay('{kind}')"
         )

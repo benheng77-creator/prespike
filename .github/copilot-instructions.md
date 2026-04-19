@@ -24,28 +24,22 @@ Read this file first.
 ## AUTO SNAPSHOT
 - Git: yes
 - Branch: main-clean
-- Dirty files: 54
+- Dirty files: 14
 - Changed:
   -  M .github/copilot-instructions.md
   -  M AGENTS.md
   -  M CLAUDE.md
   -  M GEMINI.md
-  -  M deploy/spot-aggro-v2/index.html
   -  M openclaw_v1/server.py
-  -  M openclaw_v1/shared/adapters/okx_unified.py
-  -  M openclaw_v1/shared/adapters/universe_discovery.py
-  -  M openclaw_v1/shared/llm/consensus.py
-  -  M openclaw_v1/shared/notifications/router.py
-  -  M openclaw_v1/shared/persistence/settings.py
   -  M openclaw_v1/shared/persistence/state.py
   -  M openclaw_v1/spot_aggro/api/routes.py
-  -  M openclaw_v1/spot_aggro/forensic/runner.py
-  -  M openclaw_v1/spot_aggro/forensic_v2/schema.py
-  -  M openclaw_v1/spot_aggro/gates/calibration_engine.py
-  -  M openclaw_v1/spot_aggro/gates/calibration_store.py
-  -  M openclaw_v1/spot_aggro/governance/card_truth_gov.py
-  -  M openclaw_v1/spot_aggro/governance/daily_alpha_executor.py
-  -  M openclaw_v1/spot_aggro/governance/daily_system_auditor.py
+  -  M openclaw_v1/spot_aggro/engine.py
+  -  M openclaw_v1/spot_aggro/governance/pre_trade_gov.py
+  -  M openclaw_v1/spot_aggro/tests/test_phase11n9r_mobile_overlay.py
+  -  M web/ops/index.html
+  - ?? openclaw_v1/spot_aggro/governance/contradiction_freeze.py
+  - ?? openclaw_v1/spot_aggro/governance/economic_truth_gov.py
+  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9y_gate_enforcement.py
 - Stack: Node
 - Scripts:
   - npm run android:assemble
@@ -68,14 +62,14 @@ Read this file first.
   -  M AGENTS.md
   -  M CLAUDE.md
   -  M GEMINI.md
-  -  M deploy/spot-aggro-v2/index.html
   -  M openclaw_v1/server.py
-  -  M openclaw_v1/shared/adapters/okx_unified.py
-  -  M openclaw_v1/shared/adapters/universe_discovery.py
-  -  M openclaw_v1/shared/llm/consensus.py
-  -  M openclaw_v1/shared/notifications/router.py
-  -  M openclaw_v1/shared/persistence/settings.py
   -  M openclaw_v1/shared/persistence/state.py
+  -  M openclaw_v1/spot_aggro/api/routes.py
+  -  M openclaw_v1/spot_aggro/engine.py
+  -  M openclaw_v1/spot_aggro/governance/pre_trade_gov.py
+  -  M openclaw_v1/spot_aggro/tests/test_phase11n9r_mobile_overlay.py
+  -  M web/ops/index.html
+  - ?? openclaw_v1/spot_aggro/governance/contradiction_freeze.py
 
 ## MANUAL FOLLOW-UP
 # CURRENT FOLLOW-UP
