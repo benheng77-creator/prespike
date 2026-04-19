@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-y-2026-04-20"
+SERVER_BUILD = "phase-11n-9-z-2026-04-20"
 
 
 @router.get("/build")
@@ -97,6 +97,10 @@ def spot_aggro_build() -> dict[str, Any]:
             "contradiction_freeze": True,        # Phase 11n-9-y (Layer 3 active freeze)
             "gate_enforcement_blocked": True,    # Phase 11n-9-y (GateBlocked named exception)
             "net_pnl_accounting": True,          # Phase 11n-9-y (fees+slippage subtracted)
+            "shadow_scorer_ab": True,            # Phase 11n-9-z (Layer 6 A/B)
+            "decision_quality_gov": True,        # Phase 11n-9-z (Layer 2 decile + rank)
+            "card_truth_mismatch_m1_m7": True,   # Phase 11n-9-z (cross-card rules)
+            "escalation_ladder_active": True,    # Phase 11n-9-z (T+0/15/30/60 rungs)
         },
     }
 
@@ -264,6 +268,89 @@ def spot_aggro_contradiction_freeze_ack(
         raise HTTPException(status_code=422, detail="primary_cause required")
     ok, msg = ack(cause)
     return {"ok": ok, "message": msg}
+
+
+@router.post("/gov/root_cause/ack")
+def spot_aggro_root_cause_ack(
+    payload: dict[str, Any] = Body(...),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Alias of /gov/contradiction_freeze/ack — phase-z spec naming.
+    Operator acknowledgement of the root cause (verbatim primary_cause
+    string) releases the freeze."""
+    return spot_aggro_contradiction_freeze_ack(payload, x_ops_token)
+
+
+# Phase 11n-9-z — Layer 2: Decision Quality Governor.
+@router.get("/gov/decision_quality")
+def spot_aggro_decision_quality_latest() -> dict[str, Any]:
+    """Latest Layer 2 decile + rank-monotonicity verdict per cell."""
+    try:
+        from spot_aggro.governance.decision_quality_gov import latest, history
+        return {
+            "ok": True,
+            "latest": latest(),
+            "history": history(limit=20),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/decision_quality/run")
+def spot_aggro_decision_quality_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Trigger a Layer 2 scan on demand. Admin-only."""
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.decision_quality_gov import run_once
+    v = run_once()
+    return {"ok": True, "result": v.to_dict()}
+
+
+# Phase 11n-9-z — Card-Truth Mismatch Detector (M1-M7).
+@router.get("/gov/card_truth_mismatch")
+def spot_aggro_card_truth_mismatch_latest() -> dict[str, Any]:
+    """Latest findings from the M1-M7 mismatch detector."""
+    try:
+        from spot_aggro.governance.card_truth_mismatch import latest_findings
+        return {"ok": True, "findings": latest_findings(limit=50)}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/card_truth_mismatch/run")
+def spot_aggro_card_truth_mismatch_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Trigger a mismatch scan on demand. Admin-only."""
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.card_truth_mismatch import run_once
+    s = run_once()
+    return {"ok": True, "result": s.to_dict()}
+
+
+# Phase 11n-9-z — Shadow Scorer A/B validation.
+@router.get("/gov/shadow_scorer")
+def spot_aggro_shadow_scorer_latest() -> dict[str, Any]:
+    """Latest A/B comparison verdict + history. Non-enforcing — the
+    operator reviews this table before deciding whether to commit a
+    scoring.py sign flip."""
+    try:
+        from spot_aggro.governance.shadow_scorer import latest, history
+        return {"ok": True, "latest": latest(), "history": history(limit=20)}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/shadow_scorer/run")
+def spot_aggro_shadow_scorer_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Trigger an A/B comparison on demand. Admin-only."""
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.shadow_scorer import run_comparison
+    ab = run_comparison()
+    return {"ok": True, "result": ab.to_dict()}
 
 
 # Phase 11l — Win-Rate Research Agent.

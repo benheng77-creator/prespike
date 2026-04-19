@@ -24,22 +24,20 @@ Read this file first.
 ## AUTO SNAPSHOT
 - Git: yes
 - Branch: main-clean
-- Dirty files: 14
+- Dirty files: 12
 - Changed:
   -  M .github/copilot-instructions.md
   -  M AGENTS.md
   -  M CLAUDE.md
   -  M GEMINI.md
   -  M openclaw_v1/server.py
-  -  M openclaw_v1/shared/persistence/state.py
   -  M openclaw_v1/spot_aggro/api/routes.py
-  -  M openclaw_v1/spot_aggro/engine.py
-  -  M openclaw_v1/spot_aggro/governance/pre_trade_gov.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9r_mobile_overlay.py
+  -  M openclaw_v1/spot_aggro/governance/contradiction_freeze.py
   -  M web/ops/index.html
-  - ?? openclaw_v1/spot_aggro/governance/contradiction_freeze.py
-  - ?? openclaw_v1/spot_aggro/governance/economic_truth_gov.py
-  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9y_gate_enforcement.py
+  - ?? openclaw_v1/spot_aggro/governance/card_truth_mismatch.py
+  - ?? openclaw_v1/spot_aggro/governance/decision_quality_gov.py
+  - ?? openclaw_v1/spot_aggro/governance/shadow_scorer.py
+  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9z_shadow_decision_mismatch_escalation.py
 - Stack: Node
 - Scripts:
   - npm run android:assemble
@@ -63,13 +61,13 @@ Read this file first.
   -  M CLAUDE.md
   -  M GEMINI.md
   -  M openclaw_v1/server.py
-  -  M openclaw_v1/shared/persistence/state.py
   -  M openclaw_v1/spot_aggro/api/routes.py
-  -  M openclaw_v1/spot_aggro/engine.py
-  -  M openclaw_v1/spot_aggro/governance/pre_trade_gov.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9r_mobile_overlay.py
+  -  M openclaw_v1/spot_aggro/governance/contradiction_freeze.py
   -  M web/ops/index.html
-  - ?? openclaw_v1/spot_aggro/governance/contradiction_freeze.py
+  - ?? openclaw_v1/spot_aggro/governance/card_truth_mismatch.py
+  - ?? openclaw_v1/spot_aggro/governance/decision_quality_gov.py
+  - ?? openclaw_v1/spot_aggro/governance/shadow_scorer.py
+  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9z_shadow_decision_mismatch_escalation.py
 
 ## MANUAL FOLLOW-UP
 # CURRENT FOLLOW-UP

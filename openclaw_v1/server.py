@@ -516,6 +516,134 @@ def _start_spot_aggro_contradiction_freeze() -> None:
     )
 
 
+# Phase 11n-9-z — Layer 2: Decision Quality Governor.
+# Runs every 5 min. Computes Spearman ρ(score, net_pnl) + decile
+# expectancy per (tier, regime, bucket) cell. Registers T5
+# contradiction-freeze trigger when the same cell is inverted on 3
+# consecutive ticks.
+@app.on_event("startup")
+def _start_spot_aggro_decision_quality_gov() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.decision_quality_gov import run_once
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("decision_quality_gov NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 300
+    _FIRST_DELAY_S = 12
+
+    def _tick() -> None:
+        try:
+            v = run_once()
+            _log.info(
+                "[spot_aggro.decision_quality] verdict=%s cells=%d"
+                " healthy=%d warn=%d inverted=%d insufficient=%d",
+                v.overall_verdict, v.n_cells, v.n_cells_healthy,
+                v.n_cells_warn, v.n_cells_inverted, v.n_cells_insufficient,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("decision_quality_gov tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro decision_quality_gov scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
+# Phase 11n-9-z — Card-Truth Mismatch Detector (M1-M7).
+# Runs every 5 min. Registers T4 contradiction-freeze trigger when
+# >= 2 mismatches fire.
+@app.on_event("startup")
+def _start_spot_aggro_card_truth_mismatch() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.card_truth_mismatch import run_once
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("card_truth_mismatch NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 300
+    _FIRST_DELAY_S = 14
+
+    def _tick() -> None:
+        try:
+            s = run_once()
+            if s.findings:
+                _log.warning(
+                    "[spot_aggro.card_truth_mismatch] %d findings: %s",
+                    len(s.findings),
+                    [f.rule_id for f in s.findings],
+                )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("card_truth_mismatch tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro card_truth_mismatch scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
+# Phase 11n-9-z — Shadow Scorer comparison runner.
+# Runs every 30 min (lower cadence than decision-quality; each run
+# matches all shadow authzs with live exits, O(n log n)).
+@app.on_event("startup")
+def _start_spot_aggro_shadow_scorer() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.shadow_scorer import run_comparison
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("shadow_scorer NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 1800
+    _FIRST_DELAY_S = 20
+
+    def _tick() -> None:
+        try:
+            ab = run_comparison()
+            _log.info(
+                "[spot_aggro.shadow_scorer] verdict=%s A.n=%d B.n=%d"
+                " A.exp=%+.4f B.exp=%+.4f reason=%s",
+                ab.promotion_verdict, ab.window_n_a, ab.window_n_b,
+                ab.a_expectancy, ab.b_expectancy, ab.reason[:80],
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("shadow_scorer tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro shadow_scorer scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
 # Phase 11n-8: Auto Orchestrator is 100% auto. Default ON. Set
 # SPOT_AUTO_ORCHESTRATOR=0 only if you need to disable it (tests do,
 # via monkeypatch). On boot we:

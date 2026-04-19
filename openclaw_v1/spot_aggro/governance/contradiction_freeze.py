@@ -453,6 +453,120 @@ def register_trigger(trigger_id: str, label: str, detail: str) -> None:
     _apply(ev)
 
 
+# ---------------------------------------------------------------------------
+# Escalation ladder (Phase 11n-9-z)
+# ---------------------------------------------------------------------------
+#
+# Once entry_freeze is active, time-in-freeze drives progressive actions:
+#   T+0     warn (log + incident_state.active=1)
+#   T+15m   P1 alert, Telegram notify
+#   T+30m   Entry freeze activates (already true — redundant guard)
+#            + forensic PDF written
+#   T+60m   Full kill_switch.locked=true (halts exits too)
+#
+# The ladder runs inside tick(); each rung is idempotent.
+
+_LADDER_T_WARN_MS    = 0
+_LADDER_T_P1_MS      = 15 * 60 * 1000
+_LADDER_T_FORENSIC_MS = 30 * 60 * 1000
+_LADDER_T_KILL_MS    = 60 * 60 * 1000
+
+
+def _time_in_freeze_ms() -> int:
+    """How long the current freeze has been active. 0 if not frozen."""
+    s = current_state()
+    if not s.get("frozen"):
+        return 0
+    since = s.get("frozen_since_ts_ms") or 0
+    return max(0, int(time.time() * 1000) - int(since))
+
+
+def _escalate(evaluation: FreezeEvaluation) -> list[str]:
+    """Apply the ladder. Returns list of rung names that fired on this
+    tick. Each rung is idempotent: repeated calls don't duplicate
+    alerts or forensic PDFs, because downstream modules use their own
+    idempotency keys (alert_center deduplicates by kind+window,
+    forensic writer uses a per-freeze-id filename)."""
+    out: list[str] = []
+    age = _time_in_freeze_ms()
+    if age == 0:
+        return out
+
+    # T+0: incident state. Idempotent — the incident module guards
+    # against double-enter.
+    try:
+        from spot_aggro.governance.incident_mode import enter_incident
+        enter_incident(
+            kind="contradiction_freeze",
+            severity="P0",
+            trigger=evaluation.primary_cause or "unknown",
+        )
+        out.append("T+0_incident")
+    except Exception:
+        pass
+
+    # T+15: P1 alert + telegram notify
+    if age >= _LADDER_T_P1_MS:
+        try:
+            from spot_aggro.governance.alert_center import ingest
+            ingest(
+                kind="contradiction_freeze_p1",
+                source="contradiction_freeze",
+                message=f"Freeze active {age/60000:.0f}m; cause={evaluation.primary_cause}",
+                severity="P1",
+                evidence={
+                    "triggers": evaluation.triggers_fired,
+                    "tech_score": evaluation.tech_score,
+                    "econ_score": evaluation.econ_score,
+                },
+            )
+            out.append("T+15_alert_P1")
+        except Exception:
+            pass
+
+    # T+30: forensic PDF
+    if age >= _LADDER_T_FORENSIC_MS:
+        try:
+            from spot_aggro.forensic.runner import run_forensic_now
+            run_forensic_now(
+                reason=f"contradiction_freeze_{evaluation.primary_cause}",
+                window_hours=24,
+            )
+            out.append("T+30_forensic_pdf")
+        except Exception:
+            pass
+
+    # T+60: full kill_switch
+    if age >= _LADDER_T_KILL_MS:
+        try:
+            from spot_aggro.ops.risk.kill_switch import write_lock
+            from spot_aggro.ops.persistence import state as ops_persist
+            write_lock(
+                reason=(f"contradiction_freeze_exceeded_60m "
+                        f"({evaluation.primary_cause})"),
+                drawdown_pct=0.0, equity_usd=0.0,
+                peak_usd=ops_persist.latest_peak() or 0.0,
+            )
+            out.append("T+60_kill_switch")
+        except Exception:
+            pass
+
+    return out
+
+
+# Patch tick() to run the ladder on every pass. We keep the existing
+# evaluate+_apply split untouched; the ladder runs AFTER apply so the
+# freeze state is current.
+_original_tick = tick
+def tick() -> FreezeEvaluation:   # type: ignore[no-redef]
+    ev = _original_tick()
+    try:
+        _escalate(ev)
+    except Exception:
+        pass
+    return ev
+
+
 def ack(primary_cause: str) -> tuple[bool, str]:
     """Operator acknowledgement: releases the freeze iff the verbatim
     primary_cause matches the stored one. Returns (ok, message).
