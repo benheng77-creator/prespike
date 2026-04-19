@@ -22,7 +22,7 @@ individual severity.
 
 SPOT AGGRO only.
 This module imports NOTHING from apex_omega. It reads the shared
-apex_trade_log table (shared ops infra) via `shared.persistence.state`
+trade_log table (shared ops infra) via `shared.persistence.state`
 but performs no writes outside its own result table.
 
 No LLM call. Pure deterministic validator. The daily cadence + 7
@@ -323,12 +323,12 @@ def check_trade_log_has_tier_column() -> tuple[str, str]:
     con = persist._connect()
     try:
         cols = [r[1] for r in con.execute(
-            "PRAGMA table_info(apex_trade_log)").fetchall()]
+            "PRAGMA table_info(trade_log)").fetchall()]
     finally:
         con.close()
     if "tier" not in cols:
-        return "fail", "apex_trade_log.tier column missing (Phase 11b migration didn't run)"
-    return "ok", f"apex_trade_log has tier column ({len(cols)} cols total)"
+        return "fail", "trade_log.tier column missing (Phase 11b migration didn't run)"
+    return "ok", f"trade_log has tier column ({len(cols)} cols total)"
 
 
 def check_no_null_tier_spot_rows() -> tuple[str, str]:
@@ -338,7 +338,7 @@ def check_no_null_tier_spot_rows() -> tuple[str, str]:
     con = persist._connect()
     try:
         row = con.execute(
-            "SELECT count(*) FROM apex_trade_log "
+            "SELECT count(*) FROM trade_log "
             "WHERE tier IS NULL "
             "AND (module LIKE 'M1_squeeze%' OR module LIKE 'M1_flow%' "
             "     OR module LIKE 'M1_scalp%' OR module LIKE 'M3_blitz%' "
@@ -376,13 +376,13 @@ def check_recent_activity_internally_consistent() -> tuple[str, str]:
     try:
         ts_24h_ago_ms = int((time.time() - 86400) * 1000)
         total = con.execute(
-            "SELECT count(*) FROM apex_trade_log "
+            "SELECT count(*) FROM trade_log "
             "WHERE action='exit' AND ts_ms > ? "
             "AND (module LIKE 'M1_%' OR module LIKE 'M3_blitz%' OR module LIKE 'M_reconciled%')",
             (ts_24h_ago_ms,),
         ).fetchone()[0]
         by_tier = con.execute(
-            "SELECT tier, count(*) FROM apex_trade_log "
+            "SELECT tier, count(*) FROM trade_log "
             "WHERE action='exit' AND ts_ms > ? "
             "AND (module LIKE 'M1_%' OR module LIKE 'M3_blitz%' OR module LIKE 'M_reconciled%') "
             "GROUP BY tier",

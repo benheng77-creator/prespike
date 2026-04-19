@@ -36,7 +36,7 @@ def _insert_exits(db, tier: str, wins: int, losses: int, module="M1_flow_B"):
     try:
         for i in range(wins):
             con.execute(
-                "INSERT INTO apex_trade_log "
+                "INSERT INTO trade_log "
                 "(ts_ms, symbol, module, action, side, notional_usd, avg_px, "
                 " fee_usd, pnl_usd, correlation_id, payload_json, tier) "
                 "VALUES (?, 'X-USDT', ?, 'exit', 'sell', 5.0, 1.0, 0.01, 0.5, NULL, '{}', ?)",
@@ -44,7 +44,7 @@ def _insert_exits(db, tier: str, wins: int, losses: int, module="M1_flow_B"):
             )
         for i in range(losses):
             con.execute(
-                "INSERT INTO apex_trade_log "
+                "INSERT INTO trade_log "
                 "(ts_ms, symbol, module, action, side, notional_usd, avg_px, "
                 " fee_usd, pnl_usd, correlation_id, payload_json, tier) "
                 "VALUES (?, 'X-USDT', ?, 'exit', 'sell', 5.0, 1.0, 0.01, -0.5, NULL, '{}', ?)",

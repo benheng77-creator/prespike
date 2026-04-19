@@ -24,7 +24,7 @@ from . import state as persist
 
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS apex_settings (
+CREATE TABLE IF NOT EXISTS ops_settings (
     id              INTEGER PRIMARY KEY CHECK (id=1),
     version         INTEGER NOT NULL DEFAULT 1,
     updated_ts_ms   INTEGER NOT NULL,
@@ -88,10 +88,10 @@ def _init() -> None:
         con = persist._connect()
         try:
             con.executescript(_SCHEMA)
-            row = con.execute("SELECT COUNT(*) AS n FROM apex_settings WHERE id=1").fetchone()
+            row = con.execute("SELECT COUNT(*) AS n FROM ops_settings WHERE id=1").fetchone()
             if not row["n"]:
                 con.execute(
-                    "INSERT INTO apex_settings (id, version, updated_ts_ms, payload_json) VALUES (1, 1, ?, ?)",
+                    "INSERT INTO ops_settings (id, version, updated_ts_ms, payload_json) VALUES (1, 1, ?, ?)",
                     (int(time.time()*1000), json.dumps(_DEFAULTS)),
                 )
             con.commit()
@@ -104,7 +104,7 @@ def load() -> dict[str, Any]:
     _init()
     con = persist._connect()
     try:
-        row = con.execute("SELECT payload_json, version, updated_ts_ms FROM apex_settings WHERE id=1").fetchone()
+        row = con.execute("SELECT payload_json, version, updated_ts_ms FROM ops_settings WHERE id=1").fetchone()
     finally:
         con.close()
     if not row:
@@ -139,7 +139,7 @@ def save(patch: dict[str, Any]) -> dict[str, Any]:
     con = persist._connect()
     try:
         con.execute(
-            "UPDATE apex_settings SET version=version+1, updated_ts_ms=?, payload_json=? WHERE id=1",
+            "UPDATE ops_settings SET version=version+1, updated_ts_ms=?, payload_json=? WHERE id=1",
             (int(time.time()*1000), json.dumps(current)),
         )
         con.commit()

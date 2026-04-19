@@ -11,7 +11,16 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-t-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-x-2026-04-20"/>
+<!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
+     dashboard to their phone home screen and the iOS/Android status
+     bar matches the dark theme. -->
+<meta name="theme-color" content="#0d1117"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="SPOT AGGRO"/>
+<link rel="apple-touch-icon" href="/ops/apple-touch-icon.png"/>
+<link rel="manifest" href="/ops/manifest.webmanifest"/>
 <title>SPOT AGGRO — Operator Dashboard</title>
 <style>
 :root{
@@ -77,23 +86,47 @@ header .btn.start:hover{background:#059669;border-color:#059669}
 .mobile-tower{display:none}
 
 @media(max-width:700px){
-  /* 1. Hide everything legacy on mobile dashboard. Tower takes over. */
+  /* 1. Default mobile view: tower only; every legacy tab grid hidden.
+     Phase 11n-9-u: when the operator taps a nav tab, showTab() adds
+     `body.mobile-tab-active` which un-hides the selected tab grid and
+     hides the tower. This lets the sidenav/bottom-nav tab buttons
+     actually route on mobile instead of being visual-only. */
   #tab-dash, #tab-execution, #tab-performance, #tab-alerts, #tab-research,
   #tab-system, #tab-formula, #tab-lab, #tab-config, #tab-dashboard,
   #trust-governor, .lane-sep{display:none !important}
+  body.mobile-tab-active .mobile-tower{display:none !important}
+  body.mobile-tab-active #tab-formula,
+  body.mobile-tab-active #tab-lab{display:block !important}
+  body.mobile-tab-active #tab-dash{display:grid !important;
+    grid-template-columns:1fr !important;gap:10px;padding-bottom:84px}
+  body.mobile-tab-active #tab-dash > .c{max-width:100%}
   /* Header slimmed: title + build pill + token pill + 3 primary btns. */
   header .chip{display:none}
   header #hdr-mode{display:inline-flex}
   /* Tower visible. */
   .mobile-tower{display:block;padding:10px 10px 84px}
+  /* Phase 11n-9-w fix 3 — Home chip moved to bottom-left, above the
+     bottom nav (z:20). Top-left was colliding with the BUILD/TOKEN
+     pills in the slimmed mobile header. */
+  .mt-home-chip{position:fixed;bottom:56px;left:12px;z-index:25;
+    background:var(--accent);border:1px solid var(--accent);
+    border-radius:20px;padding:10px 16px;font-size:13px;
+    color:#fff;text-decoration:none;font-weight:600;
+    min-height:44px;min-width:44px;
+    display:none;align-items:center;gap:4px;
+    box-shadow:0 4px 12px rgba(24,119,242,.35)}
+  body.mobile-tab-active .mt-home-chip{display:inline-flex}
 
   /* 2. Hero — big, dominant. */
   .mt-hero{background:linear-gradient(180deg,#11161d,#0e141b);
     border:1px solid var(--border);border-radius:12px;
     padding:22px 18px;margin-bottom:10px;
     box-shadow:0 2px 12px rgba(0,0,0,.25);position:relative;overflow:hidden}
-  .mt-hero-state{font-size:36px;font-weight:800;letter-spacing:.02em;
-    color:#10b981;margin-bottom:4px;line-height:1}
+  /* Phase 11n-9-w fix 4 — responsive hero font clamps from 28px
+     (small 320px viewports) to 36px (large phones). */
+  .mt-hero-state{font-size:clamp(28px,8vw,36px);font-weight:800;
+    letter-spacing:.02em;color:#10b981;margin-bottom:4px;line-height:1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mt-hero.halted .mt-hero-state{color:#ef4444}
   .mt-hero.degraded .mt-hero-state{color:#f59e0b}
   .mt-hero.error .mt-hero-state{color:#ef4444}
@@ -121,14 +154,20 @@ header .btn.start:hover{background:#059669;border-color:#059669}
     padding:2px 8px;border-radius:99px;font-weight:700;font-size:11px}
   .mt-alerts.has-p0 .mt-alerts-count{background:#ef4444;color:#fff}
   .mt-alerts.has-p1 .mt-alerts-count{background:#f59e0b;color:#0e141b}
+  /* Phase 11n-9-w fix 1 — alert rows never wrap; long labels truncate
+     with ellipsis so the health chips below stay above the fold. */
+  #mt-alerts-list{max-width:100%;overflow-x:hidden}
   .mt-alert-row{display:flex;align-items:center;gap:8px;
     padding:8px 10px;margin-top:6px;background:#0e141b;border-radius:6px;
     border-left:3px solid var(--border);cursor:pointer;
-    min-height:44px}
+    min-height:44px;white-space:nowrap;overflow:hidden}
   .mt-alert-row.p0{border-left-color:#ef4444}
   .mt-alert-row.p1{border-left-color:#f59e0b}
-  .mt-alert-row b{font-size:13px;color:var(--ink1);line-height:1.3}
-  .mt-alert-row .mt-alert-age{margin-left:auto;font-size:10px;color:var(--ink3);flex-shrink:0}
+  .mt-alert-row b{font-size:13px;color:var(--ink1);line-height:1.3;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    flex:1 1 auto;min-width:0}
+  .mt-alert-row .mt-alert-age{margin-left:auto;font-size:10px;color:var(--ink3);
+    flex-shrink:0;white-space:nowrap}
   .mt-alert-empty{color:#10b981;font-size:12px;text-align:center;padding:6px 0}
 
   /* 4. Engine health chips — color-only row. */
@@ -172,12 +211,15 @@ header .btn.start:hover{background:#059669;border-color:#059669}
   .mt-quick{display:flex;gap:12px;margin-bottom:10px}
   .mt-quick .btn{flex:1;min-height:44px;min-width:44px;font-size:13px;
     pointer-events:auto}
-  .mt-more{background:var(--surface);border:1px solid var(--border);
-    border-radius:10px;padding:10px;margin-bottom:10px;
-    /* Phase 11n-9-r — when active, promoted to z:50 with backdrop
-       at 49; otherwise lives at base z:1 (no overlap). */
-    position:relative;z-index:1;
-    display:flex;flex-direction:column;gap:4px}
+  /* Phase 11n-9-w fix 12 — mt-more drawer is now a fixed popover,
+     consistent with mobile-act-menu + mobile-nav-menu. Overlays the
+     tower instead of pushing content down. */
+  .mt-more{position:fixed;bottom:72px;right:16px;z-index:50;
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:10px;padding:10px;min-width:220px;max-height:70vh;
+    overflow-y:auto;
+    display:flex;flex-direction:column;gap:6px;
+    box-shadow:0 6px 20px rgba(0,0,0,.5)}
   .mt-more a{color:var(--accent);padding:12px;text-decoration:none;
     font-size:13px;border-bottom:1px solid var(--border);
     min-height:44px;min-width:44px;
@@ -262,8 +304,10 @@ aside nav .nav-more-btn{display:none}
   .c .b{padding:10px 12px !important}
   .c .h h3{font-size:14px}
   .c .b, .c .helper, .truth-meta{font-size:12px}
-  /* Tap targets: buttons + pills get bigger on touch. */
-  button.btn, .btn{min-height:36px;padding:8px 12px;font-size:12px !important}
+  /* Phase 11n-9-w fix 7 — every interactive element meets the 44x44
+     iOS HIG floor. Overrides earlier 36px min-height. */
+  button.btn, .btn{min-height:44px !important;min-width:44px !important;
+    padding:10px 12px;font-size:12px !important}
   .research-wr, [class*="c-stamp"]{min-height:28px;padding:4px 10px !important;font-size:11px !important}
   /* Sticky top header so system status stays visible. */
   header{position:sticky;top:0;z-index:10;backdrop-filter:blur(6px)}
@@ -288,8 +332,47 @@ aside nav .nav-more-btn{display:none}
   #incident-panel .inc-head{animation:none}
   /* Tab nav wraps on narrow screens. */
   aside nav{flex-wrap:wrap;gap:4px !important}
-  aside nav a{min-width:80px !important;height:36px !important;font-size:12px !important}
+  aside nav a{min-width:80px !important;min-height:44px !important;
+    height:auto !important;font-size:12px !important;padding:0 12px}
 }
+
+/* Phase 11n-9-w fix 6 — landscape handling. When the phone is rotated
+   (short viewport), the 36px hero font eats all the vertical space
+   and the operator can't see alerts + health in the same screen.
+   Compress the hero and trim section margins so all 5 tower sections
+   fit within a 390px landscape height. */
+@media(max-width:700px) and (max-height:500px){
+  .mt-hero{padding:12px 14px;margin-bottom:6px}
+  .mt-hero-state{font-size:24px}
+  .mt-hero-posture{font-size:12px;margin-bottom:2px}
+  .mt-hero-sub{margin-bottom:2px}
+  .mt-section{padding:10px 12px;margin-bottom:6px}
+  .mt-sec-head{margin-bottom:6px}
+  .mt-alerts{padding:10px 12px}
+}
+
+/* Phase 11n-9-w fix 9 — iOS notch / safe-area-inset on the header.
+   Notched iPhones (X+) clip the left edge of the BUILD/TOKEN pills
+   in the default `padding:0 20px`. env(safe-area-inset-*) respects
+   the device's notch/home-indicator geometry. */
+header{
+  padding-left:max(20px, env(safe-area-inset-left)) !important;
+  padding-right:max(20px, env(safe-area-inset-right)) !important;
+}
+aside{
+  padding-bottom:env(safe-area-inset-bottom);
+}
+
+/* Phase 11n-9-w fix 10 — "LOADING" / "—" placeholders get a subtle
+   pulse so the operator can see the tower is waiting for data vs
+   frozen. When a tower element has class `mt-error`, color it red
+   to distinguish a backend error from loading. */
+@keyframes mt-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.mt-hero-state:not(.mt-loaded){animation:mt-pulse 1.6s ease-in-out infinite}
+.mt-metric-value:not(.mt-loaded){animation:mt-pulse 1.6s ease-in-out infinite}
+.mt-error{color:#ef4444 !important;animation:none !important}
+.mt-error::after{content:" (no response)";font-size:10px;color:#ef4444;
+  font-weight:400;margin-left:4px}
 
 /* Drill-down affordance: collapsed/expanded cards on touch.
    When a .c has class="collapsed" on mobile, only header + stamps
@@ -915,7 +998,8 @@ tr:last-child td{border-bottom:none}
     <button class="btn" onclick="opsTokenSet();_mtHideActMenu()">Token</button>
     <button class="btn" onclick="opsTokenTest();_mtHideActMenu()">Test</button>
     <button class="btn" onclick="opsTokenClear();_mtHideActMenu()">Clear</button>
-    <button class="btn" onclick="_mtHideActMenu()" style="opacity:.6">Close</button>
+    <!-- Phase 11n-9-w fix 11 — redundant Close button removed.
+         Backdrop click + tap-outside + ESC already close the popover. -->
   </div>
 </header>
 
@@ -925,7 +1009,7 @@ tr:last-child td{border-bottom:none}
   <a href="#" onclick="showTab('system');_mtHideNavMenu();return false">System</a>
   <a href="#" onclick="showTab('formula');_mtHideNavMenu();return false">Formula</a>
   <a href="#" onclick="showTab('lab');_mtHideNavMenu();return false">Lab</a>
-  <a href="#" onclick="_mtHideNavMenu();return false" style="opacity:.6">Close</a>
+  <!-- Phase 11n-9-w fix 11 — Close link removed; backdrop/outside closes. -->
 </div>
 
 <!-- Phase 9 — page-level trust governor. Set by truthGovernor() after each refresh. -->
@@ -947,6 +1031,10 @@ tr:last-child td{border-bottom:none}
      Desktop is unaffected — `.mobile-tower` is display:none >700px
      and the existing #tab-dash grid keeps its control-tower card
      layout. CSS rules at top of file enforce both. -->
+<!-- Phase 11n-9-u — mobile "Home" chip. Returns from any tab to the
+     tower. Visible only when body.mobile-tab-active is set (see CSS). -->
+<a href="#" class="mt-home-chip" id="mt-home-chip"
+   onclick="_mtGoHome();return false">← Home</a>
 <section class="mobile-tower" id="mobile-tower" aria-label="Mobile control tower">
   <!-- 1. Hero. Dominates first screen. -->
   <div class="mt-hero" id="mt-hero">
@@ -1027,13 +1115,15 @@ tr:last-child td{border-bottom:none}
     <button class="btn" onclick="_mtShowMore()">More ▾</button>
   </div>
 
-  <!-- Collapsed drawer: direct deep-links to full tabs. -->
+  <!-- Phase 11n-9-w fix 2 — every link auto-closes the drawer via
+       _mtCloseOverlay() before routing. Prevents the drawer from
+       overlaying the new tab content. -->
   <div class="mt-more" id="mt-more" style="display:none">
-    <a href="#" onclick="showTab('execution');return false">Full execution →</a>
-    <a href="#" onclick="showTab('performance');return false">Full performance →</a>
-    <a href="#" onclick="showTab('alerts');return false">Full alerts history →</a>
-    <a href="#" onclick="showTab('research');return false">Research lane →</a>
-    <a href="#" onclick="showTab('system');return false">System diagnostics →</a>
+    <a href="#" onclick="_mtCloseOverlay();showTab('execution');return false">Full execution →</a>
+    <a href="#" onclick="_mtCloseOverlay();showTab('performance');return false">Full performance →</a>
+    <a href="#" onclick="_mtCloseOverlay();showTab('alerts');return false">Full alerts history →</a>
+    <a href="#" onclick="_mtCloseOverlay();showTab('research');return false">Research lane →</a>
+    <a href="#" onclick="_mtCloseOverlay();showTab('system');return false">System diagnostics →</a>
   </div>
 </section>
 
@@ -1409,8 +1499,8 @@ tr:last-child td{border-bottom:none}
      data-refresh-basis="5s"
      data-summary-source="visible_data_only"
      data-confidence-source="exits_present">
-  <div class="h"><h3>Performance</h3><span class="sub">Lifetime realized PnL · accounting lane</span></div>
-  <div class="helper">Lifetime · realized exits only · not a live-session tile</div>
+  <div class="h"><h3>Lifetime P&amp;L Summary</h3><span class="sub">Realized exits · accounting lane</span></div>
+  <div class="helper">Lifetime · realized exits only. For detailed tier breakdown see the Performance tab.</div>
   <div class="truth-meta">
     <span class="lane-accounting">accounting</span>
     <span>source: /spot_aggro/stats</span>
@@ -2696,40 +2786,83 @@ const _TAB_CARDS = {
   lab:          ["c-sim"],
 };
 
+// Phase 11n-9-v — attribute-driven tab filtering.
+// Stamp data-tab on every card ONCE (at DOMContentLoaded) using the
+// authoritative _TAB_CARDS map. Then showTab() just sets
+// document.body.dataset.activeTab and a pure-CSS rule hides cards whose
+// data-tab doesn't match. No inline display:none races, no !important
+// fights, no drift across tabs.
+function _markCardsWithTab() {
+  // Invert _TAB_CARDS: card_id -> Set of tabs it belongs to.
+  const cardToTabs = {};
+  for (const [tab, ids] of Object.entries(_TAB_CARDS)) {
+    for (const id of ids) {
+      if (!cardToTabs[id]) cardToTabs[id] = new Set();
+      cardToTabs[id].add(tab);
+    }
+  }
+  document.querySelectorAll("#tab-dash > .c").forEach(el => {
+    const tabs = cardToTabs[el.id];
+    if (tabs && tabs.size > 0) {
+      el.setAttribute("data-tab", [...tabs].join(" "));
+    }
+  });
+}
+
 function showTab(tab) {
+  const isMobileWidth = window.matchMedia("(max-width: 700px)").matches;
+
+  // Set the active-tab attribute on <body>. CSS hides/shows the grid +
+  // cards based on this + the data-tab attribute stamped on each card.
+  document.body.dataset.activeTab = tab;
+  if (isMobileWidth) {
+    if (tab === "dashboard") {
+      document.body.classList.remove("mobile-tab-active");
+    } else {
+      document.body.classList.add("mobile-tab-active");
+    }
+  }
+
   // Show only the named tab's grid (hide every other tab-* container).
   document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
-  // Dashboard/Execution/Performance/Alerts/Research/System all share
-  // the main #tab-dash grid — we toggle cards within it. Formula/config/
-  // lab keep their own legacy grids.
+
   const sharedTabs = ["dashboard", "execution", "performance",
                       "alerts", "research", "system"];
   if (sharedTabs.indexOf(tab) >= 0) {
     const dashGrid = document.getElementById("tab-dash");
     if (dashGrid) dashGrid.style.display = "";
-    const wanted = new Set(_TAB_CARDS[tab] || []);
+    // Filter cards by data-tab attribute (desktop + mobile both use this).
     document.querySelectorAll("#tab-dash > .c").forEach(el => {
-      const id = el.id || "";
-      // Respect pre-existing display:none (e.g. c-botledger sentinel).
       const preHidden = el.getAttribute("data-pre-hidden") === "1";
       if (preHidden) { el.style.display = "none"; return; }
-      el.style.display = wanted.has(id) ? "" : "none";
+      const cardTabs = (el.getAttribute("data-tab") || "").split(/\s+/);
+      el.style.display = cardTabs.includes(tab) ? "" : "none";
     });
-    // Stub tabs for execution/performance/alerts exist from phase-11n-9-i
-    // as placeholder grids — hide them now that the real content lives
-    // inside #tab-dash.
     const stub = document.getElementById("tab-" + tab);
     if (stub && stub !== dashGrid) stub.style.display = "none";
   } else {
     const t = document.getElementById('tab-' + tab);
     if (t) t.style.display = '';
   }
+
   document.querySelectorAll('aside nav a').forEach(a => a.classList.remove('active'));
-  if (event && event.target) event.target.classList.add('active');
+  if (typeof event !== "undefined" && event && event.target) {
+    event.target.classList.add('active');
+  }
+  if (isMobileWidth) window.scrollTo({top: 0, behavior: "instant"});
+}
+
+function _mtGoHome() {
+  document.body.classList.remove("mobile-tab-active");
+  showTab("dashboard");
 }
 
 // Initial tab on page load = dashboard (minimal control tower).
 document.addEventListener("DOMContentLoaded", () => {
+  // Phase 11n-9-v — stamp data-tab on every card from _TAB_CARDS map.
+  // Must run BEFORE the first showTab() call so the filter has real
+  // data to work with.
+  _markCardsWithTab();
   // Preserve any element that ships with display:none so the router
   // doesn't re-show it on tab switches (e.g. c-botledger).
   document.querySelectorAll("#tab-dash > .c").forEach(el => {
@@ -7950,8 +8083,14 @@ function _mtRenderHero(st){
   const upd = document.getElementById("mt-hero-updated");
   if (!hero) return;
   hero.classList.remove("halted","degraded","error");
+  // Phase 11n-9-w fix 10 — mark state as loaded so the loading pulse
+  // stops. The CSS `.mt-hero-state:not(.mt-loaded)` animation only
+  // runs when the class is missing.
+  state.classList.add("mt-loaded");
+  state.classList.remove("mt-error");
   if (!st) {
     state.textContent = "NO RESPONSE";
+    state.classList.add("mt-error");
     hero.classList.add("error");
     posture.textContent = "backend unreachable";
     sub.textContent = "Retry in a few seconds";
@@ -8067,10 +8206,17 @@ function _mtRenderPerformance(stats){
   const dd = document.getElementById("mt-perf-dd");
   const ex = document.getElementById("mt-perf-exits");
   if (!pnl) return;
+  // Phase 11n-9-w fix 10 — stop the loading pulse on all four metrics.
+  [pnl, wr, dd, ex].forEach(el => { if (el) el.classList.add("mt-loaded"); });
   if (!stats) {
-    [pnl, wr, dd, ex].forEach(el => el && (el.textContent = "—"));
+    [pnl, wr, dd, ex].forEach(el => {
+      if (!el) return;
+      el.textContent = "—";
+      el.classList.add("mt-error");
+    });
     return;
   }
+  [pnl, wr, dd, ex].forEach(el => el && el.classList.remove("mt-error"));
   const totalExits = +(stats.total_exits || 0);
   const wins = +(stats.wins || 0);
   const losses = +(stats.losses || 0);
@@ -8149,13 +8295,20 @@ function _mtOpenOverlay(kind) {
 }
 
 // Public handlers (kept same names for backward-compat with inline onclick).
-function _mtShowActMenu(){ _mtOpenOverlay("actMenu"); }
+// Phase 11n-9-w fix 5 — all three toggle symmetrically: tap the
+// trigger to open, tap again to close. Previously only mtMore toggled;
+// act/nav re-opened on second tap, forcing the operator to tap outside.
+function _mtShowActMenu(){
+  if (_mtActiveOverlay === "actMenu") { _mtCloseOverlay(); return; }
+  _mtOpenOverlay("actMenu");
+}
 function _mtHideActMenu(){ if (_mtActiveOverlay === "actMenu") _mtCloseOverlay(); }
-function _mtShowNavMenu(){ _mtOpenOverlay("navMenu"); }
+function _mtShowNavMenu(){
+  if (_mtActiveOverlay === "navMenu") { _mtCloseOverlay(); return; }
+  _mtOpenOverlay("navMenu");
+}
 function _mtHideNavMenu(){ if (_mtActiveOverlay === "navMenu") _mtCloseOverlay(); }
 function _mtShowMore(){
-  // Toggle behavior preserved for the in-page "More" drawer; opening
-  // it still closes any other overlay first.
   if (_mtActiveOverlay === "mtMore") { _mtCloseOverlay(); return; }
   _mtOpenOverlay("mtMore");
 }

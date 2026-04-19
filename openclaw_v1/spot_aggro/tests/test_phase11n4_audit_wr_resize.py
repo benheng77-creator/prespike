@@ -53,7 +53,7 @@ def _seed_healthy_db() -> None:
         ]
         for i, (sym, tier, pnl) in enumerate(data):
             con.execute(
-                "INSERT INTO apex_trade_log (ts_ms,symbol,module,action,"
+                "INSERT INTO trade_log (ts_ms,symbol,module,action,"
                 "side,notional_usd,avg_px,fee_usd,pnl_usd,correlation_id,"
                 "payload_json,tier) VALUES "
                 "(?,?,?,'exit','sell',5.0,1.0,0.01,?,NULL,'{}',?)",
@@ -62,7 +62,7 @@ def _seed_healthy_db() -> None:
         # enters so conv rate math is fully populated
         for i in range(15):
             con.execute(
-                "INSERT INTO apex_trade_log (ts_ms,symbol,module,action,"
+                "INSERT INTO trade_log (ts_ms,symbol,module,action,"
                 "side,notional_usd,avg_px,fee_usd,pnl_usd,correlation_id,"
                 "payload_json,tier) VALUES "
                 "(?,'BTC-USDT','M1_flow_A','enter','buy',5.0,1.0,0.01,"

@@ -9,7 +9,7 @@ Checks:
                          same DB, outputs must match (except report_id
                          uuid suffix + audit_rollup_id ts).
   2. DB-RECONCILIATION — each tier's claimed WR must match the WR
-                         computed directly from apex_trade_log for the
+                         computed directly from trade_log for the
                          same window. Catches "agent lies about math".
   3. EVIDENCE-REFS     — every recommendation.evidence.tier must match
                          a real tier row in tier_stats; every symbol
@@ -153,7 +153,7 @@ def _check_db_reconciliation(report: dict[str, Any]) -> TruthFinding:
         rows = con.execute(
             "SELECT tier, COUNT(CASE WHEN action='exit' AND pnl_usd > 0.001 THEN 1 END) AS wins, "
             "             COUNT(CASE WHEN action='exit' AND pnl_usd IS NOT NULL THEN 1 END) AS exits "
-            "FROM apex_trade_log "
+            "FROM trade_log "
             "WHERE tier IN ('A+','A','B','C') AND ts_ms > ? AND ts_ms <= ? "
             "AND (module LIKE 'M1_squeeze%' OR module LIKE 'M1_flow%' "
             "     OR module LIKE 'M1_scalp%' OR module LIKE 'M3_blitz%') "
@@ -234,7 +234,7 @@ def _check_evidence_refs(report: dict[str, Any]) -> TruthFinding:
                 # Match symbol across ANY tier (report rollups may tag a
                 # different tier than the symbol historically traded on).
                 n = con.execute(
-                    "SELECT COUNT(*) FROM apex_trade_log "
+                    "SELECT COUNT(*) FROM trade_log "
                     "WHERE symbol = ? AND action='exit' "
                     "AND ts_ms > ? AND pnl_usd IS NOT NULL",
                     (sym, cutoff_ms),

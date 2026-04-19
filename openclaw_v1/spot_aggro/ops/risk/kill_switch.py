@@ -20,7 +20,7 @@ except Exception:
     _notify = None          # notifications package optional at import time
 
 
-log = logging.getLogger("apex.risk.kill_switch")
+log = logging.getLogger("ops.risk.kill_switch")
 
 
 def _lock_path() -> Path:

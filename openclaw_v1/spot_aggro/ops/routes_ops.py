@@ -77,7 +77,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # ---------------------------------------------------------------------------
 
 @router.get("/status")
-def apex_status() -> dict[str, Any]:
+def ops_status() -> dict[str, Any]:
     cfg = load_cfg()
     open_pairs = persist.list_open_pairs()
     peak = persist.latest_peak() or 0.0
@@ -85,7 +85,7 @@ def apex_status() -> dict[str, Any]:
     try:
         last_eq = con.execute(
             "SELECT equity_usd, peak_usd, drawdown_pct, positions_open, ts_ms "
-            "FROM apex_equity_marks ORDER BY ts_ms DESC LIMIT 1"
+            "FROM equity_marks ORDER BY ts_ms DESC LIMIT 1"
         ).fetchone()
     finally:
         con.close()
@@ -113,7 +113,7 @@ def apex_status() -> dict[str, Any]:
 
 
 @router.get("/trades")
-def apex_trades(limit: int = Query(50, ge=1, le=5000)) -> dict[str, Any]:
+def ops_trades(limit: int = Query(50, ge=1, le=5000)) -> dict[str, Any]:
     """Phase 11b final — `tier` is now a top-level field on every row.
 
     Canonical tier (A+/A/B/C) for scored activity, "?" for reconciled,
@@ -131,7 +131,7 @@ def apex_trades(limit: int = Query(50, ge=1, le=5000)) -> dict[str, Any]:
         rows = con.execute(
             "SELECT ts_ms, symbol, module, action, side, notional_usd, "
             "avg_px, fee_usd, pnl_usd, correlation_id, payload_json, tier "
-            "FROM apex_trade_log ORDER BY ts_ms DESC LIMIT ?",
+            "FROM trade_log ORDER BY ts_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
     finally:
@@ -140,13 +140,13 @@ def apex_trades(limit: int = Query(50, ge=1, le=5000)) -> dict[str, Any]:
 
 
 @router.get("/consensus")
-def apex_consensus(limit: int = Query(30, ge=1, le=200)) -> dict[str, Any]:
+def ops_consensus(limit: int = Query(30, ge=1, le=200)) -> dict[str, Any]:
     con = persist._connect()
     try:
         rows = con.execute(
             "SELECT ts_ms, symbol, consensus_score, conflict_score, vetoed, "
             "members_called, kl_stop_at "
-            "FROM apex_consensus_log ORDER BY ts_ms DESC LIMIT ?",
+            "FROM consensus_log ORDER BY ts_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
     finally:
@@ -155,24 +155,24 @@ def apex_consensus(limit: int = Query(30, ge=1, le=200)) -> dict[str, Any]:
 
 
 @router.get("/llm/cost")
-def apex_llm_cost() -> dict[str, Any]:
+def llm_cost() -> dict[str, Any]:
     cutoff_24h = int((time.time() - 86400) * 1000)
     cutoff_3h  = int((time.time() - 10800) * 1000)
     con = persist._connect()
     try:
         total_24 = con.execute(
             "SELECT IFNULL(SUM(cost_usd), 0) AS c, COUNT(*) AS n "
-            "FROM apex_llm_cost WHERE ts_ms >= ?", (cutoff_24h,),
+            "FROM llm_cost WHERE ts_ms >= ?", (cutoff_24h,),
         ).fetchone()
         total_3  = con.execute(
             "SELECT IFNULL(SUM(cost_usd), 0) AS c, COUNT(*) AS n "
-            "FROM apex_llm_cost WHERE ts_ms >= ?", (cutoff_3h,),
+            "FROM llm_cost WHERE ts_ms >= ?", (cutoff_3h,),
         ).fetchone()
         by_prov = con.execute(
             "SELECT provider, model, COUNT(*) AS n, "
             "IFNULL(SUM(cost_usd), 0) AS cost, IFNULL(AVG(latency_ms), 0) AS lat, "
             "SUM(ok) AS ok "
-            "FROM apex_llm_cost WHERE ts_ms >= ? GROUP BY provider, model",
+            "FROM llm_cost WHERE ts_ms >= ? GROUP BY provider, model",
             (cutoff_24h,),
         ).fetchall()
     finally:
@@ -185,7 +185,7 @@ def apex_llm_cost() -> dict[str, Any]:
 
 
 @router.get("/llm/health")
-def apex_llm_health() -> dict[str, Any]:
+def ops_llm_health() -> dict[str, Any]:
     """Per-provider last-call status. 5-minute rolling window so the dashboard
     reflects current reality, not stale historic failures (e.g. pre-topup 402s)."""
     cfg_members = load_cfg()["llm"]["members"]
@@ -196,7 +196,7 @@ def apex_llm_health() -> dict[str, Any]:
             "SELECT provider, model, "
             "SUM(CASE WHEN ok=1 THEN 1 ELSE 0 END) AS ok_n, COUNT(*) AS n, "
             "MAX(ts_ms) AS last_ts, IFNULL(AVG(latency_ms), 0) AS lat "
-            "FROM apex_llm_cost WHERE ts_ms >= ? GROUP BY provider, model",
+            "FROM llm_cost WHERE ts_ms >= ? GROUP BY provider, model",
             (cutoff,),
         ).fetchall()
     finally:
@@ -235,13 +235,13 @@ def _health_tag(n: int, ok_n: int) -> str:
 
 
 @router.get("/notifications")
-def apex_notifications(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+def notifications(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
     con = persist._connect()
     try:
         rows = con.execute(
             "SELECT ts_ms, event_type, symbol, severity, title, body, "
             "channel_tg_ok, channel_wa_ok "
-            "FROM apex_notifications ORDER BY ts_ms DESC LIMIT ?",
+            "FROM notifications ORDER BY ts_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
     finally:
@@ -250,12 +250,12 @@ def apex_notifications(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
 
 
 @router.get("/pnl")
-def apex_pnl() -> dict[str, Any]:
+def ops_pnl() -> dict[str, Any]:
     return pnl_reporter.build_report()
 
 
 @router.get("/kill")
-def apex_kill() -> dict[str, Any]:
+def ops_kill() -> dict[str, Any]:
     return {
         "locked": kill_switch.is_locked(),
         "latest_event": persist.latest_unresolved_kill(),
@@ -267,7 +267,7 @@ def apex_kill() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @router.post("/pause")
-def apex_pause(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
+def ops_pause(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
     """Pause ALL engine activity — no LLM, no orders, no scanning."""
     _require_admin(x_ops_token)
     app_settings.save({"engine_paused": True})
@@ -279,7 +279,7 @@ def apex_pause(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]
 
 
 @router.post("/resume")
-def apex_resume(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
+def ops_resume(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
     """Resume engine activity after pause."""
     _require_admin(x_ops_token)
     app_settings.save({"engine_paused": False})
@@ -291,7 +291,7 @@ def apex_resume(x_ops_token: str | None = Header(default=None)) -> dict[str, Any
 
 
 @router.post("/flatten")
-def apex_flatten(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
+def ops_flatten(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
     """Pause + close all open positions."""
     _require_admin(x_ops_token)
     app_settings.save({"engine_paused": True})
@@ -306,7 +306,7 @@ def apex_flatten(x_ops_token: str | None = Header(default=None)) -> dict[str, An
 
 
 @router.post("/halt")
-def apex_halt(reason: str = "manual",
+def ops_halt(reason: str = "manual",
               x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
     _require_admin(x_ops_token)
     app_settings.save({"engine_paused": True})
@@ -322,7 +322,7 @@ def apex_halt(reason: str = "manual",
 
 
 @router.post("/trigger_pnl")
-def apex_trigger_pnl(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
+def ops_trigger_pnl(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
     _require_admin(x_ops_token)
     r = pnl_reporter.build_report()
     notify_router.pnl_report(r)
@@ -334,12 +334,12 @@ def apex_trigger_pnl(x_ops_token: str | None = Header(default=None)) -> dict[str
 # ---------------------------------------------------------------------------
 
 @router.get("/settings")
-def apex_settings_get() -> dict[str, Any]:
+def ops_settings_get() -> dict[str, Any]:
     return app_settings.load()
 
 
 @router.post("/settings")
-def apex_settings_patch(
+def ops_settings_patch(
     patch: dict[str, Any] = Body(...),
     x_ops_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
@@ -352,7 +352,7 @@ def apex_settings_patch(
 # ---------------------------------------------------------------------------
 
 @router.get("/governor")
-def apex_governor() -> dict[str, Any]:
+def ops_governor() -> dict[str, Any]:
     g = governor.get_effective_gates()
     return {
         "consensus_min_effective": g.consensus_min,
@@ -370,7 +370,7 @@ def apex_governor() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @router.get("/consensus/live")
-def apex_consensus_live(limit: int = Query(10, ge=1, le=50)) -> dict[str, Any]:
+def ops_consensus_live(limit: int = Query(10, ge=1, le=50)) -> dict[str, Any]:
     """
     Full per-member breakdown of the most recent consensus calls.
     Dashboard uses this to show LLM reasoning in real time.
@@ -380,7 +380,7 @@ def apex_consensus_live(limit: int = Query(10, ge=1, le=50)) -> dict[str, Any]:
         rows = con.execute(
             "SELECT ts_ms, symbol, consensus_score, conflict_score, vetoed, "
             "members_called, kl_stop_at, payload_json "
-            "FROM apex_consensus_log ORDER BY ts_ms DESC LIMIT ?",
+            "FROM consensus_log ORDER BY ts_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
     finally:
@@ -408,7 +408,7 @@ def apex_consensus_live(limit: int = Query(10, ge=1, le=50)) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @router.get("/universe")
-def apex_universe() -> dict[str, Any]:
+def ops_universe() -> dict[str, Any]:
     coins = universe_discovery.cached_universe()
     return {
         "mode": app_settings.load().get("universe_mode"),
@@ -429,7 +429,7 @@ def apex_universe() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @router.get("/watchdog")
-def apex_watchdog(
+def ops_watchdog(
     limit: int = Query(20, ge=1, le=200),
     engine: str | None = Query(None, description="Filter by engine, e.g. 'spot' hides perp-module noise"),
 ) -> dict[str, Any]:
@@ -440,7 +440,7 @@ def apex_watchdog(
 
 
 @router.post("/watchdog/process")
-def apex_watchdog_process(
+def ops_watchdog_process(
     x_ops_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _require_admin(x_ops_token)
@@ -454,18 +454,18 @@ def apex_watchdog_process(
 # ---------------------------------------------------------------------------
 
 @router.get("/research/latest")
-def apex_research_latest() -> dict[str, Any]:
+def ops_research_latest() -> dict[str, Any]:
     """Latest 5-minute research report — top 3 coins + reasoning."""
     return research_scanner.get_latest()
 
 
 @router.get("/research/history")
-def apex_research_history(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
+def ops_research_history(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
     return {"reports": research_scanner.get_history(limit=limit)}
 
 
 @router.post("/research/scan")
-def apex_research_scan_now(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
+def ops_research_scan_now(x_ops_token: str | None = Header(default=None)) -> dict[str, Any]:
     """Trigger one research scan immediately. Admin-only."""
     _require_admin(x_ops_token)
     import asyncio

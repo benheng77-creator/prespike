@@ -125,7 +125,7 @@ def _insert(db, *, tier, action, pnl, ts_ms, module="M1_flow_B"):
     con = persist._connect()
     try:
         con.execute(
-            "INSERT INTO apex_trade_log "
+            "INSERT INTO trade_log "
             "(ts_ms, symbol, module, action, side, notional_usd, avg_px, "
             " fee_usd, pnl_usd, correlation_id, payload_json, tier) "
             "VALUES (?, 'X-USDT', ?, ?, 'sell', 5.0, 1.0, 0.01, ?, NULL, '{}', ?)",

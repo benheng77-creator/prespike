@@ -4,7 +4,7 @@ trade is rejected with an error, a compact failure snapshot is queued.
 The watchdog asks an LLM to classify the root cause and suggest the
 minimal remediation (config change / operator action / code fix).
 
-Output goes to apex_watchdog_findings for operator review. This module
+Output goes to watchdog_findings for operator review. This module
 DOES NOT auto-apply code changes — that remains a human decision — but
 it produces concrete, actionable lines like:
     "ROOT: OKX 51008 = 'Insufficient margin'. Lower max_notional_pct
@@ -28,7 +28,7 @@ log = logging.getLogger("apex.watchdog")
 
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS apex_watchdog_queue (
+CREATE TABLE IF NOT EXISTS watchdog_queue (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_ms           INTEGER NOT NULL,
     source          TEXT NOT NULL,            -- engine | module | adapter | llm | reconciler
@@ -38,9 +38,9 @@ CREATE TABLE IF NOT EXISTS apex_watchdog_queue (
     context_json    TEXT,
     processed       INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_wd_q_ts ON apex_watchdog_queue(processed, ts_ms);
+CREATE INDEX IF NOT EXISTS idx_wd_q_ts ON watchdog_queue(processed, ts_ms);
 
-CREATE TABLE IF NOT EXISTS apex_watchdog_findings (
+CREATE TABLE IF NOT EXISTS watchdog_findings (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     queue_id        INTEGER NOT NULL,
     ts_ms           INTEGER NOT NULL,
@@ -51,9 +51,9 @@ CREATE TABLE IF NOT EXISTS apex_watchdog_findings (
     llm_provider    TEXT,
     llm_model       TEXT,
     llm_latency_ms  INTEGER,
-    FOREIGN KEY(queue_id) REFERENCES apex_watchdog_queue(id)
+    FOREIGN KEY(queue_id) REFERENCES watchdog_queue(id)
 );
-CREATE INDEX IF NOT EXISTS idx_wd_f_ts ON apex_watchdog_findings(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_wd_f_ts ON watchdog_findings(ts_ms DESC);
 """
 
 
@@ -87,7 +87,7 @@ def enqueue(*, source: str, error_class: str, error_msg: str,
         con = persist._connect()
         try:
             con.execute(
-                "INSERT INTO apex_watchdog_queue (ts_ms, source, symbol, error_class, error_msg, context_json) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO watchdog_queue (ts_ms, source, symbol, error_class, error_msg, context_json) VALUES (?, ?, ?, ?, ?, ?)",
                 (int(time.time()*1000), source, symbol, error_class,
                  error_msg[:400],
                  json.dumps(context or {}, default=str)),
@@ -107,7 +107,7 @@ def list_unprocessed(
     con = persist._connect()
     try:
         rows = con.execute(
-            "SELECT * FROM apex_watchdog_queue WHERE processed = 0 "
+            "SELECT * FROM watchdog_queue WHERE processed = 0 "
             "ORDER BY ts_ms ASC LIMIT ?", (limit,),
         ).fetchall()
     finally:
@@ -124,7 +124,7 @@ def list_unprocessed(
 def mark_processed(queue_id: int) -> None:
     con = persist._connect()
     try:
-        con.execute("UPDATE apex_watchdog_queue SET processed=1 WHERE id=?", (queue_id,))
+        con.execute("UPDATE watchdog_queue SET processed=1 WHERE id=?", (queue_id,))
         con.commit()
     finally:
         con.close()
@@ -153,7 +153,7 @@ def recent_findings(
     try:
         rows = con.execute(
             "SELECT w.*, q.source, q.symbol, q.error_class, q.error_msg "
-            "FROM apex_watchdog_findings w LEFT JOIN apex_watchdog_queue q "
+            "FROM watchdog_findings w LEFT JOIN watchdog_queue q "
             "ON w.queue_id = q.id ORDER BY w.ts_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
@@ -262,7 +262,7 @@ def _persist_finding(f: dict[str, Any]) -> None:
     con = persist._connect()
     try:
         con.execute(
-            "INSERT INTO apex_watchdog_findings (queue_id, ts_ms, root_cause, remediation, severity, suggested_config_patch_json, llm_provider, llm_model, llm_latency_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO watchdog_findings (queue_id, ts_ms, root_cause, remediation, severity, suggested_config_patch_json, llm_provider, llm_model, llm_latency_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (f["queue_id"], int(time.time()*1000),
              f["root_cause"], f["remediation"], f["severity"],
              json.dumps(f.get("suggested_config_patch"), default=str),
@@ -297,7 +297,7 @@ def start(interval_s: int = 60) -> None:
                     return
                 time.sleep(1)
 
-    _thread = threading.Thread(target=_loop, name="apex_watchdog", daemon=True)
+    _thread = threading.Thread(target=_loop, name="ops_watchdog", daemon=True)
     _thread.start()
 
 

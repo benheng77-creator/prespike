@@ -30,7 +30,7 @@ from typing import Any, Optional
 from ..config import load as load_cfg
 
 
-log = logging.getLogger("apex.adapters.okx")
+log = logging.getLogger("ops.adapters.okx")
 
 
 class OKXError(Exception):
@@ -565,7 +565,7 @@ class OKXUnified:
                     import time as _time
                     cutoff_ms = int((_time.time() - 86400) * 1000)
                     rows = con.execute(
-                        "SELECT DISTINCT symbol FROM apex_trade_log "
+                        "SELECT DISTINCT symbol FROM trade_log "
                         "WHERE ts_ms > ? AND action='enter' AND tier = ?",
                         (cutoff_ms, tier),
                     ).fetchall()

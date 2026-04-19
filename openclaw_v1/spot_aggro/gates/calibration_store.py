@@ -31,7 +31,7 @@ log = logging.getLogger("spot_aggro.gate.l3.store")
 
 _CALIBRATION_SCHEMA = """
 -- SPOT AGGRO L3 calibration buckets. Nightly job rebuilds this from the
--- last 30 days of closed trades in apex_trade_log.
+-- last 30 days of closed trades in trade_log.
 CREATE TABLE IF NOT EXISTS spot_aggro_calibration_table (
     tier            TEXT    NOT NULL,
     symbol          TEXT    NOT NULL,

@@ -34,7 +34,7 @@ from ..config import load as load_cfg
 from ..persistence import state as persist
 
 
-log = logging.getLogger("apex.llm.consensus")
+log = logging.getLogger("ops.llm.consensus")
 
 
 # ---------------------------------------------------------------------------

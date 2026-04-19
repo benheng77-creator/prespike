@@ -61,7 +61,7 @@ def _collect_trades(period_start: float, period_end: float) -> list[dict]:
     try:
         con = persist._connect()
         rows = con.execute(
-            "SELECT * FROM apex_trade_log WHERE ts_ms >= ? AND ts_ms <= ? ORDER BY ts_ms ASC",
+            "SELECT * FROM trade_log WHERE ts_ms >= ? AND ts_ms <= ? ORDER BY ts_ms ASC",
             (int(period_start * 1000), int(period_end * 1000)),
         ).fetchall()
         con.close()

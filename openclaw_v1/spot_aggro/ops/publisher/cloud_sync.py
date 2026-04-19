@@ -84,8 +84,8 @@ def _push(kind: str, data: dict[str, Any]) -> bool:
 
 def _collect_status() -> dict[str, Any]:
     try:
-        from ..api.routes import apex_status
-        return apex_status()
+        from ..api.routes import ops_status
+        return ops_status()
     except Exception:
         return {"error": "collect_failed"}
 
@@ -100,32 +100,32 @@ def _collect_pnl() -> dict[str, Any]:
 
 def _collect_trades() -> dict[str, Any]:
     try:
-        from ..api.routes import apex_trades
-        return apex_trades(limit=20)
+        from ..api.routes import ops_trades
+        return ops_trades(limit=20)
     except Exception:
         return {"error": "collect_failed"}
 
 
 def _collect_consensus() -> dict[str, Any]:
     try:
-        from ..api.routes import apex_consensus_live
-        return apex_consensus_live(limit=10)
+        from ..api.routes import ops_consensus_live
+        return ops_consensus_live(limit=10)
     except Exception:
         return {"error": "collect_failed"}
 
 
 def _collect_governor() -> dict[str, Any]:
     try:
-        from ..api.routes import apex_governor
-        return apex_governor()
+        from ..api.routes import ops_governor
+        return ops_governor()
     except Exception:
         return {"error": "collect_failed"}
 
 
 def _collect_llm_health() -> dict[str, Any]:
     try:
-        from ..api.routes import apex_llm_health
-        return apex_llm_health()
+        from ..api.routes import ops_llm_health
+        return ops_llm_health()
     except Exception:
         return {"error": "collect_failed"}
 
@@ -140,8 +140,8 @@ def _collect_research() -> dict[str, Any]:
 
 def _collect_universe() -> dict[str, Any]:
     try:
-        from ..api.routes import apex_universe
-        return apex_universe()
+        from ..api.routes import ops_universe
+        return ops_universe()
     except Exception:
         return {"error": "collect_failed"}
 
@@ -182,14 +182,14 @@ def _safe_collect(kind: str) -> dict[str, Any]:
     """Collect data via the API routes directly (safe, no missing functions)."""
     try:
         if kind == "notifications":
-            from ..api.routes import apex_notifications
-            return apex_notifications(limit=10)
+            from ..api.routes import notifications
+            return notifications(limit=10)
         elif kind == "kill":
-            from ..api.routes import apex_kill
-            return apex_kill()
+            from ..api.routes import ops_kill
+            return ops_kill()
         elif kind == "llm_cost":
-            from ..api.routes import apex_llm_cost
-            return apex_llm_cost()
+            from ..api.routes import llm_cost
+            return llm_cost()
     except Exception:
         pass
     return {}

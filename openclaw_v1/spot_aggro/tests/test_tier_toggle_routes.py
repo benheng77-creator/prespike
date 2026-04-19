@@ -339,7 +339,7 @@ def test_server_mounts_both_ops_and_spot_routers() -> None:
     assert "from spot_aggro.api.routes import router as _spot_router" in src
     assert "app.include_router(_spot_router)" in src
     # server.py must not IMPORT apex_omega. Comments that reference
-    # the name (e.g. the apex_purge_gov startup hook's docstring) are
+    # the name (e.g. the legacy_purge_gov startup hook's docstring) are
     # fine — the governor's whole purpose is to mention it.
     import re as _re
     stripped = _re.sub(r'"""[\s\S]*?"""', "", src)

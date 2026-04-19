@@ -122,7 +122,7 @@ def _load_closed_trades(start_ms: int, end_ms: int, gaps: list[str]) -> list[dic
         exits = con.execute(
             "SELECT id, ts_ms, symbol, module, side, notional_usd, avg_px, "
             "       fee_usd, pnl_usd, payload_json "
-            "FROM apex_trade_log "
+            "FROM trade_log "
             "WHERE ts_ms >= ? AND ts_ms < ? AND action = 'exit' "
             "ORDER BY ts_ms ASC",
             (start_ms, end_ms),
@@ -141,7 +141,7 @@ def _load_closed_trades(start_ms: int, end_ms: int, gaps: list[str]) -> list[dic
             # strictly before the exit timestamp.
             enter = con.execute(
                 "SELECT id, ts_ms, avg_px, payload_json "
-                "FROM apex_trade_log "
+                "FROM trade_log "
                 "WHERE symbol = ? AND action = 'enter' AND ts_ms < ? "
                 "ORDER BY ts_ms DESC LIMIT 1",
                 (symbol, ex["ts_ms"]),
@@ -239,7 +239,7 @@ def _load_consensus(start_ms: int, end_ms: int) -> list[dict]:
         rows = con.execute(
             "SELECT ts_ms, symbol, consensus_score, conflict_score, vetoed, "
             "       members_called "
-            "FROM apex_consensus_log "
+            "FROM consensus_log "
             "WHERE ts_ms >= ? AND ts_ms < ? "
             "ORDER BY ts_ms ASC",
             (start_ms, end_ms),
@@ -312,8 +312,8 @@ def _load_infra_findings(start_ms: int, end_ms: int) -> list[dict]:
         rows = con.execute(
             "SELECT w.ts_ms, q.source, w.severity, "
             "       w.root_cause, q.error_msg, q.error_class "
-            "FROM apex_watchdog_findings w "
-            "LEFT JOIN apex_watchdog_queue q ON w.queue_id = q.id "
+            "FROM watchdog_findings w "
+            "LEFT JOIN watchdog_queue q ON w.queue_id = q.id "
             "WHERE w.ts_ms >= ? AND w.ts_ms < ? "
             "ORDER BY w.ts_ms ASC",
             (start_ms, end_ms),

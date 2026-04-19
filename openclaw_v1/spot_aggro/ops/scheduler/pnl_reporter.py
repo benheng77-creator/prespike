@@ -6,9 +6,9 @@ Aggregates:
     * peak + drawdown
     * open pairs count
     * trade activity in last 3 h  (enters, exits, total)
-    * realised pnl_3h  (sum of apex_trade_log.pnl_usd for action='exit')
+    * realised pnl_3h  (sum of trade_log.pnl_usd for action='exit')
     * fees_3h
-    * LLM spend in 3 h  (sum apex_llm_cost)
+    * LLM spend in 3 h  (sum llm_cost)
 
 Sends via notifications.router.pnl_report — Telegram + WhatsApp + DB.
 """
@@ -81,12 +81,12 @@ def build_report() -> dict[str, Any]:
         trades = con.execute(
             "SELECT action, COUNT(*) AS n, IFNULL(SUM(fee_usd), 0) AS fees, "
             "IFNULL(SUM(pnl_usd), 0) AS pnl "
-            "FROM apex_trade_log WHERE ts_ms >= ? GROUP BY action",
+            "FROM trade_log WHERE ts_ms >= ? GROUP BY action",
             (cutoff_ms,),
         ).fetchall()
         llm = con.execute(
             "SELECT COUNT(*) AS n, IFNULL(SUM(cost_usd), 0) AS cost "
-            "FROM apex_llm_cost WHERE ts_ms >= ?",
+            "FROM llm_cost WHERE ts_ms >= ?",
             (cutoff_ms,),
         ).fetchone()
     finally:
@@ -132,7 +132,7 @@ def _equity_and_peak() -> tuple[float, float]:
     con = persist._connect()
     try:
         r = con.execute(
-            "SELECT equity_usd FROM apex_equity_marks ORDER BY ts_ms DESC LIMIT 1"
+            "SELECT equity_usd FROM equity_marks ORDER BY ts_ms DESC LIMIT 1"
         ).fetchone()
     finally:
         con.close()

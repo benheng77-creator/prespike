@@ -30,7 +30,7 @@ def _db_path() -> str:
 
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS apex_open_pairs (
+CREATE TABLE IF NOT EXISTS open_pairs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol          TEXT NOT NULL UNIQUE,
     module          TEXT NOT NULL,            -- M1 funding | M2 statarb | M3 tri | M4 liq
@@ -44,9 +44,9 @@ CREATE TABLE IF NOT EXISTS apex_open_pairs (
     conflict        REAL NOT NULL,
     metadata_json   TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_apex_open_pairs_module ON apex_open_pairs(module);
+CREATE INDEX IF NOT EXISTS idx_open_pairs_module ON open_pairs(module);
 
-CREATE TABLE IF NOT EXISTS apex_equity_marks (
+CREATE TABLE IF NOT EXISTS equity_marks (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_ms           INTEGER NOT NULL,
     equity_usd      REAL NOT NULL,
@@ -54,9 +54,9 @@ CREATE TABLE IF NOT EXISTS apex_equity_marks (
     drawdown_pct    REAL NOT NULL,
     positions_open  INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_apex_eq_ts ON apex_equity_marks(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_eq_ts ON equity_marks(ts_ms DESC);
 
-CREATE TABLE IF NOT EXISTS apex_kill_events (
+CREATE TABLE IF NOT EXISTS kill_events (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_ms           INTEGER NOT NULL,
     reason          TEXT NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS apex_kill_events (
     unlock_reason   TEXT
 );
 
-CREATE TABLE IF NOT EXISTS apex_trade_log (
+CREATE TABLE IF NOT EXISTS trade_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_ms           INTEGER NOT NULL,
     symbol          TEXT NOT NULL,
@@ -83,12 +83,12 @@ CREATE TABLE IF NOT EXISTS apex_trade_log (
     payload_json    TEXT,
     tier            TEXT                       -- Phase 11b final: canonical A+/A/B/C or "?" for reconciled
 );
-CREATE INDEX IF NOT EXISTS idx_apex_trade_ts ON apex_trade_log(ts_ms DESC);
-CREATE INDEX IF NOT EXISTS idx_apex_trade_sym ON apex_trade_log(symbol, ts_ms DESC);
--- idx_apex_trade_tier is created inside the migration fn instead, because
+CREATE INDEX IF NOT EXISTS idx_trade_ts ON trade_log(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_trade_sym ON trade_log(symbol, ts_ms DESC);
+-- idx_trade_tier is created inside the migration fn instead, because
 -- on pre-Phase-11b DBs the `tier` column doesn't exist until after ALTER.
 
-CREATE TABLE IF NOT EXISTS apex_llm_cost (
+CREATE TABLE IF NOT EXISTS llm_cost (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_ms           INTEGER NOT NULL,
     symbol          TEXT,
@@ -100,9 +100,9 @@ CREATE TABLE IF NOT EXISTS apex_llm_cost (
     ok              INTEGER,
     error           TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_apex_llm_ts ON apex_llm_cost(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_llm_ts ON llm_cost(ts_ms DESC);
 
-CREATE TABLE IF NOT EXISTS apex_consensus_log (
+CREATE TABLE IF NOT EXISTS consensus_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_ms           INTEGER NOT NULL,
     symbol          TEXT NOT NULL,
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS apex_consensus_log (
     kl_stop_at      INTEGER,
     payload_json    TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_apex_consensus_ts ON apex_consensus_log(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_consensus_ts ON consensus_log(ts_ms DESC);
 
 -- SPOT AGGRO per-(symbol, tier, regime) outcome memory. Feeds adaptive
 -- universe: soft composite multiplier, cooldown on loss streak, and last-
@@ -215,15 +215,15 @@ def init_schema() -> None:
             # existing table, so we ALTER + backfill here. Idempotent:
             # the existence check guards against re-runs, and the backfill
             # only touches rows where tier is NULL.
-            _migrate_apex_trade_log_tier_column(con)
+            _migrate_trade_log_tier_column(con)
             con.commit()
         finally:
             con.close()
         _initialized = True
 
 
-def _migrate_apex_trade_log_tier_column(con) -> None:
-    """Add `tier` column to apex_trade_log on pre-existing DBs and backfill
+def _migrate_trade_log_tier_column(con) -> None:
+    """Add `tier` column to trade_log on pre-existing DBs and backfill
     it from the best available evidence. Canonical tier is recovered from:
       1. payload_json.tier if present and non-empty (authoritative)
       2. module pattern (M1_squeeze_* → A, M1_flow_B → B, M1_scalp_C → C,
@@ -234,20 +234,20 @@ def _migrate_apex_trade_log_tier_column(con) -> None:
     the heatmap lane for "unknown-provenance" surfaces them explicitly.
     """
     # Detect whether tier column already exists.
-    cols = [r[1] for r in con.execute("PRAGMA table_info(apex_trade_log)").fetchall()]
+    cols = [r[1] for r in con.execute("PRAGMA table_info(trade_log)").fetchall()]
     if "tier" not in cols:
-        con.execute("ALTER TABLE apex_trade_log ADD COLUMN tier TEXT")
+        con.execute("ALTER TABLE trade_log ADD COLUMN tier TEXT")
     # Index creation is idempotent and runs on BOTH fresh and legacy DBs
     # (fresh DBs defined the column in _SCHEMA but not the index).
     con.execute(
-        "CREATE INDEX IF NOT EXISTS idx_apex_trade_tier "
-        "ON apex_trade_log(tier, action, ts_ms DESC)"
+        "CREATE INDEX IF NOT EXISTS idx_trade_tier "
+        "ON trade_log(tier, action, ts_ms DESC)"
     )
     # Backfill. Each branch is a pure-SQL expression so it runs in one pass
     # per case without pulling rows into Python.
     # 1. payload_json.tier when present and non-empty.
     con.execute(
-        "UPDATE apex_trade_log SET tier = json_extract(payload_json, '$.tier') "
+        "UPDATE trade_log SET tier = json_extract(payload_json, '$.tier') "
         "WHERE tier IS NULL "
         "AND payload_json IS NOT NULL "
         "AND json_extract(payload_json, '$.tier') IS NOT NULL "
@@ -266,13 +266,13 @@ def _migrate_apex_trade_log_tier_column(con) -> None:
     )
     for mod_prefix, tier in module_map:
         con.execute(
-            "UPDATE apex_trade_log SET tier = ? "
+            "UPDATE trade_log SET tier = ? "
             "WHERE tier IS NULL AND module LIKE ?",
             (tier, mod_prefix + "%"),
         )
     # 3. Reconciled sentinel.
     con.execute(
-        "UPDATE apex_trade_log SET tier = '?' "
+        "UPDATE trade_log SET tier = '?' "
         "WHERE tier IS NULL AND module LIKE 'M_reconciled%'"
     )
     # Anything still NULL has unknown provenance; heatmap surfaces it as
@@ -304,7 +304,7 @@ def upsert_pair(p: OpenPair) -> None:
     try:
         con.execute(
             """
-            INSERT INTO apex_open_pairs
+            INSERT INTO open_pairs
                 (symbol, module, side_perp, side_spot, notional_usd,
                  entry_funding, entry_ts_ms, updated_ts_ms,
                  consensus, conflict, metadata_json)
@@ -335,7 +335,7 @@ def delete_pair(symbol: str) -> None:
     init_schema()
     con = _connect()
     try:
-        con.execute("DELETE FROM apex_open_pairs WHERE symbol = ?", (symbol,))
+        con.execute("DELETE FROM open_pairs WHERE symbol = ?", (symbol,))
         con.commit()
     finally:
         con.close()
@@ -346,7 +346,7 @@ def list_open_pairs() -> list[OpenPair]:
     con = _connect()
     try:
         rows = con.execute(
-            "SELECT * FROM apex_open_pairs ORDER BY entry_ts_ms ASC"
+            "SELECT * FROM open_pairs ORDER BY entry_ts_ms ASC"
         ).fetchall()
     finally:
         con.close()
@@ -374,7 +374,7 @@ def record_equity(equity_usd: float, peak_usd: float, positions: int) -> None:
     con = _connect()
     try:
         con.execute(
-            "INSERT INTO apex_equity_marks (ts_ms, equity_usd, peak_usd, drawdown_pct, positions_open) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO equity_marks (ts_ms, equity_usd, peak_usd, drawdown_pct, positions_open) VALUES (?, ?, ?, ?, ?)",
             (int(time.time() * 1000), equity_usd, peak_usd, dd, positions),
         )
         con.commit()
@@ -387,7 +387,7 @@ def latest_peak() -> Optional[float]:
     con = _connect()
     try:
         r = con.execute(
-            "SELECT MAX(peak_usd) AS p FROM apex_equity_marks"
+            "SELECT MAX(peak_usd) AS p FROM equity_marks"
         ).fetchone()
     finally:
         con.close()
@@ -400,7 +400,7 @@ def record_kill_event(reason: str, drawdown_pct: float,
     con = _connect()
     try:
         cur = con.execute(
-            "INSERT INTO apex_kill_events (ts_ms, reason, drawdown_pct, equity_usd, peak_usd) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO kill_events (ts_ms, reason, drawdown_pct, equity_usd, peak_usd) VALUES (?, ?, ?, ?, ?)",
             (int(time.time() * 1000), reason, drawdown_pct, equity_usd, peak_usd),
         )
         con.commit()
@@ -414,7 +414,7 @@ def record_kill_unlock(kill_id: int, by: str, reason: str) -> None:
     con = _connect()
     try:
         con.execute(
-            "UPDATE apex_kill_events SET unlocked_ts_ms = ?, unlocked_by = ?, unlock_reason = ? WHERE id = ?",
+            "UPDATE kill_events SET unlocked_ts_ms = ?, unlocked_by = ?, unlock_reason = ? WHERE id = ?",
             (int(time.time() * 1000), by, reason, kill_id),
         )
         con.commit()
@@ -427,7 +427,7 @@ def latest_unresolved_kill() -> Optional[dict[str, Any]]:
     con = _connect()
     try:
         r = con.execute(
-            "SELECT * FROM apex_kill_events WHERE unlocked_ts_ms IS NULL ORDER BY id DESC LIMIT 1"
+            "SELECT * FROM kill_events WHERE unlocked_ts_ms IS NULL ORDER BY id DESC LIMIT 1"
         ).fetchone()
     finally:
         con.close()
@@ -534,7 +534,7 @@ def log_trade(*, symbol: str, module: str, action: str,
     try:
         con.execute(
             """
-            INSERT INTO apex_trade_log
+            INSERT INTO trade_log
                 (ts_ms, symbol, module, action, side, notional_usd, avg_px,
                  fee_usd, pnl_usd, correlation_id, payload_json, tier)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -558,7 +558,7 @@ def log_llm_cost(*, symbol: Optional[str], role: str, provider: str,
     con = _connect()
     try:
         con.execute(
-            "INSERT INTO apex_llm_cost (ts_ms, symbol, role, provider, model, cost_usd, latency_ms, ok, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO llm_cost (ts_ms, symbol, role, provider, model, cost_usd, latency_ms, ok, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (int(time.time() * 1000), symbol, role, provider, model,
              cost_usd, latency_ms, 1 if ok else 0, error),
         )
@@ -574,7 +574,7 @@ def log_consensus(*, symbol: str, consensus_score: float, conflict_score: float,
     con = _connect()
     try:
         con.execute(
-            "INSERT INTO apex_consensus_log (ts_ms, symbol, consensus_score, conflict_score, vetoed, members_called, kl_stop_at, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO consensus_log (ts_ms, symbol, consensus_score, conflict_score, vetoed, members_called, kl_stop_at, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (int(time.time() * 1000), symbol, consensus_score, conflict_score,
              1 if vetoed else 0, members_called, kl_stop_at,
              json.dumps(payload, default=str)),

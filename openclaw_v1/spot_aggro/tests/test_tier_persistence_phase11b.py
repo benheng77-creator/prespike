@@ -1,7 +1,7 @@
 """Phase 11b final — tier persistence end-to-end regression tests.
 
 Root cause fix validation:
-  1. apex_trade_log now has a top-level `tier` column.
+  1. trade_log now has a top-level `tier` column.
   2. log_trade() accepts `tier=` explicitly and also derives from payload / module.
   3. Schema migration backfills historical rows in-place (idempotent).
   4. /spot_aggro/ops/trades route returns `tier` as a top-level response field.
@@ -46,10 +46,10 @@ def test_schema_has_tier_column(fresh_db):
     persist.init_schema()
     con = sqlite3.connect(fresh_db)
     try:
-        cols = [r[1] for r in con.execute("PRAGMA table_info(apex_trade_log)").fetchall()]
+        cols = [r[1] for r in con.execute("PRAGMA table_info(trade_log)").fetchall()]
     finally:
         con.close()
-    assert "tier" in cols, "apex_trade_log must expose tier as a first-class column"
+    assert "tier" in cols, "trade_log must expose tier as a first-class column"
 
 
 def test_log_trade_explicit_tier_persists(fresh_db):
@@ -60,7 +60,7 @@ def test_log_trade_explicit_tier_persists(fresh_db):
     )
     con = sqlite3.connect(fresh_db)
     try:
-        row = con.execute("SELECT tier, module, action FROM apex_trade_log").fetchone()
+        row = con.execute("SELECT tier, module, action FROM trade_log").fetchone()
     finally:
         con.close()
     assert row == ("B", "M1_flow_B", "enter")
@@ -75,7 +75,7 @@ def test_log_trade_derives_tier_from_payload(fresh_db):
     )
     con = sqlite3.connect(fresh_db)
     try:
-        row = con.execute("SELECT tier FROM apex_trade_log").fetchone()
+        row = con.execute("SELECT tier FROM trade_log").fetchone()
     finally:
         con.close()
     assert row[0] == "B"
@@ -99,7 +99,7 @@ def test_log_trade_derives_tier_from_module_pattern(fresh_db):
         )
     con = sqlite3.connect(fresh_db)
     try:
-        rows = con.execute("SELECT module, tier FROM apex_trade_log ORDER BY id").fetchall()
+        rows = con.execute("SELECT module, tier FROM trade_log ORDER BY id").fetchall()
     finally:
         con.close()
     assert dict(rows) == dict(cases), f"module-pattern fallback mismatch: {rows}"
@@ -120,7 +120,7 @@ def test_log_trade_reject_path_now_persists_tier(fresh_db):
     con = sqlite3.connect(fresh_db)
     try:
         row = con.execute(
-            "SELECT tier, action, module FROM apex_trade_log "
+            "SELECT tier, action, module FROM trade_log "
             "WHERE action='reject'"
         ).fetchone()
     finally:
@@ -139,7 +139,7 @@ def test_migration_backfills_tier_from_payload(tmp_path, monkeypatch):
     # Simulate a pre-migration DB: create the old-shape table by hand.
     con = sqlite3.connect(db)
     con.execute("""
-        CREATE TABLE apex_trade_log (
+        CREATE TABLE trade_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts_ms INTEGER NOT NULL,
             symbol TEXT NOT NULL,
@@ -155,18 +155,18 @@ def test_migration_backfills_tier_from_payload(tmp_path, monkeypatch):
         )
     """)
     con.execute(
-        "INSERT INTO apex_trade_log (ts_ms, symbol, module, action, payload_json) "
+        "INSERT INTO trade_log (ts_ms, symbol, module, action, payload_json) "
         "VALUES (?, ?, ?, ?, ?)",
         (1, "BTC-USDT", "M1_flow_B", "reject", json.dumps({"tier": "B", "error": "nope"})),
     )
     con.execute(
-        "INSERT INTO apex_trade_log (ts_ms, symbol, module, action, payload_json) "
+        "INSERT INTO trade_log (ts_ms, symbol, module, action, payload_json) "
         "VALUES (?, ?, ?, ?, ?)",
         (2, "ETH-USDT", "M1_scalp_C", "skip", json.dumps({"tier": "C"})),
     )
     # Row that doesn't even have payload.tier — must be recovered via module pattern.
     con.execute(
-        "INSERT INTO apex_trade_log (ts_ms, symbol, module, action, payload_json) "
+        "INSERT INTO trade_log (ts_ms, symbol, module, action, payload_json) "
         "VALUES (?, ?, ?, ?, ?)",
         (3, "SOL-USDT", "M_reconciled", "exit", "{}"),
     )
@@ -181,9 +181,9 @@ def test_migration_backfills_tier_from_payload(tmp_path, monkeypatch):
 
     con = sqlite3.connect(db)
     try:
-        cols = [r[1] for r in con.execute("PRAGMA table_info(apex_trade_log)").fetchall()]
+        cols = [r[1] for r in con.execute("PRAGMA table_info(trade_log)").fetchall()]
         rows = con.execute(
-            "SELECT symbol, module, tier FROM apex_trade_log ORDER BY id"
+            "SELECT symbol, module, tier FROM trade_log ORDER BY id"
         ).fetchall()
     finally:
         con.close()
@@ -203,7 +203,7 @@ def test_migration_is_idempotent(fresh_db):
     persist.init_schema()  # second call — must not raise
     con = sqlite3.connect(fresh_db)
     try:
-        cols = [r[1] for r in con.execute("PRAGMA table_info(apex_trade_log)").fetchall()]
+        cols = [r[1] for r in con.execute("PRAGMA table_info(trade_log)").fetchall()]
     finally:
         con.close()
     # tier appears exactly once.
@@ -220,7 +220,7 @@ def test_api_trades_route_selects_tier_column():
     src = (REPO / "openclaw_v1" / "spot_aggro" / "ops" / "routes_ops.py").read_text(
         encoding="utf-8"
     )
-    # The SELECT statement in apex_trades() must include `tier`.
+    # The SELECT statement in ops_trades() must include `tier`.
     assert "payload_json, tier" in src, (
         "/spot_aggro/ops/trades SELECT must include the tier column (Phase 11b)"
     )
@@ -324,7 +324,7 @@ def test_heatmap_filters_to_spot_modules_only():
 
 
 def test_tier_column_backfill_handles_perp_modules_as_null():
-    """The shared apex_trade_log carries rows from BOTH engines.
+    """The shared trade_log carries rows from BOTH engines.
     Perp-only modules (M1_funding, M2_statarb, M3_triangular) do not
     match any spot-tier pattern, so the backfill must leave their `tier`
     as NULL — NOT falsely inject a canonical tier label, and NOT crash.
@@ -338,7 +338,7 @@ def test_tier_column_backfill_handles_perp_modules_as_null():
         db = os.path.join(td, "legacy.db")
         con = sqlite3.connect(db)
         con.execute("""
-            CREATE TABLE apex_trade_log (
+            CREATE TABLE trade_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ts_ms INTEGER NOT NULL,
                 symbol TEXT NOT NULL,
@@ -350,7 +350,7 @@ def test_tier_column_backfill_handles_perp_modules_as_null():
         """)
         for i, module in enumerate(["M1_funding", "M2_statarb", "M3_triangular"]):
             con.execute(
-                "INSERT INTO apex_trade_log (ts_ms, symbol, module, action, payload_json) "
+                "INSERT INTO trade_log (ts_ms, symbol, module, action, payload_json) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (i, "BTC-USDT", module, "reject", "{}"),
             )
@@ -364,7 +364,7 @@ def test_tier_column_backfill_handles_perp_modules_as_null():
 
         con = sqlite3.connect(db)
         rows = con.execute(
-            "SELECT module, tier FROM apex_trade_log ORDER BY id"
+            "SELECT module, tier FROM trade_log ORDER BY id"
         ).fetchall()
         con.close()
         # All perp modules land with tier=NULL — no false canonical assignment.

@@ -91,7 +91,7 @@ class ScenarioOutcome:
     simulated_expectancy_usd: float
     simulated_profit_factor: float
     simulated_max_dd_usd: float
-    evidence_ref: str             # e.g. "db://apex_trade_log?tier=B&window_h=24"
+    evidence_ref: str             # e.g. "db://trade_log?tier=B&window_h=24"
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -122,7 +122,7 @@ def _fetch_closed_trades(tier: str, days: int) -> list[dict[str, Any]]:
         cutoff_ms = int((time.time() - days * 86400) * 1000)
         rows = con.execute(
             "SELECT symbol, pnl_usd, notional_usd, ts_ms "
-            "FROM apex_trade_log WHERE action='exit' AND tier = ? "
+            "FROM trade_log WHERE action='exit' AND tier = ? "
             "AND ts_ms > ? AND pnl_usd IS NOT NULL "
             "AND (module LIKE 'M1_squeeze%' OR module LIKE 'M1_flow%' "
             "     OR module LIKE 'M1_scalp%' OR module LIKE 'M3_blitz%')",
@@ -173,7 +173,7 @@ def simulate(inp: ScenarioInput, *, clock: Optional[Clock] = None) -> ScenarioOu
             simulated_profit_factor=0.0,
             simulated_max_dd_usd=0.0,
             evidence_ref=(
-                f"db://apex_trade_log?tier={inp.tier}&days={inp.days}&count=0"
+                f"db://trade_log?tier={inp.tier}&days={inp.days}&count=0"
             ),
             notes=["no closed trades in window — simulation not meaningful"],
         )
@@ -257,7 +257,7 @@ def simulate(inp: ScenarioInput, *, clock: Optional[Clock] = None) -> ScenarioOu
         simulated_profit_factor=pf,
         simulated_max_dd_usd=max_dd,
         evidence_ref=(
-            f"db://apex_trade_log?tier={inp.tier}&days={inp.days}&count={len(trades)}"
+            f"db://trade_log?tier={inp.tier}&days={inp.days}&count={len(trades)}"
         ),
         notes=notes,
     )

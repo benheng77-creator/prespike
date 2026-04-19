@@ -1,5 +1,5 @@
 """
-Spot-local loader that turns raw `apex_trade_log` rows into the closed-trade
+Spot-local loader that turns raw `trade_log` rows into the closed-trade
 dicts the WRI analyzer consumes.
 
 Read-only. Never writes. Never touches forensic_v2/.
@@ -46,7 +46,7 @@ def load_closed_trades(
             """
             SELECT id, ts_ms, symbol, module, notional_usd, avg_px,
                    pnl_usd, payload_json
-            FROM apex_trade_log
+            FROM trade_log
             WHERE ts_ms >= ? AND ts_ms < ? AND action='exit'
             ORDER BY ts_ms ASC
             """,
@@ -58,7 +58,7 @@ def load_closed_trades(
             enter = con.execute(
                 """
                 SELECT id, ts_ms, avg_px, payload_json
-                FROM apex_trade_log
+                FROM trade_log
                 WHERE symbol=? AND action='enter' AND ts_ms < ?
                 ORDER BY ts_ms DESC LIMIT 1
                 """,

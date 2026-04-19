@@ -23,7 +23,7 @@ auto-orchestrator tick. Guardrails, in order:
      engine's normal exit loop (TP / SL / trail / max_hold) — those
      triggers already exist per-tier in scoring.TIER_PARAMS.
 
-Every action gets logged to apex_trade_log with correlation_id
+Every action gets logged to trade_log with correlation_id
 "alpha-exec-<date>-<symbol>" so the Pre-Trade log + dashboard picks
 it up.
 

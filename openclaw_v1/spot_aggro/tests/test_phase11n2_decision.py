@@ -5,7 +5,7 @@ Locks:
     1. build_decision_bundle returns a DecisionBundle with system_wr,
        system_wr_target, candidates[], conversion, summary.
     2. Every candidate has the 6 core factors + evidence_refs + reason.
-    3. Conversion rate computes signals→trades→wins from apex_trade_log.
+    3. Conversion rate computes signals→trades→wins from trade_log.
     4. build_and_persist round-trips via latest_bundle.
 
   Decision truth gov:
@@ -73,7 +73,7 @@ def test_conversion_rate_computes_from_trade_log():
         # 4 enters, 2 exits (1 win, 1 loss), 2 pending.
         for i in range(4):
             con.execute(
-                "INSERT INTO apex_trade_log "
+                "INSERT INTO trade_log "
                 "(ts_ms, symbol, module, action, side, notional_usd, avg_px, "
                 " fee_usd, pnl_usd, correlation_id, payload_json, tier) "
                 "VALUES (?, 'X-USDT', 'M1_flow_B', 'enter', 'buy', 5.0, 1.0, "
@@ -81,7 +81,7 @@ def test_conversion_rate_computes_from_trade_log():
                 (now_ms - i * 1000,),
             )
         con.execute(
-            "INSERT INTO apex_trade_log "
+            "INSERT INTO trade_log "
             "(ts_ms, symbol, module, action, side, notional_usd, avg_px, "
             " fee_usd, pnl_usd, correlation_id, payload_json, tier) "
             "VALUES (?, 'X-USDT', 'M1_flow_B', 'exit', 'sell', 5.0, 1.1, "
@@ -89,7 +89,7 @@ def test_conversion_rate_computes_from_trade_log():
             (now_ms - 500,),
         )
         con.execute(
-            "INSERT INTO apex_trade_log "
+            "INSERT INTO trade_log "
             "(ts_ms, symbol, module, action, side, notional_usd, avg_px, "
             " fee_usd, pnl_usd, correlation_id, payload_json, tier) "
             "VALUES (?, 'Y-USDT', 'M1_flow_B', 'exit', 'sell', 5.0, 0.95, "
@@ -218,7 +218,7 @@ def _seed_bad_tier_b(con, now_ms: int):
     base = now_ms - 15 * 60 * 1000
     for i in range(15):
         con.execute(
-            "INSERT INTO apex_trade_log "
+            "INSERT INTO trade_log "
             "(ts_ms, symbol, module, action, side, notional_usd, avg_px, "
             " fee_usd, pnl_usd, correlation_id, payload_json, tier) "
             "VALUES (?, 'X-USDT', 'M1_flow_B', 'exit', 'sell', 5.0, 1.0, "

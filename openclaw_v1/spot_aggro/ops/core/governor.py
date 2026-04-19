@@ -45,7 +45,7 @@ def _trades_in_window(seconds: int = 86400) -> int:
     con = persist._connect()
     try:
         r = con.execute(
-            "SELECT COUNT(*) AS n FROM apex_trade_log "
+            "SELECT COUNT(*) AS n FROM trade_log "
             "WHERE ts_ms >= ? AND action IN ('enter','exit')",
             (cutoff,),
         ).fetchone()

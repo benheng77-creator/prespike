@@ -261,7 +261,7 @@ def _read_toggle_snapshot() -> dict[str, bool]:
 
 
 def _stats_from_db() -> dict[str, Any]:
-    """Recompute the minimum viable /stats payload from apex_trade_log."""
+    """Recompute the minimum viable /stats payload from trade_log."""
     import time as _t
     from shared.persistence import state as persist
     persist.init_schema()
@@ -272,11 +272,11 @@ def _stats_from_db() -> dict[str, Any]:
             "SELECT COUNT(*), "
             " SUM(CASE WHEN pnl_usd > 0.001 THEN 1 ELSE 0 END), "
             " SUM(CASE WHEN pnl_usd IS NOT NULL THEN pnl_usd ELSE 0 END) "
-            "FROM apex_trade_log WHERE action='exit' AND ts_ms > ?",
+            "FROM trade_log WHERE action='exit' AND ts_ms > ?",
             (day_start,),
         ).fetchone()
         recent = con.execute(
-            "SELECT symbol, action, pnl_usd, ts_ms FROM apex_trade_log "
+            "SELECT symbol, action, pnl_usd, ts_ms FROM trade_log "
             "WHERE ts_ms > ? ORDER BY ts_ms DESC LIMIT 20",
             (day_start,),
         ).fetchall()

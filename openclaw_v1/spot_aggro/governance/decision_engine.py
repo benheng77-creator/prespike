@@ -13,7 +13,7 @@ Input factors considered:
   - Card Truth verdict (Layer 5)
   - Daily System Audit verdict (Phase 11j)
   - Tier execution toggles (spot_aggro.gates.tier_toggle)
-  - Funnel / recent trade activity (apex_trade_log)
+  - Funnel / recent trade activity (trade_log)
 
 Output per candidate pair:
   DecisionCandidate(
@@ -140,7 +140,7 @@ def _fetch_signals_and_conversion(window_h: float = 24.0) -> ConversionRate:
     try:
         cutoff = int((time.time() - window_h * 3600) * 1000)
         enters = con.execute(
-            "SELECT COUNT(*) FROM apex_trade_log "
+            "SELECT COUNT(*) FROM trade_log "
             "WHERE action='enter' AND ts_ms > ? "
             "AND (module LIKE 'M1_squeeze%' OR module LIKE 'M1_flow%' "
             "     OR module LIKE 'M1_scalp%' OR module LIKE 'M3_blitz%')",
@@ -150,7 +150,7 @@ def _fetch_signals_and_conversion(window_h: float = 24.0) -> ConversionRate:
             "SELECT COUNT(*), "
             " SUM(CASE WHEN pnl_usd > 0.001 THEN 1 ELSE 0 END), "
             " SUM(CASE WHEN pnl_usd < -0.001 THEN 1 ELSE 0 END) "
-            "FROM apex_trade_log "
+            "FROM trade_log "
             "WHERE action='exit' AND ts_ms > ? "
             "AND (module LIKE 'M1_squeeze%' OR module LIKE 'M1_flow%' "
             "     OR module LIKE 'M1_scalp%' OR module LIKE 'M3_blitz%')",
@@ -428,7 +428,7 @@ def build_decision_bundle() -> DecisionBundle:
             f"truth://{rtruth.get('report_id','?')}",
             f"cards://{ctruth.get('run_id','?')}",
             f"system_audit://{sys_audit.get('run_id','?')}",
-            "apex_trade_log://enters+exits/24h",
+            "trade_log://enters+exits/24h",
         ],
         summary=summary,
     )

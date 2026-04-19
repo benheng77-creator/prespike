@@ -361,7 +361,7 @@ def _fetch_window_stats(
     try:
         cutoff_ms = int((now_s - window_h * 3600) * 1000)
         rows = con.execute(
-            f"SELECT tier, action, pnl_usd FROM apex_trade_log "
+            f"SELECT tier, action, pnl_usd FROM trade_log "
             f"WHERE ts_ms > ? AND tier IN ('A+','A','B','C') "
             f"AND {_spot_module_where_clause()}",
             (cutoff_ms,),
@@ -420,7 +420,7 @@ def _fetch_per_symbol(now_s: float, window_h: float) -> list[dict[str, Any]]:
             f"  sum(CASE WHEN action='exit' AND pnl_usd > 0.001 THEN 1 ELSE 0 END) as wins, "
             f"  sum(CASE WHEN action='exit' AND pnl_usd < -0.001 THEN 1 ELSE 0 END) as losses, "
             f"  sum(CASE WHEN action='exit' THEN COALESCE(pnl_usd,0) ELSE 0 END) as pnl "
-            f"FROM apex_trade_log "
+            f"FROM trade_log "
             f"WHERE ts_ms > ? AND tier IN ('A+','A','B','C') "
             f"AND {_spot_module_where_clause()} "
             f"GROUP BY symbol, tier HAVING exits > 0 ORDER BY pnl ASC",
@@ -714,7 +714,7 @@ def _research_notes(tier_stats: list[TierStats], now_s: float) -> list[str]:
             f"SELECT tier, "
             f"  sum(CASE WHEN action='enter' THEN 1 ELSE 0 END), "
             f"  sum(CASE WHEN action='reject' THEN 1 ELSE 0 END) "
-            f"FROM apex_trade_log "
+            f"FROM trade_log "
             f"WHERE ts_ms > ? AND tier IN ('A+','A','B','C') "
             f"AND {_spot_module_where_clause()} GROUP BY tier",
             (cutoff_ms,),
@@ -732,7 +732,7 @@ def _research_notes(tier_stats: list[TierStats], now_s: float) -> list[str]:
     con = persist._connect()
     try:
         recon_pnl = con.execute(
-            f"SELECT COALESCE(sum(pnl_usd),0) FROM apex_trade_log "
+            f"SELECT COALESCE(sum(pnl_usd),0) FROM trade_log "
             f"WHERE action='exit' AND module LIKE 'M_reconciled%'"
         ).fetchone()[0]
     finally:
@@ -854,7 +854,7 @@ def run_research(
         experiments=experiments,
         research_notes=_research_notes(tier_stats, now_s),
         evidence_refs=[
-            f"db://apex_trade_log?cutoff_ms={int((now_s-24*3600)*1000)}",
+            f"db://trade_log?cutoff_ms={int((now_s-24*3600)*1000)}",
             f"tier_toggles://snapshot={json.dumps(_current_toggle_snapshot())}",
         ],
         thresholds={

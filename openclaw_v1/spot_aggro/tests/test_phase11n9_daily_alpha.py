@@ -54,7 +54,7 @@ def _seed_strong_wr(sym="BTC-USDT", tier="A+", n_wins=8, n_losses=2):
         idx = 0
         for _ in range(n_wins):
             con.execute(
-                "INSERT INTO apex_trade_log (ts_ms,symbol,module,action,"
+                "INSERT INTO trade_log (ts_ms,symbol,module,action,"
                 "side,notional_usd,avg_px,fee_usd,pnl_usd,correlation_id,"
                 "payload_json,tier) VALUES "
                 "(?,?,?,'exit','sell',5.0,1.0,0.01,0.5,NULL,'{}',?)",
@@ -63,7 +63,7 @@ def _seed_strong_wr(sym="BTC-USDT", tier="A+", n_wins=8, n_losses=2):
             idx += 1
         for _ in range(n_losses):
             con.execute(
-                "INSERT INTO apex_trade_log (ts_ms,symbol,module,action,"
+                "INSERT INTO trade_log (ts_ms,symbol,module,action,"
                 "side,notional_usd,avg_px,fee_usd,pnl_usd,correlation_id,"
                 "payload_json,tier) VALUES "
                 "(?,?,?,'exit','sell',5.0,1.0,0.01,-0.3,NULL,'{}',?)",
@@ -73,7 +73,7 @@ def _seed_strong_wr(sym="BTC-USDT", tier="A+", n_wins=8, n_losses=2):
         # enters so conversion math stays sane
         for _ in range(n_wins + n_losses + 2):
             con.execute(
-                "INSERT INTO apex_trade_log (ts_ms,symbol,module,action,"
+                "INSERT INTO trade_log (ts_ms,symbol,module,action,"
                 "side,notional_usd,avg_px,fee_usd,pnl_usd,correlation_id,"
                 "payload_json,tier) VALUES "
                 "(?,?,?,'enter','buy',5.0,1.0,0.01,NULL,NULL,'{}',?)",

@@ -78,7 +78,7 @@ def test_server_imports_ops_router():
 
 
 def test_server_does_not_import_apex_omega():
-    # Comments that reference apex_omega (e.g. the apex_purge_gov
+    # Comments that reference apex_omega (e.g. the legacy_purge_gov
     # startup hook's docstring) are fine — the governor's whole
     # purpose is to mention the banned name. The contract is that
     # server.py must not IMPORT the module.

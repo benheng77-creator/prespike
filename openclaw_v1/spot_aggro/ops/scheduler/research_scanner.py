@@ -32,7 +32,7 @@ from ..persistence import state as persist
 log = logging.getLogger("apex.research")
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS apex_research_reports (
+CREATE TABLE IF NOT EXISTS ops_research_reports (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_ms           INTEGER NOT NULL,
     candidates_n    INTEGER NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS apex_research_reports (
     latency_ms      INTEGER,
     raw_response    TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_research_ts ON apex_research_reports(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_research_ts ON ops_research_reports(ts_ms DESC);
 """
 
 _initialized = False
@@ -157,7 +157,7 @@ async def run_once() -> dict[str, Any]:
     con = persist._connect()
     try:
         con.execute(
-            "INSERT INTO apex_research_reports (ts_ms, candidates_n, top3_json, reasoning, llm_provider, llm_model, latency_ms, raw_response) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO ops_research_reports (ts_ms, candidates_n, top3_json, reasoning, llm_provider, llm_model, latency_ms, raw_response) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (int(time.time() * 1000), len(top10),
              json.dumps(top3, default=str),
              summary + (" | risk: " + risk if risk else ""),
@@ -187,7 +187,7 @@ def get_latest() -> dict[str, Any]:
     try:
         r = con.execute(
             "SELECT ts_ms, candidates_n, top3_json, reasoning, llm_provider, llm_model, latency_ms "
-            "FROM apex_research_reports ORDER BY ts_ms DESC LIMIT 1"
+            "FROM ops_research_reports ORDER BY ts_ms DESC LIMIT 1"
         ).fetchone()
     finally:
         con.close()
@@ -210,7 +210,7 @@ def get_history(limit: int = 20) -> list[dict[str, Any]]:
     try:
         rows = con.execute(
             "SELECT ts_ms, candidates_n, top3_json, reasoning, latency_ms "
-            "FROM apex_research_reports ORDER BY ts_ms DESC LIMIT ?",
+            "FROM ops_research_reports ORDER BY ts_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
     finally:

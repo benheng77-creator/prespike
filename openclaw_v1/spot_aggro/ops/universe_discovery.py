@@ -33,7 +33,7 @@ CACHE_TTL_S = 8 * 3600
 # path; SQLite is the cross-process source of truth.
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS apex_universe_cache (
+CREATE TABLE IF NOT EXISTS universe_cache (
     id              INTEGER PRIMARY KEY CHECK (id=1),
     refreshed_ts    INTEGER NOT NULL,
     payload_json    TEXT NOT NULL
@@ -63,7 +63,7 @@ def _load_from_db() -> tuple[list["DiscoveredCoin"], int]:
     from ..persistence import state as persist
     con = persist._connect()
     try:
-        r = con.execute("SELECT refreshed_ts, payload_json FROM apex_universe_cache WHERE id=1").fetchone()
+        r = con.execute("SELECT refreshed_ts, payload_json FROM universe_cache WHERE id=1").fetchone()
     finally:
         con.close()
     if not r:
@@ -82,8 +82,8 @@ def _save_to_db(coins: list["DiscoveredCoin"], ts: int) -> None:
     payload = json.dumps([asdict(c) for c in coins], default=str)
     con = persist._connect()
     try:
-        con.execute("DELETE FROM apex_universe_cache")
-        con.execute("INSERT INTO apex_universe_cache (id, refreshed_ts, payload_json) VALUES (1, ?, ?)", (ts, payload))
+        con.execute("DELETE FROM universe_cache")
+        con.execute("INSERT INTO universe_cache (id, refreshed_ts, payload_json) VALUES (1, ?, ?)", (ts, payload))
         con.commit()
     finally:
         con.close()

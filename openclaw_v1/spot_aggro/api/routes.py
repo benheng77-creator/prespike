@@ -1,16 +1,14 @@
 """
-SPOT AGGRO HTTP routes — spot-owned, no apex prefix.
+SPOT AGGRO HTTP routes — spot-owned router.
 
-Mounted under /spot_aggro. Phase 10 completes the relocation started in
-Phase 9e: every spot-owned endpoint now lives in this file. The apex
-router no longer carries any spot handlers.
+Mounted under /spot_aggro. Every spot-owned endpoint lives in this file.
 
-URL prefix policy (Phase 11n-9-q):
+URL prefix policy:
   - /spot_aggro/*      — spot engine endpoints. Spot-owned.
   - /spot_aggro/ops/*  — SHARED OPERATOR INFRASTRUCTURE (PnL, status,
                          trades, notifications, kill, llm cost, governor,
-                         watchdog, consensus, halt). Owned by spot_aggro
-                         since the apex_omega package was purged.
+                         watchdog, consensus, halt). All legacy-engine
+                         packages were purged in phase-11n-9-q/x.
 
 Execution-only surface for the tier-toggle endpoints. None of the routes
 here consult capital or account equity. None gate trading on a balance.
@@ -53,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-t-2026-04-20"
+SERVER_BUILD = "phase-11n-9-x-2026-04-20"
 
 
 @router.get("/build")
@@ -90,10 +88,11 @@ def spot_aggro_build() -> dict[str, Any]:
             "label_translator": True,            # Phase 11n-9-m (P5)
             "mobile_drilldown": True,            # Phase 11n-9-m (P5)
             "tab_aware_audit": True,             # Phase 11n-9-p (skip hidden tabs)
-            "legacy_engines_purged": True,       # Phase 11n-9-q (apex* purged, spot_aggro standalone)
+            "legacy_engines_purged": True,       # Phase 11n-9-q/x (all legacy-engine names removed)
             "mobile_single_overlay": True,       # Phase 11n-9-r (overlay state machine)
-            "apex_purge_gov": True,              # Phase 11n-9-s (Layer 10 trip-wire)
-            "apex_deep_forensic_gov": True,      # Phase 11n-9-t (Layer 11 deep scan)
+            "legacy_purge_gov": True,              # Phase 11n-9-s (Layer 10 trip-wire)
+            "legacy_deep_forensic_gov": True,      # Phase 11n-9-t (Layer 11 deep scan)
+            "mobile_tab_router": True,           # Phase 11n-9-u (mobile nav tabs route)
         },
     }
 
@@ -133,15 +132,14 @@ def spot_aggro_audit_system_run(
     return {"ok": True, "run": run.to_dict()}
 
 
-# Phase 11n-9-s — Apex Purge Governor (Layer 10).
-# Read-only scan of the filesystem + source tree for any re-introduction
-# of the apex_omega package or /apex/ URL surface. Admin-only run
-# endpoint performs deletion of stray filesystem artifacts.
-@router.get("/gov/apex_purge")
-def spot_aggro_apex_purge_latest() -> dict[str, Any]:
-    """Latest apex-purge scan result + short history."""
+# Phase 11n-9-s — Legacy Purge Governor (Layer 10).
+# Read-only scan for legacy-engine package fragments or URL surfaces.
+# Admin-only run endpoint performs deletion of stray filesystem artifacts.
+@router.get("/gov/legacy_purge")
+def spot_aggro_legacy_purge_latest() -> dict[str, Any]:
+    """Latest legacy-purge scan result + short history."""
     try:
-        from spot_aggro.governance.apex_purge_gov import latest, history
+        from spot_aggro.governance.legacy_purge_gov import latest, history
         latest_row = latest()
         return {
             "ok": True,
@@ -153,27 +151,28 @@ def spot_aggro_apex_purge_latest() -> dict[str, Any]:
         return {"ok": False, "error": str(exc)[:200]}
 
 
-@router.post("/gov/apex_purge/run")
-def spot_aggro_apex_purge_run(
+@router.post("/gov/legacy_purge/run")
+def spot_aggro_legacy_purge_run(
     purge: bool = Query(True, description="Delete stray artifacts (default true)"),
     x_ops_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    """Trigger an apex-purge scan on demand. Admin-only because purge=True
-    deletes filesystem artifacts (legacy directories + logs + config)."""
+    """Trigger a legacy-purge scan on demand. Admin-only because
+    purge=True deletes filesystem artifacts (legacy directories, logs,
+    config)."""
     _require_admin(x_ops_token)
-    from spot_aggro.governance.apex_purge_gov import run_once
+    from spot_aggro.governance.legacy_purge_gov import run_once
     r = run_once(purge=purge)
     return {"ok": True, "result": r.to_dict()}
 
 
-# Phase 11n-9-t — Apex Deep Forensic Governor (Layer 11).
+# Phase 11n-9-t — Legacy Deep Forensic Governor (Layer 11).
 # Superset of Layer 10: scans YAML/JSON/shell/.env/bytecode + string
-# literals for every apex variant (apex_omega, apex_v2, 99X_APEX).
-@router.get("/gov/apex_deep")
-def spot_aggro_apex_deep_latest() -> dict[str, Any]:
+# literals for every legacy-engine variant.
+@router.get("/gov/legacy_deep")
+def spot_aggro_legacy_deep_latest() -> dict[str, Any]:
     """Latest deep-forensic scan + short history."""
     try:
-        from spot_aggro.governance.apex_deep_forensic_gov import latest, history
+        from spot_aggro.governance.legacy_deep_forensic_gov import latest, history
         latest_row = latest()
         return {
             "ok": True,
@@ -185,14 +184,14 @@ def spot_aggro_apex_deep_latest() -> dict[str, Any]:
         return {"ok": False, "error": str(exc)[:200]}
 
 
-@router.post("/gov/apex_deep/run")
-def spot_aggro_apex_deep_run(
+@router.post("/gov/legacy_deep/run")
+def spot_aggro_legacy_deep_run(
     purge: bool = Query(True, description="Delete stray artifacts"),
     x_ops_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     """Trigger a deep-forensic scan on demand. Admin-only."""
     _require_admin(x_ops_token)
-    from spot_aggro.governance.apex_deep_forensic_gov import run_once
+    from spot_aggro.governance.legacy_deep_forensic_gov import run_once
     r = run_once(purge=purge)
     return {"ok": True, "result": r.to_dict()}
 
@@ -388,26 +387,26 @@ def spot_aggro_funnel(
     con = persist._connect()
     try:
         consensus_fired = con.execute(
-            "SELECT COUNT(*) FROM apex_consensus_log WHERE ts_ms >= ?",
+            "SELECT COUNT(*) FROM consensus_log WHERE ts_ms >= ?",
             (since_ms,),
         ).fetchone()[0]
         consensus_passed = con.execute(
-            "SELECT COUNT(*) FROM apex_consensus_log "
+            "SELECT COUNT(*) FROM consensus_log "
             "WHERE ts_ms >= ? AND vetoed = 0 AND consensus_score >= 0.20",
             (since_ms,),
         ).fetchone()[0]
         orders_entered = con.execute(
-            "SELECT COUNT(*) FROM apex_trade_log "
+            "SELECT COUNT(*) FROM trade_log "
             "WHERE ts_ms >= ? AND action = 'enter'",
             (since_ms,),
         ).fetchone()[0]
         orders_rejected = con.execute(
-            "SELECT COUNT(*) FROM apex_trade_log "
+            "SELECT COUNT(*) FROM trade_log "
             "WHERE ts_ms >= ? AND action = 'reject'",
             (since_ms,),
         ).fetchone()[0]
         orders_exited = con.execute(
-            "SELECT COUNT(*) FROM apex_trade_log "
+            "SELECT COUNT(*) FROM trade_log "
             "WHERE ts_ms >= ? AND action = 'exit'",
             (since_ms,),
         ).fetchone()[0]
@@ -546,17 +545,17 @@ def spot_aggro_stats() -> dict[str, Any]:
     try:
         from shared.persistence.state import _connect
         con = _connect()
-        enters = con.execute("SELECT COUNT(*) as n FROM apex_trade_log WHERE action='enter'").fetchone()["n"]
-        exits = con.execute("SELECT COUNT(*) as n FROM apex_trade_log WHERE action='exit'").fetchone()["n"]
-        rejects = con.execute("SELECT COUNT(*) as n FROM apex_trade_log WHERE action='reject'").fetchone()["n"]
-        total_pnl = con.execute("SELECT COALESCE(SUM(pnl_usd),0) as s FROM apex_trade_log WHERE action='exit'").fetchone()["s"]
-        total_fee = con.execute("SELECT COALESCE(SUM(ABS(fee_usd)),0) as s FROM apex_trade_log").fetchone()["s"]
-        wins = con.execute("SELECT COUNT(*) as n FROM apex_trade_log WHERE action='exit' AND pnl_usd > 0.001").fetchone()["n"]
-        losses = con.execute("SELECT COUNT(*) as n FROM apex_trade_log WHERE action='exit' AND pnl_usd < -0.001").fetchone()["n"]
+        enters = con.execute("SELECT COUNT(*) as n FROM trade_log WHERE action='enter'").fetchone()["n"]
+        exits = con.execute("SELECT COUNT(*) as n FROM trade_log WHERE action='exit'").fetchone()["n"]
+        rejects = con.execute("SELECT COUNT(*) as n FROM trade_log WHERE action='reject'").fetchone()["n"]
+        total_pnl = con.execute("SELECT COALESCE(SUM(pnl_usd),0) as s FROM trade_log WHERE action='exit'").fetchone()["s"]
+        total_fee = con.execute("SELECT COALESCE(SUM(ABS(fee_usd)),0) as s FROM trade_log").fetchone()["s"]
+        wins = con.execute("SELECT COUNT(*) as n FROM trade_log WHERE action='exit' AND pnl_usd > 0.001").fetchone()["n"]
+        losses = con.execute("SELECT COUNT(*) as n FROM trade_log WHERE action='exit' AND pnl_usd < -0.001").fetchone()["n"]
         fee_rows = con.execute(
             "SELECT symbol, COUNT(*) as txns, COALESCE(SUM(ABS(fee_usd)),0) as fees, "
             "COALESCE(SUM(ABS(notional_usd)),0) as volume "
-            "FROM apex_trade_log WHERE action IN ('enter','exit') GROUP BY symbol ORDER BY volume DESC"
+            "FROM trade_log WHERE action IN ('enter','exit') GROUP BY symbol ORDER BY volume DESC"
         ).fetchall()
         est_fee = sum(float(r["volume"]) * 0.0002 for r in fee_rows)
         actual_fee = float(total_fee)

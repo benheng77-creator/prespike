@@ -23,7 +23,7 @@ Operator overrides applied here:
       disabled-tier "trade_disabled" log entries if/when those land in the
       trade log (analytics always include all tiers).
 
-Source of truth: `apex_trade_log` rows with `action='exit'`, paired to
+Source of truth: `trade_log` rows with `action='exit'`, paired to
 their preceding `action='enter'` row (same pairing used by forensic_v2).
 """
 
@@ -213,7 +213,7 @@ def _load_trade_pairs(
             """
             SELECT id, ts_ms, symbol, module, notional_usd, avg_px,
                    pnl_usd, payload_json
-            FROM apex_trade_log
+            FROM trade_log
             WHERE ts_ms >= ? AND ts_ms < ? AND action='exit'
             ORDER BY ts_ms ASC
             """,
@@ -227,7 +227,7 @@ def _load_trade_pairs(
             enter = con.execute(
                 """
                 SELECT id, ts_ms, avg_px, payload_json
-                FROM apex_trade_log
+                FROM trade_log
                 WHERE symbol=? AND action='enter' AND ts_ms < ?
                 ORDER BY ts_ms DESC LIMIT 1
                 """,
@@ -314,7 +314,7 @@ def build_calibration_table(
 ) -> CalibrationBuildStats:
     """Build and publish the calibration table.
 
-    Normal usage: omit `trades` — the builder pulls from apex_trade_log.
+    Normal usage: omit `trades` — the builder pulls from trade_log.
     For tests: pass `trades` as an iterable of dicts with keys
         tier, symbol, regime, composite, pnl_pct, pnl_usd, ts_ms.
     """

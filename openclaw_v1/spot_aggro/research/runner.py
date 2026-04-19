@@ -245,7 +245,7 @@ def start(engine_ref: Any) -> None:
                 status["pnl_2h"] = 0
                 status["best_trade"] = 0
                 status["worst_trade"] = 0
-                status["trade_log_text"] = "  (see apex_trade_log)"
+                status["trade_log_text"] = "  (see trade_log)"
                 mio = asyncio.run(run_cycle(status, cycle_number[0]))
                 apply_intelligence(engine_ref, mio)
             except Exception:

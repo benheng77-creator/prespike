@@ -1,0 +1,19 @@
+{
+  "name": "SPOT AGGRO — Operator Dashboard",
+  "short_name": "SPOT AGGRO",
+  "description": "Live operator console for the spot_aggro trading engine.",
+  "start_url": "/ops/",
+  "scope": "/ops/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0d1117",
+  "background_color": "#0d1117",
+  "icons": [
+    {
+      "src": "/ops/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

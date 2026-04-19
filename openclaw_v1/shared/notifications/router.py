@@ -5,7 +5,7 @@ Channels (all best-effort, never raise):
     * telegram    via TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
     * whatsapp    via CallMeBot (CALLMEBOT_API_KEY + CALLMEBOT_PHONE)
     * console     always on (stdout)
-    * db          every notification logged to apex_notifications table
+    * db          every notification logged to notifications table
 
 Event types:
     engine.start, engine.halt, engine.heartbeat,
@@ -34,11 +34,11 @@ from typing import Any, Optional
 from ..persistence import state as persist
 
 
-log = logging.getLogger("apex.notify")
+log = logging.getLogger("ops.notify")
 
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS apex_notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_ms           INTEGER NOT NULL,
     event_type      TEXT NOT NULL,
@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS apex_notifications (
     channel_wa_ok   INTEGER,
     payload_json    TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_apex_notif_ts ON apex_notifications(ts_ms DESC);
-CREATE INDEX IF NOT EXISTS idx_apex_notif_event ON apex_notifications(event_type, ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_ts ON notifications(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_event ON notifications(event_type, ts_ms DESC);
 """
 
 
@@ -295,7 +295,7 @@ def _persist_db(e: NotifyEvent, tg_ok: bool, wa_ok: bool) -> None:
         try:
             con.execute(
                 """
-                INSERT INTO apex_notifications
+                INSERT INTO notifications
                     (ts_ms, event_type, symbol, severity, title, body,
                      channel_tg_ok, channel_wa_ok, payload_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

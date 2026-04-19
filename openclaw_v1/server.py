@@ -338,25 +338,25 @@ def _start_spot_aggro_daily_auditor() -> None:
 #
 # Permanent trip-wire that scans for any reintroduction of the purged
 # apex_omega package or /apex/ URL surface. Runs once at boot (5s
-# delay) then every 5 minutes. When APEX_PURGE_GOV_AUTOKILL=1 is set
+# delay) then every 5 minutes. When LEGACY_PURGE_GOV_AUTOKILL=1 is set
 # (default in the startup env), stray filesystem artifacts (legacy
 # apex directories + logs + config files) are deleted automatically.
 # Source-code regressions are flagged verdict=fail but never auto-
 # patched — a human must review + fix the code.
 @app.on_event("startup")
-def _start_spot_aggro_apex_purge_gov() -> None:
+def _start_spot_aggro_legacy_purge_gov() -> None:
     import logging as _logging
     import threading
     _log = _logging.getLogger(__name__)
     try:
-        from spot_aggro.governance.apex_purge_gov import run_once
+        from spot_aggro.governance.legacy_purge_gov import run_once
     except Exception as exc:  # noqa: BLE001
-        _log.warning("apex_purge_gov NOT started (import): %s", exc)
+        _log.warning("legacy_purge_gov NOT started (import): %s", exc)
         return
     # Default AUTOKILL on in the live server process. Tests import the
     # module directly and pass purge=False explicitly, so this env-level
     # default does not affect them.
-    os.environ.setdefault("APEX_PURGE_GOV_AUTOKILL", "1")
+    os.environ.setdefault("LEGACY_PURGE_GOV_AUTOKILL", "1")
 
     _INTERVAL_S = 300             # 5 minutes
     _FIRST_DELAY_S = 5
@@ -365,11 +365,11 @@ def _start_spot_aggro_apex_purge_gov() -> None:
         try:
             r = run_once()
             _log.info(
-                "[spot_aggro.apex_purge_gov] verdict=%s stray=%d regressions=%d purged=%d",
+                "[spot_aggro.legacy_purge_gov] verdict=%s stray=%d regressions=%d purged=%d",
                 r.verdict, r.n_stray_paths, r.n_src_regressions, r.n_purged,
             )
         except Exception as exc:  # noqa: BLE001
-            _log.exception("apex_purge_gov tick failed: %s", exc)
+            _log.exception("legacy_purge_gov tick failed: %s", exc)
         finally:
             t = threading.Timer(_INTERVAL_S, _tick)
             t.daemon = True
@@ -379,7 +379,7 @@ def _start_spot_aggro_apex_purge_gov() -> None:
     first.daemon = True
     first.start()
     _log.info(
-        "spot_aggro apex_purge_gov scheduled (first run in %ds, then every %ds)",
+        "spot_aggro legacy_purge_gov scheduled (first run in %ds, then every %ds)",
         _FIRST_DELAY_S, _INTERVAL_S,
     )
 
@@ -389,14 +389,14 @@ def _start_spot_aggro_apex_purge_gov() -> None:
 # literals, and the process env for every apex variant. Runs on boot
 # (7s delay so Layer 10 fires first) + every 10 minutes.
 @app.on_event("startup")
-def _start_spot_aggro_apex_deep_forensic_gov() -> None:
+def _start_spot_aggro_legacy_deep_forensic_gov() -> None:
     import logging as _logging
     import threading
     _log = _logging.getLogger(__name__)
     try:
-        from spot_aggro.governance.apex_deep_forensic_gov import run_once
+        from spot_aggro.governance.legacy_deep_forensic_gov import run_once
     except Exception as exc:  # noqa: BLE001
-        _log.warning("apex_deep_forensic_gov NOT started (import): %s", exc)
+        _log.warning("legacy_deep_forensic_gov NOT started (import): %s", exc)
         return
 
     _INTERVAL_S = 600             # 10 minutes
@@ -406,13 +406,13 @@ def _start_spot_aggro_apex_deep_forensic_gov() -> None:
         try:
             r = run_once()
             _log.info(
-                "[spot_aggro.apex_deep_forensic_gov] verdict=%s"
+                "[spot_aggro.legacy_deep_forensic_gov] verdict=%s"
                 " stray=%d src=%d config=%d env=%d info_db=%d purged=%d",
                 r.verdict, r.n_stray_paths, r.n_src_strings,
                 r.n_config, r.n_env, r.n_info, r.n_purged,
             )
         except Exception as exc:  # noqa: BLE001
-            _log.exception("apex_deep_forensic_gov tick failed: %s", exc)
+            _log.exception("legacy_deep_forensic_gov tick failed: %s", exc)
         finally:
             t = threading.Timer(_INTERVAL_S, _tick)
             t.daemon = True
@@ -422,7 +422,7 @@ def _start_spot_aggro_apex_deep_forensic_gov() -> None:
     first.daemon = True
     first.start()
     _log.info(
-        "spot_aggro apex_deep_forensic_gov scheduled (first run in %ds, then every %ds)",
+        "spot_aggro legacy_deep_forensic_gov scheduled (first run in %ds, then every %ds)",
         _FIRST_DELAY_S, _INTERVAL_S,
     )
 
@@ -705,7 +705,7 @@ def engines_status():
     """Unified status for every engine attached to this host."""
     out: dict[str, Any] = {}
     try:
-        from spot_aggro.ops.routes_ops import apex_status as _ops_status
+        from spot_aggro.ops.routes_ops import ops_status as _ops_status
         out["spot_aggro_ops"] = _ops_status()
     except Exception as e:
         out["spot_aggro_ops"] = {"error": str(e)}

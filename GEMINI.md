@@ -23,27 +23,29 @@ Read this file first.
 
 ## AUTO SNAPSHOT
 - Git: yes
-- Branch: feature/research-halt
-- Dirty files: 18
+- Branch: main-clean
+- Dirty files: 54
 - Changed:
   -  M .github/copilot-instructions.md
-  -  M .gitignore
   -  M AGENTS.md
   -  M CLAUDE.md
   -  M GEMINI.md
   -  M deploy/spot-aggro-v2/index.html
-  -  D openclaw_v1/backtest_plus/institutional_backtest.py
-  -  M openclaw_v1/scripts/test_keys.py
-  -  M openclaw_v1/secrets_store.py
   -  M openclaw_v1/server.py
   -  M openclaw_v1/shared/adapters/okx_unified.py
-  -  M openclaw_v1/shared/config/__init__.py
+  -  M openclaw_v1/shared/adapters/universe_discovery.py
+  -  M openclaw_v1/shared/llm/consensus.py
+  -  M openclaw_v1/shared/notifications/router.py
+  -  M openclaw_v1/shared/persistence/settings.py
+  -  M openclaw_v1/shared/persistence/state.py
   -  M openclaw_v1/spot_aggro/api/routes.py
-  -  M openclaw_v1/spot_aggro/gates/capital_gate.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9q_apex_purge.py
-  -  M web/ops/index.html
-  - ?? openclaw_v1/spot_aggro/governance/apex_deep_forensic_gov.py
-  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9t_apex_deep_forensic.py
+  -  M openclaw_v1/spot_aggro/forensic/runner.py
+  -  M openclaw_v1/spot_aggro/forensic_v2/schema.py
+  -  M openclaw_v1/spot_aggro/gates/calibration_engine.py
+  -  M openclaw_v1/spot_aggro/gates/calibration_store.py
+  -  M openclaw_v1/spot_aggro/governance/card_truth_gov.py
+  -  M openclaw_v1/spot_aggro/governance/daily_alpha_executor.py
+  -  M openclaw_v1/spot_aggro/governance/daily_system_auditor.py
 - Stack: Node
 - Scripts:
   - npm run android:assemble
@@ -63,17 +65,17 @@ Read this file first.
 - CI: GitHub Actions present
 - Recent files:
   -  M .github/copilot-instructions.md
-  -  M .gitignore
   -  M AGENTS.md
   -  M CLAUDE.md
   -  M GEMINI.md
   -  M deploy/spot-aggro-v2/index.html
-  -  D openclaw_v1/backtest_plus/institutional_backtest.py
-  -  M openclaw_v1/scripts/test_keys.py
-  -  M openclaw_v1/secrets_store.py
   -  M openclaw_v1/server.py
   -  M openclaw_v1/shared/adapters/okx_unified.py
-  -  M openclaw_v1/shared/config/__init__.py
+  -  M openclaw_v1/shared/adapters/universe_discovery.py
+  -  M openclaw_v1/shared/llm/consensus.py
+  -  M openclaw_v1/shared/notifications/router.py
+  -  M openclaw_v1/shared/persistence/settings.py
+  -  M openclaw_v1/shared/persistence/state.py
 
 ## MANUAL FOLLOW-UP
 # CURRENT FOLLOW-UP
