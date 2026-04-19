@@ -1,0 +1,100 @@
+{
+  "uid": "spot-health-swarm",
+  "title": "spot_aggro · Health & Swarm",
+  "tags": ["spot_aggro", "swarm", "infra"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Audit swarm quorum size",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A", "format": "time_series",
+          "rawSql": "SELECT ts AS \"time\", quorum_size FROM spot_audit_swarm WHERE $__timeFilter(ts) ORDER BY ts"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "Audit REJECT reasons (24h)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT reason_code, count() AS n FROM spot_audit_swarm WHERE verdict='REJECT' AND ts > dateadd('h',-24,now()) GROUP BY reason_code"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Swarm cycle duration by layer",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "targets": [
+        {"refId": "A", "format": "time_series",
+          "rawSql": "SELECT ts AS \"time\", layer, duration_ms FROM spot_swarm_cycles WHERE $__timeFilter(ts) ORDER BY ts"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Max consecutive swarm errors (5 min)",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 1},
+            {"color": "red", "value": 3}
+          ]}
+        }
+      },
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT max(consecutive_errors) FROM spot_swarm_cycles WHERE ts > dateadd('m',-5,now())"}
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Kill-switch events",
+      "gridPos": {"h": 6, "w": 18, "x": 6, "y": 12},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A", "format": "table",
+          "rawSql": "SELECT ts, kind, reason, dd_pct, equity_usd FROM spot_kill_events WHERE $__timeFilter(ts) ORDER BY ts DESC LIMIT 20"}
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Execution friction vs expected (bp)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "fieldConfig": {"defaults": {"unit": "none"}},
+      "targets": [
+        {"refId": "A", "format": "time_series",
+          "rawSql": "SELECT ts AS \"time\", round_trip_cost_bp, expected_move_bp FROM spot_execution_cost WHERE $__timeFilter(ts) ORDER BY ts"}
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Dashboard truth issues (6h)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A", "format": "table",
+          "rawSql": "SELECT ts, kind, card, severity, summary_value, body_value, age_s FROM spot_dashboard_truth_issues WHERE ts > dateadd('h',-6,now()) ORDER BY ts DESC LIMIT 50"}
+      ]
+    }
+  ]
+}

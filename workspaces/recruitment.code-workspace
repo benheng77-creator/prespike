@@ -1,0 +1,30 @@
+{
+    "folders":  [
+                    {
+                        "path":  "..\\recruitment"
+                    }
+                ],
+    "settings":  {
+                     "terminal.integrated.cwd":  "..\\recruitment",
+                     "files.exclude":  {
+                                           "**/.cache":  true,
+                                           "**/temp":  true,
+                                           "**/build":  true,
+                                           "**/node_modules":  true,
+                                           "**/.next":  true,
+                                           "**/dist":  true,
+                                           "**/coverage":  true,
+                                           "**/tmp":  true
+                                       },
+                     "search.exclude":  {
+                                            "**/.cache":  true,
+                                            "**/temp":  true,
+                                            "**/build":  true,
+                                            "**/node_modules":  true,
+                                            "**/.next":  true,
+                                            "**/dist":  true,
+                                            "**/coverage":  true,
+                                            "**/tmp":  true
+                                        }
+                 }
+}

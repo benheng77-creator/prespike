@@ -1,0 +1,57 @@
+{
+  "uid": "spot-forensic-governance",
+  "title": "spot_aggro · Forensic Governance",
+  "tags": ["spot_aggro", "forensic", "governance"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-7d", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Forensic runs (50 most recent)",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A", "format": "table",
+          "rawSql": "SELECT ts, report_id, window_h, verdict, governor_verdict, trust_score, n_trades, win_rate, cost_usd FROM spot_forensic_runs ORDER BY ts DESC LIMIT 50"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Governor approval rate (7d)",
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 10},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "fieldConfig": {"defaults": {"unit": "percent"}},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT 100.0 * count(CASE WHEN governor_verdict='APPROVED' THEN 1 END) / CASE WHEN count() = 0 THEN 1 ELSE count() END AS approval_rate FROM spot_forensic_runs WHERE ts > dateadd('d',-7,now())"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "barchart",
+      "title": "WRI top causes (24h full runs)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT top_cause, count() AS n FROM spot_wri_runs WHERE cadence='full' AND ts > dateadd('h',-24,now()) GROUP BY top_cause"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Coin-memory suppressed (24h)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A", "format": "table",
+          "rawSql": "SELECT symbol, tier, regime, sum_pnl, win_rate FROM spot_coin_memory_log WHERE suppressed = true AND ts > dateadd('h',-24,now()) ORDER BY ts DESC"}
+      ]
+    }
+  ]
+}

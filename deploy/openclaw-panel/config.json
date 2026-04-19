@@ -1,0 +1,7 @@
+{
+  "port": 8787,
+  "host": "127.0.0.1",
+  "projectRoot": "../..",
+  "tradingRoot": "../../openclaw_v1",
+  "_comment": "projectRoot points to the OpenClaw repo root (where the top-level .env lives). tradingRoot points to the openclaw_v1 trading project. Both are resolved relative to this bundle directory unless absolute. Set host=0.0.0.0 to expose without cloudflared (not recommended)."
+}

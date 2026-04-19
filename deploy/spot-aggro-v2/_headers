@@ -1,0 +1,11 @@
+# Cloudflare Pages custom headers — applied to every response.
+#
+# Dashboard HTML and any asset must NEVER be browser-cached. The operator
+# relies on picking up `wrangler pages deploy` updates within seconds.
+# Default Pages caching rules (cache-control: public, max-age=0,
+# must-revalidate) let browsers serve the previously-stored copy for a
+# long time under lossy networks. These headers kill that entirely.
+/*
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  Pragma: no-cache
+  Expires: 0

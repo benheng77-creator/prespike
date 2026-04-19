@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>claw247 — dashboard</title>
+<style>
+:root{
+  --bg-app:#F7F8FA;--bg-surface:#FFFFFF;--bg-alt:#F1F3F6;
+  --border:#E5E8EC;--border-strong:#C8CED6;
+  --ink-1:#0F1419;--ink-2:#3A434E;--ink-3:#6A7685;--ink-4:#A0AAB7;
+  --accent:#1F4DFF;--accent-quiet:#E7ECFF;
+  --pos:#0A8754;--pos-quiet:#E3F4EA;
+  --neg:#B42318;--neg-quiet:#FCE9E6;
+  --warn:#B54708;--warn-quiet:#FCEEDF;
+  --info:#1E5EB5;--info-quiet:#E3ECF8;
+  --mute:#5A6470;
+  --rail:240px;--topbar:56px;
+  --shadow-1:0 1px 2px rgba(15,20,25,.06);
+  --shadow-2:0 8px 24px rgba(15,20,25,.08);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{
+  font:400 15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color:var(--ink-1);background:var(--bg-app);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+.num{font-variant-numeric:tabular-nums lining-nums}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh}
+aside{
+  background:var(--bg-surface);border-right:1px solid var(--border);
+  position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+}
+aside .brand{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:-.01em;font-size:15px}
+aside .brand b{color:var(--accent)}
+nav{padding:8px}
+nav a{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;
+  color:var(--ink-2);text-decoration:none;font-size:14px;cursor:pointer;
+}
+nav a:hover{background:var(--bg-alt);color:var(--ink-1)}
+nav a.active{background:var(--accent-quiet);color:var(--accent);font-weight:500}
+nav .dot{width:6px;height:6px;border-radius:50%;background:var(--ink-4)}
+nav .group{padding:16px 12px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:500}
+aside .foot{margin-top:auto;padding:12px 20px;border-top:1px solid var(--border);color:var(--ink-3);font-size:12px}
+
+/* topbar */
+header.top{
+  height:var(--topbar);background:var(--bg-surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:5;
+}
+header .search input{
+  background:var(--bg-alt);border:1px solid transparent;border-radius:8px;padding:8px 12px;width:320px;font:inherit;color:var(--ink-1);
+}
+header .search input:focus{border-color:var(--border-strong);background:var(--bg-surface);outline:none}
+header .right{display:flex;align-items:center;gap:8px}
+header button.icon{background:transparent;border:1px solid transparent;border-radius:8px;width:36px;height:36px;cursor:pointer;color:var(--ink-2)}
+header button.icon:hover{background:var(--bg-alt)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
+
+/* main */
+main{padding:24px;max-width:1200px;width:100%}
+h1.page{font-size:22px;margin:0 0 16px;letter-spacing:-.01em}
+.meta{font-size:12px;color:var(--ink-3);display:inline-flex;align-items:center;gap:6px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle}
+.dot.ok{background:var(--pos)}
+.dot.warn{background:var(--warn)}
+.dot.err{background:var(--neg)}
+.dot.info{background:var(--info)}
+.dot.mute{background:var(--ink-4)}
+
+/* card */
+.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1)}
+.card .hd{padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.card .hd h3{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:500}
+.card .bd{padding:20px}
+.card.flat .bd{padding:24px}
+
+/* hero */
+.hero{padding:28px 32px}
+.hero .label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin-bottom:6px}
+.hero .value{font-size:40px;line-height:48px;font-weight:600;letter-spacing:-.015em}
+.hero .row{display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:500;background:var(--bg-alt);color:var(--ink-2)}
+.chip.pos{background:var(--pos-quiet);color:var(--pos)}
+.chip.neg{background:var(--neg-quiet);color:var(--neg)}
+.chip.warn{background:var(--warn-quiet);color:var(--warn)}
+.chip.info{background:var(--info-quiet);color:var(--info)}
+
+/* strip */
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px}
+.strip .card .bd{padding:16px 18px}
+.strip .card .label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin-bottom:4px}
+.strip .card .v{font-size:22px;font-weight:600;letter-spacing:-.01em}
+.strip .card .sub{font-size:12px;color:var(--ink-3);margin-top:2px}
+
+/* grid */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+
+/* lists */
+.list{display:flex;flex-direction:column}
+.list .item{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border)}
+.list .item:last-child{border-bottom:none}
+.list .item .ico{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--bg-alt);color:var(--ink-2);flex-shrink:0}
+.list .item .ico.warn{background:var(--warn-quiet);color:var(--warn)}
+.list .item .ico.neg{background:var(--neg-quiet);color:var(--neg)}
+.list .item .ico.info{background:var(--info-quiet);color:var(--info)}
+.list .item .ico.pos{background:var(--pos-quiet);color:var(--pos)}
+.list .item .body{flex:1;min-width:0}
+.list .item .body .t{font-size:14px;font-weight:500;color:var(--ink-1);margin:0}
+.list .item .body .s{font-size:12px;color:var(--ink-3);margin:2px 0 0}
+.list .item .right{font-size:12px;color:var(--ink-3);white-space:nowrap}
+.list .item a{color:var(--accent);font-size:13px;font-weight:500;text-decoration:none}
+
+/* actions row */
+.actions{display:flex;gap:8px;flex-wrap:wrap;padding:14px 20px}
+.actions .chip{cursor:pointer;background:var(--bg-surface);border:1px solid var(--border);color:var(--ink-2)}
+.actions .chip:hover{border-color:var(--accent);color:var(--accent)}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{
+  text-align:left;padding:10px 16px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink-3);font-weight:500;background:var(--bg-alt);border-bottom:1px solid var(--border)
+}
+tbody td{padding:12px 16px;border-bottom:1px solid var(--border);color:var(--ink-1)}
+tbody tr:last-child td{border-bottom:none}
+td.r,th.r{text-align:right}
+.ticker{display:flex;align-items:center;gap:8px;font-weight:500}
+.ticker .av{width:24px;height:24px;border-radius:50%;background:var(--bg-alt);color:var(--ink-2);display:grid;place-items:center;font-size:10px;font-weight:600}
+
+/* empty */
+.empty{padding:40px 20px;text-align:center;color:var(--ink-3)}
+.empty b{display:block;color:var(--ink-2);font-size:14px;margin-bottom:4px}
+.empty p{margin:0 0 12px;font-size:13px}
+button.primary{background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:8px;padding:8px 14px;font:500 13px/1.4 inherit;cursor:pointer}
+button.primary:hover{filter:brightness(1.05)}
+button.ghost{background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font:500 13px/1.4 inherit;color:var(--ink-2);cursor:pointer}
+button.ghost:hover{border-color:var(--border-strong);color:var(--ink-1)}
+
+/* skeleton */
+.sk{height:12px;background:linear-gradient(90deg,#EEF0F4 0%,#F7F8FA 50%,#EEF0F4 100%);background-size:200% 100%;animation:shimmer 1.2s infinite linear;border-radius:6px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* section reveal */
+.section{display:none}
+.section.active{display:block}
+
+@media (max-width: 960px){
+  .app{grid-template-columns:1fr}
+  aside{position:fixed;transform:translateX(-100%);transition:transform .15s;z-index:10;width:var(--rail)}
+  aside.open{transform:none}
+  .strip{grid-template-columns:1fr 1fr}
+  .grid2{grid-template-columns:1fr}
+  header .search input{width:160px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside id="rail">
+    <div class="brand">claw<b>247</b></div>
+    <nav id="nav">
+      <div class="group">Overview</div>
+      <a class="active" data-sec="home"><span class="dot" style="background:currentColor;opacity:.5"></span>Home</a>
+      <a data-sec="portfolio">Portfolio</a>
+
+      <div class="group">Move money</div>
+      <a data-sec="trade">Trade</a>
+      <a data-sec="funds">Deposit &amp; Withdraw</a>
+      <a data-sec="watchlist">Watchlist</a>
+
+      <div class="group">Records</div>
+      <a data-sec="activity">Activity</a>
+      <a data-sec="alerts">Alerts</a>
+
+      <div class="group">Account</div>
+      <a data-sec="wallets">Wallets &amp; Payments</a>
+      <a data-sec="security">Security</a>
+      <a data-sec="settings">Settings</a>
+      <a data-sec="support">Support</a>
+    </nav>
+    <div class="foot">internal · auto-refresh 60s</div>
+  </aside>
+
+  <div>
+    <header class="top">
+      <div class="search">
+        <input id="search" placeholder="Search holdings, activity…" />
+      </div>
+      <div class="right">
+        <button class="icon" id="refresh" title="Refresh">⟳</button>
+        <button class="icon" id="bell" title="Alerts">🔔</button>
+        <div class="avatar">JB</div>
+      </div>
+    </header>
+
+    <main>
+
+      <!-- HOME -->
+      <section class="section active" id="sec-home">
+        <h1 class="page">Good day</h1>
+        <div class="meta"><span id="conn-dot" class="dot mute"></span><span id="conn-text">connecting…</span> · updated <span id="updated">—</span></div>
+
+        <!-- HERO -->
+        <div class="card" style="margin-top:16px">
+          <div class="hero">
+            <div class="label">Total value</div>
+            <div class="value num" id="hero-total">—</div>
+            <div class="row">
+              <span id="hero-chip" class="chip mute">—</span>
+              <span class="meta">today</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- STRIP -->
+        <div class="strip">
+          <div class="card"><div class="bd"><div class="label">Holdings</div><div class="v num" id="m-holdings">—</div><div class="sub">open positions</div></div></div>
+          <div class="card"><div class="bd"><div class="label">Realized PnL</div><div class="v num" id="m-realized">—</div><div class="sub">today</div></div></div>
+          <div class="card"><div class="bd"><div class="label">Unrealized</div><div class="v num" id="m-unreal">—</div><div class="sub">open P&amp;L</div></div></div>
+          <div class="card"><div class="bd"><div class="label">Accuracy gate</div><div class="v num" id="m-gate">—</div><div class="sub" id="m-gate-sub">status</div></div></div>
+        </div>
+
+        <!-- PENDING + ACTIONS -->
+        <div class="grid2">
+          <div class="card">
+            <div class="hd"><h3>Pending &amp; alerts</h3><span class="meta"><span id="alerts-count">0</span> items</span></div>
+            <div class="list" id="alerts-list">
+              <div class="empty">
+                <b>All clear</b>
+                <p>No pending items right now.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="hd"><h3>Next best actions</h3></div>
+            <div class="actions" id="actions-row">
+              <!-- populated from state -->
+            </div>
+            <div class="bd" style="padding-top:0;color:var(--ink-3);font-size:12px">
+              Suggestions are based on your current state, never paid placements.
+            </div>
+          </div>
+        </div>
+
+        <!-- HOLDINGS -->
+        <div class="card" style="margin-top:16px">
+          <div class="hd"><h3>Holdings</h3><a href="#" onclick="go('portfolio');return false" style="color:var(--accent);font-size:13px;text-decoration:none;font-weight:500">View all ▸</a></div>
+          <table id="t-holdings">
+            <thead><tr><th>Symbol</th><th>Side</th><th class="r">Size</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">P&amp;L (R)</th></tr></thead>
+            <tbody><tr><td colspan="6"><div class="empty"><b>No holdings yet</b><p>Start with a deposit or a first trade.</p><button class="primary" onclick="go('trade')">Trade</button></div></td></tr></tbody>
+          </table>
+        </div>
+
+        <!-- ACTIVITY -->
+        <div class="card" style="margin-top:16px">
+          <div class="hd"><h3>Recent activity</h3><a href="#" onclick="go('activity');return false" style="color:var(--accent);font-size:13px;text-decoration:none;font-weight:500">View all ▸</a></div>
+          <table id="t-activity">
+            <thead><tr><th>When</th><th>Symbol</th><th>Action</th><th class="r">Size</th><th class="r">Price</th><th class="r">P&amp;L</th></tr></thead>
+            <tbody><tr><td colspan="6"><div class="empty"><b>Nothing here yet</b><p>Trades and transfers will appear here.</p></div></td></tr></tbody>
+          </table>
+        </div>
+
+      </section>
+
+      <!-- STUBS -->
+      <section class="section" id="sec-portfolio"><h1 class="page">Portfolio</h1><div class="card flat"><div class="bd"><div class="empty"><b>Coming next</b><p>Allocation donut, value-over-time, per-position detail. This page is live but not yet filled in.</p></div></div></div></section>
+      <section class="section" id="sec-trade"><h1 class="page">Trade</h1><div class="card flat"><div class="bd"><div class="empty"><b>Trade is gated</b><p>Trade actions require live mode to be enabled. Ask the operator to unlock live trading.</p></div></div></div></section>
+      <section class="section" id="sec-funds"><h1 class="page">Deposit &amp; Withdraw</h1><div class="card flat"><div class="bd"><div class="empty"><b>Configure a wallet first</b><p>Go to Wallets &amp; Payments to link an exchange account.</p></div></div></div></section>
+      <section class="section" id="sec-watchlist"><h1 class="page">Watchlist</h1><div class="card flat"><div class="bd"><div class="empty"><b>Watchlist is empty</b><p>Add symbols to track their price and alerts.</p></div></div></div></section>
+      <section class="section" id="sec-activity"><h1 class="page">Activity</h1><div class="card" id="act-card"><table id="t-act-full"><thead><tr><th>When</th><th>Symbol</th><th>Action</th><th class="r">Size</th><th class="r">Price</th><th class="r">P&amp;L</th></tr></thead><tbody><tr><td colspan="6"><div class="empty"><b>Nothing to show</b><p>Once trades run, they appear here.</p></div></td></tr></tbody></table></div></section>
+      <section class="section" id="sec-alerts"><h1 class="page">Alerts</h1><div class="card" id="alerts-card"><div class="list" id="alerts-full"><div class="empty"><b>No alerts</b><p>When monitors flag something, it will show here.</p></div></div></div></section>
+      <section class="section" id="sec-wallets"><h1 class="page">Wallets &amp; Payments</h1><div class="card flat"><div class="bd"><div class="empty"><b>No wallets linked</b><p>Link a paper or live exchange connection to begin.</p></div></div></div></section>
+      <section class="section" id="sec-security"><h1 class="page">Security</h1><div class="card flat"><div class="bd"><div class="empty"><b>Set up 2FA</b><p>Two-factor is required before any live trading or withdrawal.</p><button class="primary">Enable 2FA</button></div></div></div></section>
+      <section class="section" id="sec-settings"><h1 class="page">Settings</h1><div class="card flat"><div class="bd"><div class="empty"><b>Connection</b><p>Backend URL: <span class="num" id="set-backend">—</span></p><button class="ghost" onclick="promptBackend()">Change</button></div></div></div></section>
+      <section class="section" id="sec-support"><h1 class="page">Support</h1><div class="card flat"><div class="bd"><div class="empty"><b>Need help?</b><p>Check the Operator center for system status, or contact your administrator.</p></div></div></div></section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const KEY="claw247.backendUrl";
+const LOCAL_HOSTS=["localhost","127.0.0.1","0.0.0.0"];
+const PROD_DEFAULT="https://claw247-trading-api.benheng77.workers.dev";
+const LOCAL_DEFAULT="http://localhost:8080";
+
+let backend = localStorage.getItem(KEY) || (LOCAL_HOSTS.includes(location.hostname) ? LOCAL_DEFAULT : PROD_DEFAULT);
+
+function $(id){return document.getElementById(id)}
+function fmt(n){ if(n==null||isNaN(n))return "—"; const a=Math.abs(n); const opts=a>=100?{maximumFractionDigits:2}:a>=1?{maximumFractionDigits:2}:{maximumFractionDigits:4}; return n.toLocaleString(undefined,opts); }
+function money(n,cur="USD"){ if(n==null||isNaN(n))return "—"; return n.toLocaleString(undefined,{style:"currency",currency:cur,maximumFractionDigits:2}); }
+function pct(n){ if(n==null||isNaN(n))return "—"; return (n*100).toLocaleString(undefined,{maximumFractionDigits:2})+"%"; }
+function setConn(state,text){ $("conn-dot").className="dot "+state; $("conn-text").textContent=text; }
+function go(sec){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll("nav a").forEach(a=>a.classList.remove("active"));
+  const s=$("sec-"+sec); if(s) s.classList.add("active");
+  const n=document.querySelector(`nav a[data-sec="${sec}"]`); if(n) n.classList.add("active");
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("nav a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();go(a.dataset.sec);}));
+
+async function fetchJSON(path,ms=6000){
+  const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),ms);
+  try{ const r=await fetch(backend+path,{signal:ctl.signal,headers:{accept:"application/json"}}); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json(); }
+  finally{ clearTimeout(t); }
+}
+
+async function refresh(){
+  const base=(backend||"").replace(/\/+$/,"");
+  if(!base){ setConn("warn","no backend"); return; }
+  setConn("warn","fetching…");
+  let anyOk=false, anyErr=false;
+  try {
+    const [status, positions, trades, gate] = await Promise.allSettled([
+      fetchJSON("/status"),
+      fetchJSON("/positions"),
+      fetchJSON("/trades"),
+      fetchJSON("/gate"),
+    ]);
+    if(status.status==="fulfilled"){ anyOk=true; paintStatus(status.value); } else { anyErr=true; }
+    if(positions.status==="fulfilled"){ anyOk=true; paintPositions(positions.value); } else { anyErr=true; }
+    if(trades.status==="fulfilled"){ anyOk=true; paintTrades(trades.value); } else { anyErr=true; }
+    if(gate.status==="fulfilled"){ anyOk=true; paintGate(gate.value); } else { anyErr=true; }
+    paintActions();
+  } catch(e){ anyErr=true; }
+  $("updated").textContent = new Date().toLocaleTimeString();
+  if(anyOk && !anyErr) setConn("ok","connected");
+  else if(anyOk) setConn("warn","partial");
+  else setConn("err","unreachable");
+}
+
+function paintStatus(s){
+  const mode = s.mode || "paper";
+  const modeChip = (s.db_present ? "connected" : "idle");
+  // total value + today change: not present in shim; show honest placeholders when not wired
+  // We surface version + uptime as meta context.
+  const bal = s.balance_quote ?? s.balance ?? null;
+  if(bal != null){
+    $("hero-total").textContent = money(bal);
+  } else {
+    $("hero-total").textContent = "No data yet";
+    $("hero-total").style.fontSize = "22px";
+  }
+  $("m-holdings").textContent = s.open_positions ?? "—";
+}
+
+function paintPositions(p){
+  const rows = Array.isArray(p) ? p : [];
+  $("m-holdings").textContent = rows.length;
+  const t = document.querySelector("#t-holdings tbody");
+  if(!rows.length){
+    t.innerHTML = `<tr><td colspan="6"><div class="empty"><b>No holdings yet</b><p>Start with a deposit or a first trade.</p><button class="primary" onclick="go('trade')">Trade</button></div></td></tr>`;
+    return;
+  }
+  t.innerHTML = rows.map(r=>{
+    const sym = r.symbol || "—";
+    const dir = (r.direction>0||r.side==="long")?"Long":(r.direction<0||r.side==="short")?"Short":"Flat";
+    const size = fmt(r.size);
+    const entry = fmt(r.entry_px ?? r.entry);
+    const mark = fmt(r.mark_px ?? r.mark ?? r.target_px);
+    const pnl = r.pnl_r ?? r.pnl ?? null;
+    const chip = pnl==null?"—":(pnl>=0?`<span class="chip pos">+${fmt(pnl)}R</span>`:`<span class="chip neg">${fmt(pnl)}R</span>`);
+    return `<tr>
+      <td><span class="ticker"><span class="av">${sym.slice(0,2).toUpperCase()}</span>${sym}</span></td>
+      <td>${dir}</td><td class="r num">${size}</td><td class="r num">${entry}</td><td class="r num">${mark}</td><td class="r">${chip}</td>
+    </tr>`;
+  }).join("");
+}
+
+function paintTrades(rows){
+  if(!Array.isArray(rows)) rows = [];
+  const t = document.querySelector("#t-activity tbody");
+  const tFull = document.querySelector("#t-act-full tbody");
+  let realizedToday = 0;
+  const dayStart = new Date(); dayStart.setHours(0,0,0,0);
+  rows.forEach(r=>{
+    const ts = r.exit_ts_ms || r.entry_ts_ms || 0;
+    if(ts >= dayStart.getTime()) realizedToday += (r.pnl_quote || r.pnl || 0);
+  });
+  $("m-realized").textContent = money(realizedToday);
+  paintHero(realizedToday);
+
+  if(!rows.length){
+    const empty = `<tr><td colspan="6"><div class="empty"><b>Nothing here yet</b><p>Trades and transfers will appear here.</p></div></td></tr>`;
+    t.innerHTML = empty; tFull.innerHTML = empty; return;
+  }
+  const html = rows.slice(0,10).map(r=>{
+    const when = new Date(r.exit_ts_ms || r.entry_ts_ms || Date.now()).toLocaleString();
+    const sym = r.symbol || "—";
+    const act = r.direction>0?"Long":r.direction<0?"Short":"Closed";
+    const size = fmt(r.size);
+    const px = fmt(r.exit_px || r.entry_px);
+    const pnl = r.pnl_quote ?? r.pnl ?? null;
+    const chip = pnl==null?"—":(pnl>=0?`<span class="chip pos">+${money(pnl)}</span>`:`<span class="chip neg">${money(pnl)}</span>`);
+    return `<tr><td class="num">${when}</td><td>${sym}</td><td>${act}</td><td class="r num">${size}</td><td class="r num">${px}</td><td class="r">${chip}</td></tr>`;
+  }).join("");
+  t.innerHTML = html;
+  tFull.innerHTML = rows.map(r=>{
+    const when = new Date(r.exit_ts_ms || r.entry_ts_ms || Date.now()).toLocaleString();
+    const sym = r.symbol || "—"; const act = r.direction>0?"Long":r.direction<0?"Short":"Closed";
+    const size = fmt(r.size); const px = fmt(r.exit_px || r.entry_px);
+    const pnl = r.pnl_quote ?? r.pnl ?? null;
+    const chip = pnl==null?"—":(pnl>=0?`<span class="chip pos">+${money(pnl)}</span>`:`<span class="chip neg">${money(pnl)}</span>`);
+    return `<tr><td class="num">${when}</td><td>${sym}</td><td>${act}</td><td class="r num">${size}</td><td class="r num">${px}</td><td class="r">${chip}</td></tr>`;
+  }).join("");
+}
+
+function paintHero(realizedToday){
+  const total = $("hero-total").textContent;
+  if(!realizedToday){
+    $("hero-chip").className="chip mute"; $("hero-chip").textContent="No change today"; return;
+  }
+  if(realizedToday>=0){ $("hero-chip").className="chip pos"; $("hero-chip").textContent="+" + money(realizedToday); }
+  else { $("hero-chip").className="chip neg"; $("hero-chip").textContent = money(realizedToday); }
+}
+
+function paintGate(g){
+  const v = g?.accuracy != null ? (g.accuracy*100).toFixed(1)+"%" : "—";
+  $("m-gate").textContent = v;
+  $("m-gate-sub").textContent = g?.status ? g.status.toLowerCase() : "status";
+  $("m-unreal").textContent = "—"; // not computed by shim
+}
+
+function paintActions(){
+  const list = $("actions-row");
+  const items = [
+    {t:"Enable 2FA", go:"security"},
+    {t:"Link a wallet", go:"wallets"},
+    {t:"Explore watchlist", go:"watchlist"},
+  ];
+  list.innerHTML = items.map(i=>`<span class="chip" onclick="go('${i.go}')">${i.t}</span>`).join("");
+}
+
+function promptBackend(){
+  const v = prompt("Backend base URL", backend);
+  if(v){ backend=v.replace(/\/+$/,""); localStorage.setItem(KEY,backend); $("set-backend").textContent=backend; refresh(); }
+}
+$("set-backend").textContent = backend;
+$("refresh").addEventListener("click", refresh);
+refresh();
+setInterval(()=>{ if(!document.hidden) refresh(); }, 60_000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) refresh(); });
+</script>
+</body>
+</html>

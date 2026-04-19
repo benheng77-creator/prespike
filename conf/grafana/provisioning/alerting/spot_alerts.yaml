@@ -1,0 +1,247 @@
+# SPOT AGGRO Grafana unified alerting rules.
+# All alerts are observational. No alert triggers an engine action — the
+# operator reads, decides, acts. This keeps alerting out of the trade
+# path and honors the "no capital-based blocking" rule.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: spot_aggro
+    folder: spot_aggro
+    interval: 30s
+    rules:
+
+      - uid: spot_reject_storm
+        title: spot_reject_storm
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 60, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT count() AS val FROM spot_trades WHERE action='reject' AND ts > dateadd('m',-1,now())
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [30]}
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        labels:
+          severity: critical
+          engine: spot_aggro
+        annotations:
+          summary: ">30 rejects/min on spot engine"
+
+      - uid: spot_skip_storm
+        title: spot_skip_storm
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT count() AS val FROM spot_trades WHERE action='skip' AND ts > dateadd('m',-5,now())
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [50]}
+        noDataState: OK
+        execErrState: OK
+        for: 2m
+        labels:
+          severity: warning
+          engine: spot_aggro
+        annotations:
+          summary: ">50 pre-flight skips in 5m — free USDT likely exhausted"
+
+      - uid: spot_engine_silence
+        title: spot_engine_silence
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT datediff('s', max(ts), now()) AS val FROM spot_trades
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [180]}
+        noDataState: OK
+        execErrState: OK
+        for: 2m
+        labels:
+          severity: warning
+          engine: spot_aggro
+        annotations:
+          summary: "spot engine silent — no trade events for 3m"
+
+      - uid: spot_funnel_stale
+        title: spot_funnel_stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT datediff('s', max(ts), now()) AS val FROM spot_funnel
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [120]}
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        labels:
+          severity: warning
+          engine: spot_aggro
+        annotations:
+          summary: "funnel table stale — no sample in 2m"
+
+      - uid: spot_audit_quorum_miss
+        title: spot_audit_quorum_miss
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT count() AS val FROM spot_audit_swarm WHERE reason_code='AS-001' AND ts > dateadd('m',-10,now())
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [3]}
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        labels:
+          severity: critical
+          engine: spot_aggro
+        annotations:
+          summary: ">3 audit quorum timeouts (AS-001) in 10m"
+
+      - uid: spot_swarm_errors
+        title: spot_swarm_errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT max(consecutive_errors) AS val FROM spot_swarm_cycles WHERE ts > dateadd('m',-10,now())
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gte, params: [3]}
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        labels:
+          severity: critical
+          engine: spot_aggro
+        annotations:
+          summary: "swarm consecutive_errors >= 3"
+
+      - uid: spot_kill_fired
+        title: spot_kill_fired
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 60, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT count() AS val FROM spot_kill_events WHERE kind='triggered' AND ts > dateadd('m',-1,now())
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gte, params: [1]}
+        noDataState: OK
+        execErrState: OK
+        for: 0m
+        labels:
+          severity: critical
+          engine: spot_aggro
+        annotations:
+          summary: "kill-switch triggered"
+
+      - uid: spot_truth_mismatch
+        title: spot_truth_mismatch
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT count() AS val FROM spot_dashboard_truth_issues WHERE kind='MISMATCH' AND ts > dateadd('m',-5,now())
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        labels:
+          severity: critical
+          engine: spot_aggro
+        annotations:
+          summary: "dashboard summary/body mismatch detected"
+
+      - uid: spot_forensic_rejected
+        title: spot_forensic_rejected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: questdb-spot
+            model:
+              format: table
+              rawSql: SELECT count() AS val FROM spot_governor_runs WHERE verdict='REJECTED' AND ts > dateadd('m',-10,now())
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        noDataState: OK
+        execErrState: OK
+        for: 0m
+        labels:
+          severity: critical
+          engine: spot_aggro
+        annotations:
+          summary: "Forensic Governor rejected a report"

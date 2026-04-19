@@ -1,0 +1,133 @@
+# ============================================================================
+# APEX-Ω v2.0 CONFIGURATION
+# Every threshold, weight, universe entry, and provider lives here.
+# Code must not hardcode any knob that exists in this file.
+# ============================================================================
+
+capital:
+  working_usd: 318.53          # working margin after reserves (see spec §0)
+  fx_sgd_usd: 0.7400           # reference rate; informational only
+  emergency_reserve_pct: 0.05  # informational; held outside working margin
+
+engine:
+  poll_interval_s: 2           # main heartbeat
+  max_concurrent_pairs: 4
+  funding_z_min: 1.5           # 30d z-score threshold
+  consensus_min: 0.55          # Bayesian posterior floor
+  conflict_max: 0.70           # ensemble disagreement ceiling
+  book_depth_min_usd: 50000    # 5-level depth required for entry
+  margin_usage_max: 0.85       # stop opening if used/working > 0.85
+  leverage_multiplier: 1.10    # delta-neutral unified-margin gross-up
+  hold_max_hours: 24           # force close stale pairs
+  post_only_reprice_ticks: 1   # if post-only rejects, reprice N ticks away
+
+risk:
+  kill_drawdown_pct: 0.05      # 5% → emergency-close-all + lock
+  delta_neutrality_tol_pct: 0.005   # |Σ Δ| / notional floor = 0.5%
+  margin_ratio_isolated: 0.13  # OKX cross-margin ratio on Δ-neutral
+  basis_blowout_pct: 0.005     # exit if spot-perp basis > 0.5%
+
+sizing:
+  # α_L = base · ai_mult · funding_mult · risk_mult
+  per_pair_base_frac: 0.25     # base = working · leverage_mult / max_pairs
+  funding_mult_cap: 1.0
+  funding_mult_floor: 0.3
+  funding_mult_scale: 3.0      # (|f_norm| / scale) clipped to [floor, cap]
+  ai_mult_sigmoid_gain: 8.0    # sigmoid(gain · (consensus - 0.55))
+
+exits:
+  funding_normalized_threshold: 0.5    # exit when |f_norm| < 0.5 · entry_threshold
+  consensus_degraded_threshold: 0.40
+  statarb_spread_reset_sigma: 0.5      # exit stat-arb at 0.5σ re-touch
+
+modules:
+  # Perp modules disabled — SPOT-only operation. Re-enable per-module if needed.
+  funding_hunt:       { enabled: false, capital_frac: 0.70 }
+  stat_arb:           { enabled: false, capital_frac: 0.16, entry_sigma: 2.0, exit_sigma: 0.5 }
+  triangular:         { enabled: false, capital_frac: 0.08, min_edge_bp: 12 }
+  liq_fade:           { enabled: false, capital_frac: 0.06, liq_vol_sigma: 3.0,
+                        tp_bp: 25, sl_bp: 14, max_hold_min: 30 }
+
+universe:
+  # 16-coin watchlist. top-4 re-ranked every 8h at funding settlement.
+  # Fields: symbol, category, funding_sigma_30d_hint (for cold-start), min_ticket_usd.
+  - { symbol: "WIF-USDT",   category: "meme",     funding_sigma_30d_hint: 0.0018, min_ticket_usd: 20 }
+  - { symbol: "PEPE-USDT",  category: "meme",     funding_sigma_30d_hint: 0.0031, min_ticket_usd: 5  }
+  - { symbol: "BONK-USDT",  category: "meme",     funding_sigma_30d_hint: 0.0024, min_ticket_usd: 5  }
+  - { symbol: "FLOKI-USDT", category: "meme",     funding_sigma_30d_hint: 0.0020, min_ticket_usd: 10 }
+  - { symbol: "ARB-USDT",   category: "l2",       funding_sigma_30d_hint: 0.0007, min_ticket_usd: 20 }
+  - { symbol: "OP-USDT",    category: "l2",       funding_sigma_30d_hint: 0.0006, min_ticket_usd: 20 }
+  - { symbol: "SUI-USDT",   category: "alt_l1",   funding_sigma_30d_hint: 0.0010, min_ticket_usd: 20 }
+  - { symbol: "SEI-USDT",   category: "alt_l1",   funding_sigma_30d_hint: 0.0012, min_ticket_usd: 10 }
+  - { symbol: "INJ-USDT",   category: "alt_l1",   funding_sigma_30d_hint: 0.0009, min_ticket_usd: 20 }
+  - { symbol: "TIA-USDT",   category: "alt_l1",   funding_sigma_30d_hint: 0.0014, min_ticket_usd: 10 }
+  - { symbol: "JTO-USDT",   category: "sol_eco",  funding_sigma_30d_hint: 0.0013, min_ticket_usd: 10 }
+  - { symbol: "JUP-USDT",   category: "sol_eco",  funding_sigma_30d_hint: 0.0011, min_ticket_usd: 10 }
+  - { symbol: "PYTH-USDT",  category: "sol_eco",  funding_sigma_30d_hint: 0.0010, min_ticket_usd: 10 }
+  - { symbol: "ORDI-USDT",  category: "brc20",    funding_sigma_30d_hint: 0.0016, min_ticket_usd: 20 }
+  - { symbol: "ENA-USDT",   category: "defi",     funding_sigma_30d_hint: 0.0015, min_ticket_usd: 20 }
+  - { symbol: "RUNE-USDT",  category: "defi",     funding_sigma_30d_hint: 0.0013, min_ticket_usd: 20 }
+
+# Max positions per category cap — avoids correlated concentration
+category_caps:
+  meme: 2
+  l2: 2
+  alt_l1: 2
+  sol_eco: 2
+  brc20: 1
+  defi: 1
+
+# Stat-arb pair partners (must share category, high 30d ρ)
+statarb_pairs:
+  - { a: "ARB-USDT",  b: "OP-USDT",   rho_30d_hint: 0.91 }
+  - { a: "SUI-USDT",  b: "INJ-USDT",  rho_30d_hint: 0.78 }
+  - { a: "BONK-USDT", b: "PEPE-USDT", rho_30d_hint: 0.84 }
+  - { a: "JTO-USDT",  b: "JUP-USDT",  rho_30d_hint: 0.86 }
+
+okx:
+  # hostname picked up from env OKX_HOSTNAME. Default: global. EEA users: "eea.okx.com".
+  default_hostname: "www.okx.com"
+  maker_fee: 0.0002            # 2 bp
+  taker_fee: 0.0005            # 5 bp — FORBIDDEN by spec, kept for cost accounting
+  td_mode: "cross"             # Unified Account / Portfolio Margin Mode
+  margin_mode_required: "cross"
+  settlements_per_day: 3       # 00, 08, 16 UTC
+  clordid_prefix: "apx"
+
+llm:
+  # Full 5-LLM ensemble per spec §2. Bayesian aggregation with KL early-stop
+  # after 3 members; Opus veto fires on conflict > 0.7.
+  enabled: true
+  kl_early_stop_threshold: 0.02
+  members:
+    - { role: "pattern",      provider: "anthropic",  model: "claude-haiku-4-5",           weight: 1.0 }
+    - { role: "macro",        provider: "openai",     model: "gpt-4o-mini",                weight: 1.0 }
+    - { role: "sentiment",    provider: "gemini",     model: "gemini-2.5-flash",           weight: 1.0 }
+    - { role: "quant_sanity", provider: "openrouter", model: "deepseek/deepseek-chat-v3",  weight: 1.0 }
+    - { role: "outlier",      provider: "mistral",    model: "mistral-small-latest",       weight: 1.0 }
+    # deepseek needs OpenRouter balance > $0 — top up at openrouter.ai/credits
+    # mistral can return 503 on their side; transient, auto-recovers
+  veto:
+    provider: "anthropic"
+    model: "claude-opus-4-6"
+    trigger_conflict: 0.7
+  per_call_timeout_s: 12
+  total_ensemble_timeout_s: 30
+  cost_log_path: "ops/logs/llm_cost.jsonl"
+
+persistence:
+  # Reuses the shared claw DB so the audit layer sees ops events.
+  db_path_env: "TRADE_DB_PATH"
+  db_path_default: "trades.db"
+  kill_lock_path: "ops/state/KILL_STATE.lock"
+  state_dir: "ops/state"
+
+logging:
+  level: "INFO"
+  dir: "ops/logs"
+  rotate_daily: true
+  structured_json: true
+
+monitoring:
+  heartbeat_interval_s: 60
+  early_ops_hours: 72          # hourly summary for first 72h live

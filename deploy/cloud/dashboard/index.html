@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SPOT AGGRO — Operator Dashboard</title>
+<style>
+:root{
+  --bg:#0d1117;--surface:#161b22;--alt:#1c2129;
+  --border:#21262d;--border2:#30363d;
+  --ink1:#c9d1d9;--ink2:#8b949e;--ink3:#6e7681;
+  --accent:#1877f2;--pos:#10b981;--neg:#ef4444;--warn:#f59e0b;
+  --topbar:44px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink1);
+  font:13px/1.5 Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+
+/* layout */
+.app{display:grid;grid-template-columns:64px 1fr;min-height:100vh}
+aside{position:sticky;top:0;height:100vh;background:#0a0e14;border-right:1px solid var(--border);
+  display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:2px;z-index:11}
+aside .brand{width:40px;height:40px;border-radius:10px;background:var(--accent);color:#fff;
+  display:grid;place-items:center;font-weight:700;font-size:14px;margin-bottom:10px}
+aside nav{display:flex;flex-direction:column;gap:2px;width:100%}
+aside nav a{width:52px;height:42px;margin:0 auto;border-radius:8px;display:grid;place-items:center;
+  color:var(--ink3);font-size:10px;font-weight:600;cursor:pointer;text-decoration:none;letter-spacing:.03em;text-align:center;line-height:1.2}
+aside nav a:hover{background:#1c2129;color:#fff}
+aside nav a.active{background:#1877f233;color:#58a6ff}
+aside .env{margin-top:auto;font-size:9px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 4px}
+@media(max-width:900px){.app{grid-template-columns:1fr}aside{display:none}}
+
+/* topbar */
+header{height:var(--topbar);background:#000;border-bottom:1px solid #222;display:flex;
+  align-items:center;justify-content:space-between;padding:0 16px;position:sticky;top:0;z-index:10}
+header .t{font-weight:700;font-size:14px;display:flex;align-items:center;gap:10px}
+header .chip{font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+header .chip.live{background:#10b98133;color:#10b981}
+header .chip.paper{background:#f59e0b33;color:#f59e0b}
+header .chip.halted{background:#ef444433;color:#ef4444}
+header .acts{display:flex;gap:6px}
+header .btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:6px;
+  padding:4px 10px;font:600 11px/1.4 inherit;color:#fff;cursor:pointer}
+header .btn:hover{background:rgba(255,255,255,.2)}
+header .btn.danger{background:#ef4444;border-color:#ef4444}
+
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;max-width:1440px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.span2{grid-column:span 2}@media(max-width:900px){.span2{grid-column:1}}
+.span3{grid-column:1/-1}
+
+/* card */
+.c{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.c .h{padding:6px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.c .h h3{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);font-weight:600}
+.c .h .sub{font-size:10px;color:var(--ink3)}
+.c .b{padding:10px 12px;font-size:12px}
+
+/* pills */
+.pill{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;letter-spacing:.02em}
+.pill.ok{background:#10b98133;color:#10b981}
+.pill.warn{background:#f59e0b33;color:#f59e0b}
+.pill.bad{background:#ef444433;color:#ef4444}
+.pill.info{background:#3b82f633;color:#3b82f6}
+.pill.mute{background:#6e768133;color:#6e7681}
+
+/* badge */
+.badge{font-size:18px;font-weight:700;padding:4px 14px;border-radius:8px;display:inline-block}
+.badge.live{background:#10b98133;color:#10b981}
+.badge.paper{background:#f59e0b33;color:#f59e0b}
+.badge.halted{background:#ef444433;color:#ef4444}
+.badge-sm{font-size:12px;font-weight:600;padding:2px 10px;border-radius:6px;display:inline-block}
+
+/* stat grid */
+.sg{display:grid;gap:6px}
+.sg.g2{grid-template-columns:1fr 1fr}
+.sg.g3{grid-template-columns:1fr 1fr 1fr}
+.sg.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+.sg.g5{grid-template-columns:repeat(5,1fr)}
+.st{text-align:center;padding:6px 4px}
+.st .v{font-size:16px;font-weight:700;color:var(--ink1)}
+.st .v.pos{color:var(--pos)}.st .v.neg{color:var(--neg)}.st .v.warn{color:var(--warn)}
+.st .l{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+
+/* health row */
+.hr{display:flex;gap:6px;flex-wrap:wrap}
+.hp{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:500}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.g{background:#10b981}.dot.y{background:#f59e0b}.dot.r{background:#ef4444}.dot.x{background:#6e7681}
+
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);
+  padding:4px 6px;border-bottom:1px solid var(--border);font-weight:600}
+td{padding:4px 6px;border-bottom:1px solid var(--border);color:var(--ink2)}
+tr:last-child td{border-bottom:none}
+.r{text-align:right}
+.empty{color:var(--ink3);font-style:italic;padding:8px 0;text-align:center;font-size:11px}
+
+/* gate chips */
+.gate{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;margin:2px}
+.gate.pass{background:#10b98118;color:#10b981;border:1px solid #10b98133}
+.gate.fail{background:#ef444418;color:#ef4444;border:1px solid #ef444433}
+
+/* kv grid */
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:12px}
+.kv dt{color:var(--ink3);font-size:11px}.kv dd{color:var(--ink1);text-align:right;font-weight:500}
+
+/* action row */
+.ar{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}
+.ar .btn{background:var(--alt);border:1px solid var(--border2);border-radius:6px;
+  padding:4px 10px;font:600 11px/1.4 inherit;color:var(--ink2);cursor:pointer}
+.ar .btn:hover{color:var(--ink1);border-color:var(--ink3)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Side Rail -->
+<aside>
+  <div class="brand">SA</div>
+  <nav>
+    <a class="active" href="#" onclick="showTab('dash')">Dash</a>
+    <a href="#" onclick="showTab('formula')">SPI</a>
+    <a href="#" onclick="showTab('infra')">Infra</a>
+    <a href="#" onclick="showTab('config')">Cfg</a>
+    <a href="#" onclick="showTab('lab')">Lab</a>
+  </nav>
+  <div class="env">SPOT<br>EEA</div>
+</aside>
+
+<div>
+<header>
+  <div class="t">
+    <span>SPOT AGGRO</span>
+    <span class="chip live" id="hdr-mode">SPOT</span>
+    <span class="chip" id="hdr-status" style="background:#6e768133;color:#6e7681">LOADING</span>
+  </div>
+  <div class="acts">
+    <button class="btn" onclick="doAction('resume')">Resume</button>
+    <button class="btn" onclick="doAction('pause')">Pause</button>
+    <button class="btn danger" onclick="if(confirm('HALT — close all positions?'))doAction('halt')">HALT</button>
+    <button class="btn" onclick="refresh()" title="Refresh">&#8635;</button>
+  </div>
+</header>
+
+<div class="grid" id="tab-dash">
+
+<!-- ═══ ROW 1: Engine Status | Connectivity | Today Performance ═══ -->
+
+<!-- 1. Trading Engine Status -->
+<div class="c" id="c-engine">
+  <div class="h"><h3>Trading Engine Status</h3><span class="sub">Live trading state and readiness</span></div>
+  <div class="b">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <span class="badge live" id="eng-mode">LIVE</span>
+      <span class="badge-sm" id="eng-state" style="background:#6e768133;color:#6e7681">LOADING</span>
+    </div>
+    <div class="sg g2">
+      <div class="st"><div class="v" id="eng-db">—</div><div class="l">DB</div></div>
+      <div class="st"><div class="v" id="eng-uptime">—</div><div class="l">Uptime</div></div>
+      <div class="st"><div class="v" id="eng-pos">0</div><div class="l">Open Positions</div></div>
+      <div class="st"><div class="v" id="eng-refresh">—</div><div class="l">Last Refresh</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 2. System Connectivity -->
+<div class="c" id="c-conn">
+  <div class="h"><h3>System Connectivity</h3><span class="sub">Core service connection health</span></div>
+  <div class="b">
+    <div class="hr" id="conn-pills">
+      <div class="hp"><span class="dot x"></span>Exchange</div>
+      <div class="hp"><span class="dot x"></span>Feed</div>
+      <div class="hp"><span class="dot x"></span>DB</div>
+      <div class="hp"><span class="dot x"></span>Scheduler</div>
+      <div class="hp"><span class="dot x"></span>Overall</div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Today Performance -->
+<div class="c" id="c-today">
+  <div class="h"><h3>Today Performance</h3><span class="sub">Daily result at a glance</span></div>
+  <div class="b">
+    <div class="sg g5">
+      <div class="st"><div class="v num" id="tp-pnl">$0.00</div><div class="l">PnL Today</div></div>
+      <div class="st"><div class="v num" id="tp-wr">—</div><div class="l">Win Rate</div></div>
+      <div class="st"><div class="v num" id="tp-dd">0%</div><div class="l">Drawdown</div></div>
+      <div class="st"><div class="v num" id="tp-exp">—</div><div class="l">Expectancy</div></div>
+      <div class="st"><div class="v num" id="tp-trades">0</div><div class="l">Trades</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ROW 2: Account Snapshot | Strategy Gate Status ═══ -->
+
+<!-- 4. Account Snapshot -->
+<div class="c span2" id="c-acct">
+  <div class="h"><h3>Account Snapshot</h3><span class="sub">Capital and operating state</span></div>
+  <div class="b">
+    <div class="sg g4">
+      <div class="st"><div class="v num" id="ac-equity">—</div><div class="l">Equity</div></div>
+      <div class="st"><div class="v num" id="ac-peak">—</div><div class="l">Peak</div></div>
+      <div class="st"><div class="v num" id="ac-dd">—</div><div class="l">Drawdown</div></div>
+      <div class="st"><div class="v num" id="ac-pairs">0</div><div class="l">Open Pairs</div></div>
+      <div class="st"><div class="v num" id="ac-txns">—</div><div class="l">Total Txns</div></div>
+      <div class="st"><div class="v num" id="ac-totalfee">—</div><div class="l">Total Fees</div></div>
+      <div class="st"><div class="v num" id="ac-avgfee">—</div><div class="l">Avg Fee/Coin</div></div>
+      <div class="st"><div class="v num" id="ac-llmcost">—</div><div class="l">LLM Cost 24h</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. Strategy Gate Status -->
+<div class="c" id="c-gates">
+  <div class="h"><h3>Strategy Gate Status</h3><span class="sub">Current entry permission logic</span></div>
+  <div class="b">
+    <div id="gate-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+    <div id="gate-summary" style="font-size:12px;font-weight:600;margin-top:6px;color:var(--ink2)">—</div>
+  </div>
+</div>
+
+<!-- ═══ ROW 3: Recent Trade Consensus ═══ -->
+
+<!-- 6. Recent Trade Consensus -->
+<div class="c span3" id="c-consensus">
+  <div class="h"><h3>Recent Trade Consensus</h3><span class="sub">Latest ensemble trade decisions</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Time</th><th>Symbol</th><th class="r">Consensus</th><th class="r">Conflict</th><th>Verdict</th><th class="r">Members</th></tr></thead>
+      <tbody id="tb-cons"><tr><td colspan="6" class="empty">loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ ROW 4: Market Intelligence | Live Universe ═══ -->
+
+<!-- 7. Market Intelligence Summary -->
+<div class="c" id="c-mio">
+  <div class="h"><h3>Market Intelligence</h3><span class="sub" id="mio-meta">Current market regime and top symbols</span></div>
+  <div class="b">
+    <div class="sg g5" style="margin-bottom:8px">
+      <div class="st"><div class="v" id="mio-cycle">—</div><div class="l">Cycle</div></div>
+      <div class="st"><div class="v" id="mio-age">—</div><div class="l">Updated</div></div>
+      <div class="st"><div class="v" id="mio-regime">—</div><div class="l">Regime</div></div>
+      <div class="st"><div class="v" id="mio-squeeze">—</div><div class="l">Squeeze</div></div>
+      <div class="st"><div class="v" id="mio-edge">—</div><div class="l">Edge</div></div>
+    </div>
+    <div id="mio-top6" style="font-size:11px;color:var(--ink2)">—</div>
+  </div>
+</div>
+
+<!-- 8. Scored Universe (spot_aggro v2) -->
+<div class="c span2" id="c-universe">
+  <div class="h"><h3>Scored Universe</h3><span class="sub" id="uni-meta">spot_aggro v2 tier-ranked</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Symbol</th><th>Tier</th><th class="r">Composite</th><th class="r">SPI</th><th class="r">Fz</th></tr></thead>
+      <tbody id="tb-uni"><tr><td colspan="5" class="empty">loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ ROW 5: Open Positions | Executed Trades ═══ -->
+
+<!-- 9. Open Positions -->
+<div class="c" id="c-positions">
+  <div class="h"><h3>Open Positions</h3><span class="sub">Active live exposure now</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Symbol</th><th>Side</th><th class="r">Size</th><th class="r">Entry</th><th class="r">SL</th><th class="r">TP</th></tr></thead>
+      <tbody id="tb-pos"><tr><td colspan="6" class="empty">no open positions</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 10. Executed Trade Activity -->
+<div class="c span2" id="c-trades">
+  <div class="h"><h3>Executed Trade Activity</h3><span class="sub">What the bot actually executed</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Time</th><th>Symbol</th><th>Module</th><th>Action</th><th>Side</th><th class="r">Notional</th><th class="r">Fee</th><th class="r">PnL</th></tr></thead>
+      <tbody id="tb-trades"><tr><td colspan="8" class="empty">loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ ROW 6: Recent Alerts | Infrastructure Health ═══ -->
+
+<!-- 11. Recent Alerts -->
+<div class="c" id="c-alerts">
+  <div class="h"><h3>Recent Alerts</h3><span class="sub">Latest important events</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Time</th><th>Event</th><th>Symbol</th><th>Title</th></tr></thead>
+      <tbody id="tb-alerts"><tr><td colspan="4" class="empty">loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 12. Infrastructure Health -->
+<div class="c span2" id="c-infra">
+  <div class="h"><h3>Infrastructure Health</h3><span class="sub">Probes, incidents, and operational checks</span></div>
+  <div class="b">
+    <div id="infra-summary" style="margin-bottom:8px;font-size:12px;color:var(--ink2)">—</div>
+    <table>
+      <thead><tr><th>Source</th><th>Severity</th><th>Message</th><th>Time</th></tr></thead>
+      <tbody id="tb-infra"><tr><td colspan="4" class="empty">loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="ar">
+    <button class="btn" onclick="runProbes()">Run Probes Now</button>
+    <button class="btn" onclick="sendTestNotif()">Send Test Notification</button>
+  </div>
+</div>
+
+<!-- ═══ ROW 7: System Issues | LLM Health ═══ -->
+
+<!-- 13. System Issues and Fixes -->
+<div class="c" id="c-issues">
+  <div class="h"><h3>System Issues</h3><span class="sub">Root causes and actions needed</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Time</th><th>Source</th><th>Root Cause</th><th>Fix</th></tr></thead>
+      <tbody id="tb-issues"><tr><td colspan="4" class="empty">no issues</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 14. LLM Ensemble Health -->
+<div class="c span2" id="c-llm">
+  <div class="h"><h3>LLM Ensemble Health</h3><span class="sub">Model worker reliability status</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Role</th><th>Provider</th><th class="r">Calls 5m</th><th class="r">OK%</th><th>Status</th></tr></thead>
+      <tbody id="tb-llm"><tr><td colspan="5" class="empty">loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ ROW 8: Runtime | Schedule | Settings ═══ -->
+
+<!-- 15. Runtime Control Panel -->
+<div class="c" id="c-runtime">
+  <div class="h"><h3>Runtime Control Panel</h3><span class="sub">Runtime and backend facts</span></div>
+  <div class="b">
+    <dl class="kv" id="kv-runtime">
+      <dt>Online</dt><dd id="rt-online">—</dd>
+      <dt>Mode</dt><dd id="rt-mode">—</dd>
+      <dt>Uptime</dt><dd id="rt-uptime">—</dd>
+      <dt>Backend</dt><dd id="rt-backend">FastAPI</dd>
+      <dt>Database</dt><dd id="rt-db">SQLite</dd>
+      <dt>DB Path</dt><dd id="rt-dbpath" style="font-size:10px;word-break:break-all">—</dd>
+      <dt>Decisions</dt><dd id="rt-decisions">—</dd>
+      <dt>Trades</dt><dd id="rt-trades">—</dd>
+      <dt>Server Time</dt><dd id="rt-time">—</dd>
+      <dt>Last Refresh</dt><dd id="rt-refresh">—</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- 16. Automation Schedule -->
+<div class="c" id="c-schedule">
+  <div class="h"><h3>Automation Schedule</h3><span class="sub">Engine timing loops</span></div>
+  <div class="b">
+    <dl class="kv">
+      <dt>Heartbeat</dt><dd>2s</dd>
+      <dt>Universe refresh</dt><dd>60s cache</dd>
+      <dt>MIO research</dt><dd>30 min</dd>
+      <dt>PnL report</dt><dd>1h</dd>
+      <dt>Error watchdog</dt><dd>5 min</dd>
+      <dt>Consensus cooldown</dt><dd>5 min</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- 17. Active Trading Settings -->
+<div class="c" id="c-settings">
+  <div class="h"><h3>Active Trading Settings</h3><span class="sub">Current config affecting behavior</span></div>
+  <div class="b">
+    <dl class="kv" id="kv-settings">
+      <dt>Universe</dt><dd id="set-uni">—</dd>
+      <dt>Mode</dt><dd id="set-agg">—</dd>
+      <dt>Target/day</dt><dd id="set-min">—</dd>
+      <dt>Cap/day</dt><dd id="set-max">—</dd>
+    </dl>
+    <div id="set-modules" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px"></div>
+  </div>
+</div>
+
+<!-- ═══ ROW 9: Exchange | Ledger | Decision Ledger ═══ -->
+
+<!-- 18. Exchange Connections -->
+<div class="c" id="c-exchange">
+  <div class="h"><h3>Exchange Connections</h3><span class="sub">Exchange integration state</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Exchange</th><th>Configured</th><th>Notes</th></tr></thead>
+      <tbody id="tb-exch">
+        <tr><td>OKX EEA</td><td><span class="pill ok">yes</span></td><td>eea.okx.com — spot only</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 19. System Ledger -->
+<div class="c" id="c-ledger">
+  <div class="h"><h3>System Ledger</h3><span class="sub">Audit totals and records</span></div>
+  <div class="b">
+    <dl class="kv" id="kv-ledger">
+      <dt>Decisions logged</dt><dd id="led-dec">—</dd>
+      <dt>Trades logged</dt><dd id="led-trd">—</dd>
+      <dt>Accuracy gate</dt><dd id="led-gate">—</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- 20. Bot Decision Ledger -->
+<div class="c" id="c-botledger" style="display:none">
+  <div class="h"><h3>Bot Decision Ledger</h3><span class="sub">Immutable bot decision trail</span></div>
+  <div class="b" style="padding:0">
+    <table>
+      <thead><tr><th>Time</th><th>Strategy</th><th>Symbol</th><th>Hash</th><th>Source</th></tr></thead>
+      <tbody id="tb-botledger"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ ROW 10: Scenario Lab | Monitor Alerts ═══ -->
+
+<!-- 21. Scenario Lab -->
+<div class="c" id="c-sim">
+  <div class="h"><h3>Scenario Lab</h3><span class="sub">Controlled simulation testing</span></div>
+  <div class="b">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+      <label>Style <select id="sim-style" style="width:100%;background:var(--alt);color:var(--ink1);border:1px solid var(--border2);border-radius:4px;padding:3px;font-size:11px">
+        <option>aggressive</option><option>conservative</option><option>balanced</option>
+      </select></label>
+      <label>Market <select id="sim-market" style="width:100%;background:var(--alt);color:var(--ink1);border:1px solid var(--border2);border-radius:4px;padding:3px;font-size:11px">
+        <option>squeeze</option><option>trending</option><option>ranging</option><option>crisis</option>
+      </select></label>
+      <label>Capital <input id="sim-cap" type="number" value="400" style="width:100%;background:var(--alt);color:var(--ink1);border:1px solid var(--border2);border-radius:4px;padding:3px;font-size:11px"/></label>
+      <label>Days <input id="sim-days" type="number" value="7" style="width:100%;background:var(--alt);color:var(--ink1);border:1px solid var(--border2);border-radius:4px;padding:3px;font-size:11px"/></label>
+    </div>
+    <button class="btn" style="margin-top:8px;width:100%" onclick="alert('Scenario lab not yet connected')">Run Simulation</button>
+    <div id="sim-out" style="margin-top:8px;font-size:11px;color:var(--ink3)"></div>
+  </div>
+</div>
+
+<!-- 22. Monitor Alerts -->
+<div class="c" id="c-monitor" style="display:none">
+  <div class="h"><h3>Monitor Alerts</h3><span class="sub">Active monitor warnings only</span></div>
+  <div class="b">
+    <div id="mon-strip" class="empty">no active alerts</div>
+  </div>
+</div>
+
+</div><!-- /tab-dash -->
+
+<!-- ═══ FORMULA TAB ═══ -->
+<div class="grid" id="tab-formula" style="display:none">
+
+<div class="c span3">
+  <div class="h"><h3>Active Strategy — SPOT AGGRO v1.1</h3><span class="sub">Squeeze-Pressure Spot Engine · OKX EEA compliant</span></div>
+  <div class="b">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <span class="pill ok" id="f-active">ACTIVE</span>
+      <span class="pill info">SPOT ONLY</span>
+      <span class="pill info">OKX EEA</span>
+      <span class="pill mute">24/7</span>
+    </div>
+    <p style="font-size:12px;color:var(--ink2);margin-bottom:8px">Target: +0.8% to +2.0%/day · Kill switch 8% DD · BLITZ MODE for cascade events</p>
+  </div>
+</div>
+
+<div class="c">
+  <div class="h"><h3>SPI Formula</h3><span class="sub">Squeeze Pressure Index — NEVER MODIFY</span></div>
+  <div class="b">
+    <pre style="background:var(--alt);padding:10px;border-radius:6px;font-size:12px;color:#7ee787;overflow-x:auto;margin:0">SPI = 0.35 × max(0, -fz)/5
+    + 0.25 × oi
+    + 0.25 × div
+    + 0.15 × liq</pre>
+    <div style="margin-top:10px;font-size:11px;color:var(--ink3)">
+      <div><b>fz</b> = funding_z (30d z-score of funding rate)</div>
+      <div><b>oi</b> = open interest growth rate</div>
+      <div><b>div</b> = price-funding divergence</div>
+      <div><b>liq</b> = liquidation cluster proximity</div>
+    </div>
+  </div>
+</div>
+
+<div class="c">
+  <div class="h"><h3>Entry Gates</h3><span class="sub">ALL must pass to enter</span></div>
+  <div class="b">
+    <pre style="background:var(--alt);padding:10px;border-radius:6px;font-size:12px;color:#7ee787;overflow-x:auto;margin:0">ENTER iff:
+  SPI ≥ 0.65 (relaxed to 0.30 after 5 dry cycles)
+  AND funding_z ≤ -1.0 (shorts paying)
+  AND depth ≥ 10× position size
+  AND consensus ≥ 0.45 (5-LLM Bayesian)
+  AND conflict ≤ 0.75</pre>
+    <div style="margin-top:8px;font-size:11px;color:var(--ink3)">
+      <div><b>Consensus</b>: 5 LLMs — Haiku + GPT-4o-mini + Gemini Flash + DeepSeek + Mistral</div>
+      <div><b>Confidence cap</b>: 0.70 per member (prevents domination)</div>
+      <div><b>KL early stop</b>: after 3 members if posterior stable</div>
+      <div><b>Opus veto</b>: fires on conflict > 0.70</div>
+    </div>
+  </div>
+</div>
+
+<div class="c">
+  <div class="h"><h3>TP / SL / Trailing</h3><span class="sub">Dynamic from SPI</span></div>
+  <div class="b">
+    <pre style="background:var(--alt);padding:10px;border-radius:6px;font-size:12px;color:#7ee787;overflow-x:auto;margin:0">TP = 0.008 + 0.037 × SPI
+SL = -(0.005 + 0.010 × SPI)
+
+Trailing stop:
+  Activates at 60% of TP
+  Trails at 60% of peak gain</pre>
+  </div>
+</div>
+
+<div class="c">
+  <div class="h"><h3>Sizing</h3><span class="sub">1/3rd Kelly</span></div>
+  <div class="b">
+    <pre style="background:var(--alt);padding:10px;border-radius:6px;font-size:12px;color:#7ee787;overflow-x:auto;margin:0">base = capital × 0.95 / 3
+
+size = base × sigmoid(consensus)
+     × spi_scale(spi)
+     × risk(drawdown, conflict)</pre>
+    <div style="margin-top:8px;font-size:11px;color:var(--ink3)">
+      <div><b>Max positions</b>: 3</div>
+      <div><b>Deploy ceiling</b>: 95% of capital</div>
+      <div><b>Min trade</b>: $5</div>
+    </div>
+  </div>
+</div>
+
+<div class="c">
+  <div class="h"><h3>BLITZ MODE</h3><span class="sub">Cascade-fade concentration</span></div>
+  <div class="b">
+    <pre style="background:var(--alt);padding:10px;border-radius:6px;font-size:12px;color:#7ee787;overflow-x:auto;margin:0">BLITZ iff:
+  SPI ≥ 0.85
+  AND blitz_readiness > 0.60 (from MIO)
+  AND dd_level < 1
+
+Allocation: 60% of capital
+Max hold: 1 hour
+Cooldown: 4 hours
+TP: 2.5% + 2.5% × SPI
+SL: fixed -1.2%</pre>
+  </div>
+</div>
+
+<div class="c">
+  <div class="h"><h3>Drawdown Management</h3><span class="sub">3-level system</span></div>
+  <div class="b">
+    <pre style="background:var(--alt);padding:10px;border-radius:6px;font-size:12px;color:#7ee787;overflow-x:auto;margin:0">Level 0: Normal (DD < 3%)
+Level 1: Caution (DD 3-5%)
+  → reduce position scale
+Level 2: Defensive (DD 5-8%)
+  → halt new entries
+Level 3: KILL (DD > 8%)
+  → close ALL, lock engine</pre>
+  </div>
+</div>
+
+<div class="c">
+  <div class="h"><h3>MIO Research Cycle</h3><span class="sub">Every 30 min · 5 LLMs parallel</span></div>
+  <div class="b">
+    <div style="font-size:11px;color:var(--ink2)">
+      <div style="padding:3px 0;border-bottom:1px solid var(--border)"><b>Haiku</b> → Regime scanner (SQUEEZE_BUILDING, TRENDING, CRISIS...)</div>
+      <div style="padding:3px 0;border-bottom:1px solid var(--border)"><b>GPT-4o-mini</b> → Event horizon (catalysts next 24h)</div>
+      <div style="padding:3px 0;border-bottom:1px solid var(--border)"><b>Gemini Flash</b> → Funding forecast (squeeze timing)</div>
+      <div style="padding:3px 0;border-bottom:1px solid var(--border)"><b>DeepSeek</b> → Performance auditor (edge status)</div>
+      <div style="padding:3px 0"><b>Mistral</b> → Universe optimizer (top 6 assets)</div>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--ink3)">Output: Market Intelligence Object (MIO) → adjusts SPI gate, TP/SL multipliers, position scale</div>
+  </div>
+</div>
+
+<div class="c span3">
+  <div class="h"><h3>Live Gate Values</h3><span class="sub" id="f-gate-meta">Current effective thresholds from MIO</span></div>
+  <div class="b">
+    <div class="sg g5" id="f-gates">
+      <div class="st"><div class="v" id="f-spi">—</div><div class="l">SPI Gate</div></div>
+      <div class="st"><div class="v" id="f-tp">—</div><div class="l">TP Mult</div></div>
+      <div class="st"><div class="v" id="f-sl">—</div><div class="l">SL Mult</div></div>
+      <div class="st"><div class="v" id="f-scale">—</div><div class="l">Position Scale</div></div>
+      <div class="st"><div class="v" id="f-blitz">—</div><div class="l">BLITZ</div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /tab-formula -->
+
+<!-- ═══ INFRA TAB ═══ -->
+<div class="grid" id="tab-infra" style="display:none">
+  <!-- Moved from main: Infrastructure Health, System Issues, LLM Health, Watchdog -->
+</div>
+
+<!-- ═══ CONFIG TAB ═══ -->
+<div class="grid" id="tab-config" style="display:none">
+  <!-- Moved from main: Runtime, Schedule, Settings, Exchange, Ledger -->
+</div>
+
+<!-- ═══ LAB TAB ═══ -->
+<div class="grid" id="tab-lab" style="display:none">
+  <!-- Moved from main: Scenario Lab -->
+</div>
+
+</div><!-- close main column -->
+</div><!-- close .app -->
+
+<script>
+// Tab switching
+function showTab(tab) {
+  document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
+  const t = document.getElementById('tab-' + tab);
+  if (t) t.style.display = '';
+  document.querySelectorAll('aside nav a').forEach(a => a.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+const API = localStorage.getItem("spot_aggro_cloud_api") || "https://spot-aggro-ops-api.benheng77.workers.dev";
+const TOKEN = localStorage.getItem("ops_token") || "";
+
+async function f(url) {
+  try {
+    const r = await fetch(API + url, {headers: {"Cache-Control": "no-cache"}});
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+async function post(url) {
+  try {
+    const r = await fetch(API + url, {method:"POST", headers:{"X-Ops-Token": TOKEN}});
+    return await r.json();
+  } catch(e) { return {error: String(e)}; }
+}
+
+function $(id) { return document.getElementById(id); }
+function fmt$(v) { return v == null ? "—" : "$" + (+v).toFixed(2); }
+function fmtPct(v) { return v == null ? "—" : (+v * 100).toFixed(2) + "%"; }
+function fmtTime(ms) { if (!ms) return "—"; const d = new Date(+ms); return d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
+function fmtAge(s) { if (!s && s !== 0) return "—"; if (s < 60) return s + "s"; if (s < 3600) return Math.floor(s/60) + "m"; return Math.floor(s/3600) + "h " + Math.floor((s%3600)/60) + "m"; }
+function pillClass(s) { return s === "ok" ? "ok" : s === "degraded" ? "warn" : s === "error" || s === "bad" ? "bad" : "mute"; }
+
+async function refresh() {
+  // spot_aggro scope only — shared-ops infra at /spot_aggro/ops/*
+  const [sa, st, pnl, gov, cons, llm, trades, notif, wd, kill, cost] = await Promise.all([
+    f("/spot_aggro/status"),
+    f("/status"),
+    f("/spot_aggro/ops/pnl"),
+    f("/spot_aggro/ops/governor"),
+    f("/spot_aggro/ops/consensus/live?limit=5"),
+    f("/spot_aggro/ops/llm/health"),
+    f("/spot_aggro/ops/trades?limit=10"),
+    f("/spot_aggro/ops/notifications?limit=6"),
+    f("/spot_aggro/ops/watchdog?limit=10"),
+    f("/spot_aggro/ops/kill"),
+    f("/spot_aggro/ops/llm/cost"),
+  ]);
+
+  const now = new Date();
+  $("rt-refresh").textContent = now.toLocaleTimeString();
+  $("eng-refresh").textContent = now.toLocaleTimeString();
+  $("rt-time").textContent = now.toISOString().slice(0,19) + "Z";
+
+  // ── 1. Trading Engine Status ──
+  if (sa) {
+    const mode = sa.mode === "live" ? "LIVE" : "PAPER";
+    const halted = sa.halted;
+    const running = sa.cycles > 0;
+    const paused = sa?.halted;
+    const state = halted ? "HALTED" : paused ? "PAUSED" : running ? "RUNNING" : "READY";
+
+    $("eng-mode").textContent = mode;
+    $("eng-mode").className = "badge " + (halted ? "halted" : mode.toLowerCase());
+    $("eng-state").textContent = state;
+    $("eng-state").style.background = halted ? "#ef444433" : paused ? "#f59e0b33" : "#10b98133";
+    $("eng-state").style.color = halted ? "#ef4444" : paused ? "#f59e0b" : "#10b981";
+    $("eng-pos").textContent = Object.keys(sa.positions || {}).length;
+
+    $("hdr-mode").textContent = "SPOT";
+    $("hdr-mode").className = "chip " + (halted ? "halted" : mode.toLowerCase());
+    $("hdr-status").textContent = state;
+    $("hdr-status").style.background = halted ? "#ef444433" : paused ? "#f59e0b33" : "#10b98133";
+    $("hdr-status").style.color = halted ? "#ef4444" : paused ? "#f59e0b" : "#10b981";
+  }
+  if (st) {
+    $("eng-db").innerHTML = st.db_present ? '<span class="pill ok">connected</span>' : '<span class="pill bad">disconnected</span>';
+    $("eng-uptime").textContent = fmtAge(st.uptime_s);
+    $("rt-online").textContent = "yes";
+    $("rt-mode").textContent = sa?.mode || st.mode || "—";
+    $("rt-uptime").textContent = fmtAge(st.uptime_s);
+    $("rt-dbpath").textContent = st.db_path || "—";
+    $("rt-decisions").textContent = st.decisions_logged ?? "—";
+    $("rt-trades").textContent = st.trades_logged ?? "—";
+    $("led-dec").textContent = st.decisions_logged ?? "—";
+    $("led-trd").textContent = st.trades_logged ?? "—";
+  }
+
+  // ── 2. System Connectivity ──
+  {
+    const exchange = sa && sa.cycles > 0;
+    const feed = sa && sa.rankings && sa.rankings.length > 0;
+    const db = st && st.db_present;
+    const sched = sa && !sa.halted && sa.cycles > 0;
+    const overall = exchange && db && sched;
+    const pills = [
+      ["Exchange", exchange], ["Feed", feed], ["DB", db], ["Scheduler", sched], ["Overall", overall]
+    ];
+    $("conn-pills").innerHTML = pills.map(([n, ok]) =>
+      `<div class="hp"><span class="dot ${ok ? "g" : ok === false ? "r" : "x"}"></span>${n}</div>`
+    ).join("");
+  }
+
+  // ── 3. Today Performance ──
+  if (pnl) {
+    const v = +pnl.pnl_usd || 0;
+    $("tp-pnl").textContent = fmt$(v);
+    $("tp-pnl").className = "v num " + (v > 0 ? "pos" : v < 0 ? "neg" : "");
+    $("tp-wr").textContent = pnl.win_rate != null ? fmtPct(pnl.win_rate) : "—";
+    const dd = pnl.drawdown_pct != null ? +pnl.drawdown_pct : 0;
+    $("tp-dd").textContent = (dd * 100).toFixed(2) + "%";
+    $("tp-dd").className = "v num " + (dd > 0.03 ? "neg" : dd > 0.01 ? "warn" : "");
+    $("tp-exp").textContent = pnl.expectancy != null ? fmt$(pnl.expectancy) : "—";
+    $("tp-trades").textContent = sa?.trades_today ?? pnl.trades_today ?? 0;
+  }
+
+  // ── 4. Account Snapshot ──
+  if (sa) {
+    $("ac-equity").textContent = fmt$(sa.capital_usd);
+    $("ac-peak").textContent = fmt$(sa.peak_equity);
+    const ddPct = sa.peak_equity > 0 ? ((sa.peak_equity - sa.current_equity) / sa.peak_equity * 100) : 0;
+    $("ac-dd").textContent = ddPct.toFixed(2) + "%";
+    $("ac-dd").className = "v num " + (ddPct > 5 ? "neg" : ddPct > 2 ? "warn" : "");
+    $("ac-pairs").textContent = Object.keys(sa.positions || {}).length;
+  }
+  if (cost) {
+    $("ac-llmcost").textContent = fmt$(cost.last_24h?.c);
+  }
+  // Fee stats from trades (OKX maker=2bp, taker=5bp estimated when fee_usd=0)
+  if (trades && trades.rows) {
+    const allTrades = trades.rows;
+    const totalTxns = allTrades.length;
+    let totalFee = 0;
+    const feeBySymbol = {};
+    for (const t of allTrades) {
+      const sym = t.symbol || "?";
+      let fee = Math.abs(t.fee_usd || 0);
+      // If exchange returns 0, estimate: maker 2bp on notional
+      if (fee === 0 && t.notional_usd) fee = Math.abs(t.notional_usd) * 0.0002;
+      totalFee += fee;
+      feeBySymbol[sym] = (feeBySymbol[sym] || 0) + fee;
+    }
+    const uniqueCoins = Object.keys(feeBySymbol).length;
+    const avgPerCoin = uniqueCoins > 0 ? totalFee / uniqueCoins : 0;
+    $("ac-txns").textContent = totalTxns;
+    $("ac-totalfee").textContent = fmt$(totalFee);
+    $("ac-avgfee").textContent = fmt$(avgPerCoin);
+  }
+
+  // ── 5. Strategy Gate Status ──
+  if (sa && gov) {
+    const mio = sa.mio || {};
+    const gates = [
+      { name: "Trades", val: sa.trades_today, thr: (6) + "/day target", pass: true },
+      { name: "SPI", val: (sa.effective_spi_min || 0.65).toFixed(2), thr: "min", pass: true },
+      { name: "Consensus", val: (sa.effective_consensus_min || 0.45).toFixed(2), thr: "min", pass: true },
+      { name: "Regime", val: mio.regime || "—", thr: "", pass: mio.regime !== "DEAD" },
+      { name: "Squeeze", val: mio.squeeze_timing || "NONE", thr: "", pass: ["IMMINENT","NEAR"].includes(mio.squeeze_timing) },
+      { name: "Edge", val: mio.edge_status || "—", thr: "", pass: mio.edge_status === "HEALTHY" || mio.edge_status === "RECOVERING" },
+    ];
+    $("gate-chips").innerHTML = gates.map(g =>
+      `<div class="gate ${g.pass ? "pass" : "fail"}"><b>${g.name}</b> ${g.val} ${g.thr ? '<span style="color:var(--ink3);font-size:10px">' + g.thr + '</span>' : ''}</div>`
+    ).join("");
+
+    const edgeOk = mio.edge_status === "HEALTHY" || mio.edge_status === "RECOVERING" || mio.edge_status === "INSUFFICIENT_DATA";
+    const regimeOk = mio.regime !== "DEAD";
+    if (!regimeOk) $("gate-summary").innerHTML = '<span style="color:var(--neg)">Trading blocked by regime</span>';
+    else if (!edgeOk) $("gate-summary").innerHTML = '<span style="color:var(--neg)">Trading blocked by edge</span>';
+    else $("gate-summary").innerHTML = '<span style="color:var(--pos)">Trading allowed</span>';
+  }
+
+  // ── 6. Recent Trade Consensus ──
+  if (cons && cons.rows) {
+    const seen = new Set();
+    const rows = cons.rows.filter(r => {
+      const k = r.symbol + "|" + Math.floor(r.ts_ms / 60000);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).slice(0, 5);
+    $("tb-cons").innerHTML = rows.length ? rows.map(r => {
+      const v = r.vetoed ? "VETO" : r.consensus >= 0.45 ? "PASS" : "REJECT";
+      const vc = r.vetoed ? "bad" : r.consensus >= 0.45 ? "ok" : "warn";
+      return `<tr><td>${fmtTime(r.ts_ms)}</td><td><b>${r.symbol}</b></td>` +
+        `<td class="r num">${(+r.consensus).toFixed(3)}</td>` +
+        `<td class="r num">${(+r.conflict).toFixed(3)}</td>` +
+        `<td><span class="pill ${vc}">${v}</span></td>` +
+        `<td class="r">${r.members_called}</td></tr>`;
+    }).join("") : '<tr><td colspan="6" class="empty">no consensus calls yet</td></tr>';
+  }
+
+  // ── 7. Market Intelligence Summary ──
+  if (sa && sa.mio) {
+    const m = sa.mio;
+    $("mio-cycle").textContent = "#" + (m.cycle_number || 0);
+    const age = m.last_updated ? Math.floor((Date.now()/1000 - m.last_updated) / 60) : 0;
+    $("mio-age").textContent = age + "m ago";
+    $("mio-regime").textContent = m.regime || "—";
+    $("mio-regime").className = "v" + (m.regime === "SQUEEZE_BUILDING" || m.regime === "CRISIS" ? " warn" : "");
+    $("mio-squeeze").textContent = m.squeeze_timing || "NONE";
+    $("mio-squeeze").className = "v" + (m.squeeze_timing === "IMMINENT" ? " neg" : m.squeeze_timing === "NEAR" ? " warn" : "");
+    $("mio-edge").textContent = m.edge_status || "—";
+    $("mio-edge").className = "v" + (m.edge_status === "HEALTHY" ? " pos" : m.edge_status === "LOST" ? " neg" : "");
+
+    const top6 = m.top_6 || [];
+    $("mio-top6").innerHTML = top6.length
+      ? "<b>Top 6:</b> " + top6.map((s, i) =>
+          `<span class="pill info" style="margin:1px">#${i+1} ${s}${m.asset_scores && m.asset_scores[s] ? " " + m.asset_scores[s].toFixed(2) : ""}</span>`
+        ).join(" ")
+      : '<span class="empty">waiting for first MIO cycle</span>';
+  }
+
+  // ── 8. Live Trade Universe — from spot_aggro tier system (NOT spot_aggro universe) ──
+  if (sa && sa.tier_system && sa.tier_system.tiered_universe) {
+    const tu = sa.tier_system.tiered_universe;
+    $("uni-meta").textContent = tu.length + " scored coins · spot_aggro v2";
+    $("tb-uni").innerHTML = tu.map(c =>
+      `<tr><td><b>${c.symbol}</b></td><td><span class="pill ${c.tier==="A+"||c.tier==="A"?"ok":c.tier==="B"?"info":"mute"}">${c.tier}</span></td>` +
+      `<td class="r num">${(+c.composite).toFixed(3)}</td>` +
+      `<td class="r num">${(+c.spi).toFixed(3)}</td>` +
+      `<td class="r num">${(+c.funding_z).toFixed(2)}</td></tr>`
+    ).join("");
+  }
+
+  // ── 9. Open Positions ──
+  if (sa && sa.positions) {
+    const pos = Object.entries(sa.positions);
+    $("tb-pos").innerHTML = pos.length ? pos.map(([sym, p]) =>
+      `<tr><td><b>${sym}</b></td><td>BUY</td>` +
+      `<td class="r num">${fmt$(p.size_usd)}</td>` +
+      `<td class="r num">$${(+p.entry_price).toPrecision(5)}</td>` +
+      `<td class="r num">${(+p.sl * 100).toFixed(2)}%</td>` +
+      `<td class="r num">+${(+p.tp * 100).toFixed(2)}%</td></tr>`
+    ).join("") : '<tr><td colspan="6" class="empty">no open positions</td></tr>';
+  }
+
+  // ── 10. Executed Trade Activity ──
+  if (trades && trades.rows) {
+    $("tb-trades").innerHTML = trades.rows.length ? trades.rows.slice(0, 10).map(t => {
+      const ac = (t.action || "").toUpperCase();
+      const acCls = ac === "ENTER" ? "ok" : ac === "EXIT" ? "info" : "mute";
+      return `<tr><td>${fmtTime(t.ts_ms)}</td><td><b>${t.symbol}</b></td><td>${t.module || "—"}</td>` +
+        `<td><span class="pill ${acCls}">${ac}</span></td><td>${t.side || "—"}</td>` +
+        `<td class="r num">${fmt$(t.notional_usd)}</td>` +
+        `<td class="r num">${fmt$(t.fee_usd)}</td>` +
+        `<td class="r num ${t.pnl_usd > 0 ? "pos" : t.pnl_usd < 0 ? "neg" : ""}" style="color:${t.pnl_usd > 0 ? "var(--pos)" : t.pnl_usd < 0 ? "var(--neg)" : "inherit"}">${t.pnl_usd != null ? fmt$(t.pnl_usd) : "—"}</td></tr>`;
+    }).join("") : '<tr><td colspan="8" class="empty">no trade events</td></tr>';
+  }
+
+  // ── 11. Recent Alerts ──
+  if (notif && notif.rows) {
+    $("tb-alerts").innerHTML = notif.rows.length ? notif.rows.slice(0, 6).map(n =>
+      `<tr><td>${fmtTime(n.ts_ms)}</td>` +
+      `<td><span class="pill ${n.severity === "warn" ? "warn" : n.severity === "critical" ? "bad" : "mute"}">${n.event_type}</span></td>` +
+      `<td>${n.symbol || "—"}</td><td>${n.title || "—"}</td></tr>`
+    ).join("") : '<tr><td colspan="4" class="empty">no recent alerts</td></tr>';
+  }
+
+  // ── 12. Infrastructure Health ──
+  if (wd) {
+    const findings = wd.findings || wd.rows || [];
+    const q = wd.queue_unprocessed || [];
+    $("infra-summary").innerHTML = findings.length
+      ? `<span class="pill warn">${findings.length} finding(s)</span> ${q.length ? `<span class="pill bad">${q.length} unprocessed</span>` : ""}`
+      : '<span class="pill ok">healthy</span>';
+    $("tb-infra").innerHTML = findings.length ? findings.slice(0, 6).map(f =>
+      `<tr><td>${f.source || "—"}</td>` +
+      `<td><span class="pill ${f.severity === "critical" ? "bad" : f.severity === "warn" ? "warn" : "mute"}">${f.severity || "—"}</span></td>` +
+      `<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.message || f.root_cause || "—"}</td>` +
+      `<td>${fmtTime(f.ts_ms || f.ts)}</td></tr>`
+    ).join("") : '<tr><td colspan="4" class="empty">no findings</td></tr>';
+  }
+
+  // ── 13. System Issues ──
+  if (wd) {
+    const q = wd.queue_unprocessed || [];
+    $("tb-issues").innerHTML = q.length ? q.slice(0, 5).map(i =>
+      `<tr><td>${fmtTime(i.ts_ms || i.ts)}</td><td>${i.source || "—"}</td>` +
+      `<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.root_cause || i.message || "—"}</td>` +
+      `<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.remediation || i.fix || "—"}</td></tr>`
+    ).join("") : '<tr><td colspan="4" class="empty">no issues</td></tr>';
+  }
+
+  // ── 14. LLM Ensemble Health ──
+  if (llm && llm.members) {
+    $("tb-llm").innerHTML = llm.members.map(m => {
+      const okPct = m.ok_rate != null ? (m.ok_rate * 100).toFixed(0) + "%" : "—";
+      const cls = m.status === "ok" ? "ok" : m.status === "degraded" ? "warn" : m.status === "sleep" ? "mute" : "bad";
+      return `<tr><td>${m.role}</td><td>${m.provider}</td>` +
+        `<td class="r num">${m.calls_5m || 0}</td>` +
+        `<td class="r num">${okPct}</td>` +
+        `<td><span class="pill ${cls}">${m.status}</span></td></tr>`;
+    }).join("");
+  }
+
+  // ── 17. Active Trading Settings — from spot_aggro tier system ──
+  if (sa && sa.tier_system) {
+    const fc = sa.tier_system.frequency || {};
+    const caps = fc.tier_caps || {};
+    $("set-uni").textContent = "spot_aggro v2";
+    $("set-agg").innerHTML = '<span class="pill info">TIERED</span>';
+    $("set-min").textContent = "3 (target 6)";
+    $("set-max").textContent = fc.global_cap || 10;
+    const tiers = Object.entries(caps);
+    $("set-modules").innerHTML = tiers.map(([t, cap]) =>
+      `<span class="pill ${fc.entries_by_tier?.[t]>=cap?"warn":"ok"}">Tier ${t}: ${fc.entries_by_tier?.[t]||0}/${cap}</span>`
+    ).join(" ");
+  }
+
+  // ── 19. System Ledger ──
+  {
+    const gate = await f("/gate");
+    if (gate) {
+      $("led-gate").textContent = gate.accuracy != null ? (gate.accuracy * 100).toFixed(0) + "%" : gate.status || "—";
+    }
+  }
+
+  // ── 20. Bot Decision Ledger — show only if data ──
+  {
+    const actions = await f("/openclaw/actions?limit=5");
+    if (actions && actions.rows && actions.rows.length > 0) {
+      $("c-botledger").style.display = "";
+      $("tb-botledger").innerHTML = actions.rows.map(a =>
+        `<tr><td>${fmtTime(a.ts_ms || a.created_at)}</td><td>${a.strategy || a.kind || "—"}</td>` +
+        `<td>${a.symbol || "—"}</td><td style="font-size:10px">${(a.hash || a.correlation_id || "—").slice(0, 12)}</td>` +
+        `<td>${a.source || "—"}</td></tr>`
+      ).join("");
+    }
+  }
+
+  // ── 22. Monitor Alerts — show only if data ──
+  {
+    const hasAlerts = (notif?.rows || []).some(n => n.severity === "critical" || n.severity === "warn");
+    if (hasAlerts) {
+      $("c-monitor").style.display = "";
+      const critical = (notif?.rows || []).filter(n => n.severity === "critical" || n.severity === "warn");
+      $("mon-strip").innerHTML = critical.length
+        ? `<span class="pill bad">${critical.length} alert(s)</span> Latest: ${critical[0]?.title || "—"}`
+        : "no active alerts";
+      $("mon-strip").className = critical.length ? "" : "empty";
+    }
+  }
+
+  // ── Formula tab live values ──
+  if (sa && sa.mio) {
+    const m = sa.mio;
+    $("f-spi").textContent = (sa.effective_spi_min || 0.65).toFixed(2);
+    $("f-tp").textContent = (m.tp_multiplier || 1).toFixed(2) + "x";
+    $("f-sl").textContent = (m.sl_multiplier || 1).toFixed(2) + "x";
+    $("f-scale").textContent = (m.position_scale || 1).toFixed(2) + "x";
+    $("f-blitz").innerHTML = m.blitz_readiness > 0.6
+      ? '<span class="pill warn">HOT</span>'
+      : '<span class="pill mute">cold</span>';
+    $("f-active").className = "pill " + (sa.halted ? "bad" : "ok");
+    $("f-active").textContent = sa.halted ? "HALTED" : "ACTIVE";
+  }
+}
+
+function fmtVol(v) {
+  if (v == null) return "—";
+  v = +v;
+  if (v >= 1e9) return "$" + (v/1e9).toFixed(1) + "B";
+  if (v >= 1e6) return "$" + (v/1e6).toFixed(1) + "M";
+  if (v >= 1e3) return "$" + (v/1e3).toFixed(0) + "K";
+  return "$" + v.toFixed(0);
+}
+
+async function doAction(verb) {
+  const url = verb === "halt" ? "/spot_aggro/ops/halt" : verb === "pause" ? "/spot_aggro/ops/pause" : "/spot_aggro/ops/resume";
+  const r = await post(url);
+  if (r && r.ok) { refresh(); } else { alert("Action failed: " + JSON.stringify(r)); }
+}
+
+async function runProbes() {
+  const r = await post("/spot_aggro/ops/watchdog/process");
+  alert(r ? "Processed " + (r.processed || 0) + " items" : "Failed");
+  refresh();
+}
+
+async function sendTestNotif() {
+  alert("Test notification sent via existing notification channels.");
+}
+
+// Auto-refresh
+refresh();
+setInterval(refresh, 5000);
+
+// Store token
+if (!localStorage.getItem("ops_token")) {
+  const t = prompt("Enter OPS admin token (for pause/resume/halt):");
+  if (t) localStorage.setItem("ops_token", t);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# SPOT AGGRO research agent config (Phase 11m).
+# Loaded by spot_aggro.governance.research_agent at module import.
+# Every value can be overridden by an env var (see research_agent.py).
+#
+# SPOT AGGRO ONLY. Do not reference from apex_omega.
+
+schema_version: spot.research.v1
+
+# Primary halt gate — per-tier rolling window used to decide halt/restore.
+# "1h" is canonical per Phase 11m. "30m" and "24h" are still computed and
+# exposed in every report, but they don't drive halt.
+primary_window: "1h"
+
+# Windows we evaluate and surface in each report.
+windows_hours:
+  "30m": 0.5
+  "1h":  1.0
+  "24h": 24.0
+
+# Halt / restore thresholds (hysteresis). Primary-window WR must cross these.
+wr_halt_min:    0.60      # halt if primary-window WR < 60%
+wr_restore_min: 0.50      # restore if primary-window WR >= 50%
+wr_resume_min:  0.50      # back-compat alias for Phase 11l tests
+
+# Minimum closed-exits sample before the halt gate is ALLOWED to fire.
+# A tier with few exits can't be halted on a bad luck run.
+min_sample_size: 50
+
+# Post-restore staged-sizing fraction (0.0-1.0). When a tier thaws, the
+# engine should enter with this fraction of normal sizing until the
+# research agent confirms recovery. Consumed by the engine layer.
+staged_sizing: 0.5
+
+# Ops-group that must approve a deploy when headless_verify emits a
+# non-blocking warning. Informational only — consumed by CI script.
+manual_approval_group: "ops-quant"

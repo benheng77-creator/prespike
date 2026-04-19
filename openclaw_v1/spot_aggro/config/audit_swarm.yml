@@ -1,0 +1,70 @@
+# ============================================================================
+# SPOT AGGRO — AUDIT SWARM (L6) configuration
+# SPOT AGGRO ONLY. Do not reference from apex_omega.
+# ============================================================================
+#
+# Replaces the old 5-LLM "trade swarm" with a hard-quorum audit swarm per
+# TRUTH_FIRST_UPGRADE_PROMPT.md §7.
+#
+# Roles:
+#   L1 truth_auditor     anthropic  claude-haiku-4-5
+#   L2 trade_physics     openrouter deepseek/deepseek-chat-v3
+#   L3 state_classifier  openai     gpt-4o-mini
+#   L4 calibration       gemini     gemini-2.5-flash
+#   L5 chief_adjudicator anthropic  claude-opus-4-6
+#
+# Quorum rules (non-negotiable):
+#   Q1: entry quorum = 4-of-4 (L1..L4) full responses within per_call_timeout_s
+#   Q2: adjudicator (L5) fires only on unanimous PASS OR any UNKNOWN
+#   Q5: posterior 0.500 is "no information" and REJECTs
+#
+# Reason codes (stable — never reuse):
+#   AS-001  timeout — fewer than 4 responses within window
+#   AS-002  truth_auditor REJECT
+#   AS-003  trade_physics FAIL
+#   AS-004  state_classifier permission FAIL
+#   AS-005  calibration bucket FAIL
+#   AS-006  adjudicator REJECT / UNKNOWN
+#   AS-007  posterior == 0.500 (uninformative)
+#   AS-008  any member returned UNKNOWN and adjudicator could not resolve
+#   AS-009  parse failure on member response
+#   AS-010  invalid input
+
+schema_version: "spot.audit_swarm.v1"
+engine: "spot_aggro"
+
+per_call_timeout_s: 8
+required_quorum: 4           # must be 4 (L1..L4); do not soften
+
+roles:
+  truth_auditor:
+    provider: "anthropic"
+    model:    "claude-haiku-4-5"
+  trade_physics:
+    provider: "openrouter"
+    model:    "deepseek/deepseek-chat-v3"
+  state_classifier:
+    provider: "openai"
+    model:    "gpt-4o-mini"
+  calibration:
+    provider: "gemini"
+    model:    "gemini-2.5-flash"
+  # Phase 11n-9-h: chief_adjudicator downgraded to Haiku for cost control.
+  # Opus was firing ~2100 times/day at $0.04/call ≈ $84/mo. Haiku-4-5
+  # handles the same unanimous-PASS / any-UNKNOWN decision for $0.0025/call
+  # (1/16 the cost) and keeps the 4-of-4 quorum contract intact. Override
+  # back to opus by editing here if you want higher-confidence adjudication.
+  chief_adjudicator:
+    provider: "anthropic"
+    model:    "claude-haiku-4-5"
+
+posterior:
+  # A posterior exactly at this value is treated as "no information" and
+  # rejects the trade. Do NOT widen into a band; the test enforces strict
+  # equality.
+  uninformative_value: 0.500
+
+# Feature-flag for the adjudicator call. Operator can disable L5 network
+# calls (tests, cost cap) without weakening the quorum. When disabled and
+# adjudicator would otherwise fire, the swarm REJECTs with AS-006.
+adjudicator_enabled: true

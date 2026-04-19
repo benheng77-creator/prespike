@@ -1,0 +1,116 @@
+mode: paper # paper | live  (live mode is intentionally refused by main.py)
+
+exchange:
+  id: binance
+  symbol: APT/USDT
+  timeframe: 5m
+
+warmup_bars: 250
+
+# Paper trading starting balance and sizing
+starting_balance: 10000.0
+max_leverage: 3.0
+
+# Circuit breakers — trading halts latch ON when any trips
+max_drawdown: 0.05 # fraction of peak balance
+max_daily_loss: 0.03 # fraction of session-start balance
+max_consecutive_losses: 5
+halt_file_path: cache/.halt # create this file to externally kill-switch
+
+kelly_fraction: 0.5 # 0.5 = half-Kelly, a common safety tradeoff
+
+# Decision gate overrides (engine defaults kick in if these are lower)
+exec_min: 72.0
+watch_min: 58.0
+
+# ---- High win-rate mode ----
+# Extra filters to push win rate higher at the cost of trade count.
+# Each filter individually tightens entry; combining them compounds the effect.
+strict_mode: true
+require_mtf_aligned: true # all 4 MTF timeframes must agree in sign
+min_abs_mtf: 0.0 # require |MTFRaw| >= this (0..1)
+max_drift_for_entry: 1.0 # veto entry if drift > this (0..1)
+strict_exec_min: 72.0 # same as regular exec_min for this experiment
+
+# ---- Trade geometry ----
+# Stop loss and take profit as multiples of ATR.
+# Smaller tp_atr_mult → tighter target → higher WR but lower R per trade.
+tp_atr_mult: 3.0
+sl_atr_mult: 1.5
+
+# ---- Exit management ----
+# Once a trade goes favorable by this R, move stop to entry.
+# Converts would-be losers into scratch trades. 0 = disabled.
+breakeven_at_r: 0.3
+
+# Conviction model backend: logreg (linear, fast) or gbm (nonlinear, slower)
+conviction_model_type: logreg
+
+# LLM-backed sentiment (uses Claude or OpenAI instead of VADER lexicon).
+# Opt-in because LLM calls cost money — needs ANTHROPIC_API_KEY or OPENAI_API_KEY
+# in config/.env plus a NewsAPI / X token to have source text to classify.
+use_llm_sentiment: false
+llm_provider: claude # claude | openai
+llm_model: "" # empty = provider default (haiku-4-5 / gpt-4o-mini)
+llm_sentiment_refresh_s: 600
+
+# Refresh intervals for background data tasks (seconds)
+sentiment_refresh_s: 300
+event_risk_refresh_s: 900
+funding_refresh_s: 60
+oi_refresh_s: 60
+
+# Paths
+trade_log_db: logs/openclaw.db
+pwin_coefficients_path: cache/pwin_coefficients.json
+conviction_model_path: cache/conviction_model.pkl
+
+# ============================================================
+# Launch upgrades (2026-04-13) — OFF or safe by default.
+# ============================================================
+
+# Multi-symbol scanner. When enabled it evaluates every symbol in the
+# universe each cycle and logs the best pair, so you can see which
+# symbol your strategy is most bullish/bearish on without committing.
+# In "recommend" mode it does NOT auto-trade the winner — it only
+# reports. Switch to "auto" when you're ready (requires per-symbol
+# tracker rebuild — not yet implemented).
+scanner:
+  enabled: false
+  mode: recommend # recommend | auto
+  universe:
+    - BTC/USDT
+    - ETH/USDT
+    - SOL/USDT
+    - APT/USDT
+    - ARB/USDT
+    - SUI/USDT
+  max_concurrent: 1
+  rank_by: score_x_ev # score_x_ev | score | ev | pwin
+  min_bars_before_trade: 250
+
+# Accuracy gate — refuses EXECUTE when the recent win rate on a
+# symbol drops below `floor_pct`, and refuses LIVE trading on any
+# symbol until it has accumulated `proving_wins` paper wins first.
+# This is a floor enforcement, not an accuracy guarantee.
+accuracy_gate:
+  enabled: true
+  window_size: 30
+  floor_pct: 0.75
+  min_trades_before_floor: 10
+  proving_wins: 5
+  cooldown_bars: 48
+
+# Live exchange-order rails. DRY-RUN by default — flipping
+# `enabled: true` is NOT enough. The bot also requires:
+#     config.mode == "live"
+#     environment variable OPENCLAW_LIVE_TRADING=1
+#     notional and daily-trade caps respected
+# See core/live_executor.py and core/README_LAUNCH.md.
+live_trading:
+  enabled: false
+  max_notional_quote: 50.0 # per-order cap in quote currency
+  max_trades_per_day: 5 # circuit breaker
+  reconcile_timeout_s: 10.0
+  reconcile_tolerance_pct: 0.01 # 1% fill mismatch tolerated
+  env_flag: OPENCLAW_LIVE_TRADING

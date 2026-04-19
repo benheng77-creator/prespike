@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenClaw Trading Control</title>
+    <link rel="stylesheet" href="static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <strong>OpenClaw Trading Control</strong>
+      </div>
+      <div class="topbar-meta">
+        <span id="last-updated" class="meta-text">updated …</span>
+        <span id="conn-state" data-state="connecting">connecting…</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- ============================================================ -->
+      <!-- A. Status hero — single source of truth -->
+      <!-- ============================================================ -->
+      <section id="hero" class="hero" data-state="loading">
+        <div class="hero-body">
+          <div class="hero-icon" id="hero-icon">…</div>
+          <div class="hero-text">
+            <h1 id="hero-title">Loading trading status…</h1>
+            <p id="hero-message" class="hero-message">Reading your trading bot's current state.</p>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <button id="hero-primary" type="button" class="btn-big primary">…</button>
+          <button id="hero-secondary" type="button" class="btn-big secondary">Refresh</button>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- B. Today at a glance -->
+      <!-- ============================================================ -->
+      <section class="card">
+        <h2>Today at a glance</h2>
+        <p class="card-intro">Performance for trades closed since midnight (your local time).</p>
+        <div class="glance-grid">
+          <div class="glance-tile">
+            <div class="glance-label">Profit/loss today</div>
+            <div id="glance-pnl-quote" class="glance-value">—</div>
+            <div class="glance-help">Combined profit/loss in dollars for trades closed today.</div>
+          </div>
+          <div class="glance-tile">
+            <div class="glance-label">Trades closed today</div>
+            <div id="glance-closed" class="glance-value">—</div>
+            <div class="glance-help">Number of completed trades, both wins and losses.</div>
+          </div>
+          <div class="glance-tile">
+            <div class="glance-label">Win rate today</div>
+            <div id="glance-winrate" class="glance-value">—</div>
+            <div class="glance-help">
+              Percentage of today's closed trades that ended profitable.
+            </div>
+          </div>
+          <div class="glance-tile">
+            <div class="glance-label">Wins / losses today</div>
+            <div id="glance-winloss" class="glance-value">—</div>
+            <div class="glance-help">Profitable trades vs. losing trades.</div>
+          </div>
+          <div class="glance-tile">
+            <div class="glance-label">Best trade today</div>
+            <div id="glance-best" class="glance-value">—</div>
+            <div
+              class="glance-help"
+              title="R = risk-reward ratio. +2.00 means the trade earned 2× what it risked."
+            >
+              Largest single profit (in risk units, R).
+            </div>
+          </div>
+          <div class="glance-tile">
+            <div class="glance-label">Worst trade today</div>
+            <div id="glance-worst" class="glance-value">—</div>
+            <div class="glance-help">Largest single loss (in risk units, R).</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- C. Current open position -->
+      <!-- ============================================================ -->
+      <section class="card">
+        <h2>Current open position</h2>
+        <p id="open-intro" class="card-intro">No open positions right now.</p>
+        <div id="open-empty" class="empty-state">
+          The trading bot has no live trades. New positions will appear here automatically.
+        </div>
+        <dl id="open-detail" class="trade-detail" hidden>
+          <dt>Symbol</dt>
+          <dd id="open-symbol">—</dd>
+          <dt>Direction</dt>
+          <dd id="open-direction">—</dd>
+          <dt>Position size</dt>
+          <dd id="open-size">—</dd>
+          <dt>Entry price</dt>
+          <dd id="open-entry">—</dd>
+          <dt>
+            Stop loss <span class="dt-help">(closes the trade if price moves against you)</span>
+          </dt>
+          <dd id="open-stop">—</dd>
+          <dt>
+            Take profit <span class="dt-help">(closes the trade if price reaches your target)</span>
+          </dt>
+          <dd id="open-target">—</dd>
+          <dt>Status</dt>
+          <dd><span class="chip blue">Open</span></dd>
+        </dl>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- D. Recent closed trades -->
+      <!-- ============================================================ -->
+      <section class="card">
+        <h2>Recent closed trades</h2>
+        <p class="card-intro">The most recent trades the bot has finished. Newest first.</p>
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Symbol</th>
+              <th>Direction</th>
+              <th>Profit/loss</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody id="recent-trades-body">
+            <tr>
+              <td colspan="5" class="muted">no trades closed today</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- E. Latest market signal -->
+      <!-- ============================================================ -->
+      <section class="card">
+        <h2>Latest market signal</h2>
+        <p class="card-intro">What the strategy is currently thinking about the market.</p>
+        <dl class="trade-detail">
+          <dt>Symbol</dt>
+          <dd id="signal-symbol">—</dd>
+          <dt>Action</dt>
+          <dd id="signal-action">—</dd>
+          <dt>
+            Confidence score <span class="dt-help">(0–100, the bot's overall conviction)</span>
+          </dt>
+          <dd id="signal-score">—</dd>
+          <dt>
+            Estimated win chance
+            <span class="dt-help">(predicted probability the trade hits the target)</span>
+          </dt>
+          <dd id="signal-pwin">—</dd>
+          <dt>
+            Reward per unit of risk
+            <span class="dt-help">(how many dollars of profit per dollar risked)</span>
+          </dt>
+          <dd id="signal-evr">—</dd>
+        </dl>
+        <p id="signal-meta" class="meta-line">Market checks completed today: …</p>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- E0. Launch control — scanner, accuracy gate, live executor -->
+      <!-- ============================================================ -->
+      <section class="card launch-card">
+        <h2>Launch control</h2>
+        <p class="card-intro">
+          Live visibility into the three safety layers that stand between the strategy and a real
+          order. Every column must be green for live orders to fire.
+        </p>
+
+        <div class="launch-prover" id="launch-prover">
+          <div class="launch-prover-head">
+            <span class="launch-prover-title">God-mode prover</span>
+            <span id="launch-prover-summary" class="launch-prover-summary">
+              not run yet
+            </span>
+          </div>
+          <div id="launch-prover-body" class="launch-prover-body"></div>
+        </div>
+
+        <div class="launch-grid">
+          <div class="launch-col">
+            <div class="launch-col-head">
+              <span class="launch-col-title">Live gates</span>
+              <span id="launch-gate-count" class="launch-col-score">…</span>
+            </div>
+            <ul id="launch-gates" class="launch-gate-list">
+              <li class="muted">loading…</li>
+            </ul>
+            <p class="launch-col-hint">
+              All four must be true simultaneously before a real exchange order is sent.
+            </p>
+          </div>
+
+          <div class="launch-col">
+            <div class="launch-col-head">
+              <span class="launch-col-title">Accuracy gate</span>
+              <span id="launch-accuracy-summary" class="launch-col-score">…</span>
+            </div>
+            <table class="simple-table compact">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>WR (30)</th>
+                  <th>Trades</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="launch-accuracy-body">
+                <tr>
+                  <td colspan="4" class="muted">loading…</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="launch-col-hint">
+              Symbol is allowed to EXECUTE only when rolling WR is at or above the floor (default
+              75%) and, for live mode, lifetime proving wins are satisfied.
+            </p>
+          </div>
+
+          <div class="launch-col">
+            <div class="launch-col-head">
+              <span class="launch-col-title">Scanner ranking</span>
+              <span id="launch-scanner-ts" class="launch-col-score">…</span>
+            </div>
+            <table class="simple-table compact">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Symbol</th>
+                  <th>Score</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="launch-scanner-body">
+                <tr>
+                  <td colspan="4" class="muted">scanner not running yet</td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="launch-scanner-hint" class="launch-col-hint">
+              Enable <code>scanner.enabled: true</code> in openclaw.yaml and restart the bot to
+              populate this column.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- F0. Settings — API keys & integrations -->
+      <!-- ============================================================ -->
+      <details class="card collapsible" id="settings-card">
+        <summary>
+          <span class="summary-title">Settings — API keys &amp; integrations</span>
+          <span class="summary-help">Claude · OpenAI · exchanges · news · messaging</span>
+        </summary>
+        <p class="card-intro">
+          Paste your API keys here. They are saved to <code>.env</code> files on this computer and
+          never leave it. Existing values are masked — you only see the first and last few
+          characters. Click <em>Save</em> on a row to update that one key.
+        </p>
+        <div id="settings-files-meta" class="settings-meta"></div>
+        <div id="settings-groups">
+          <p class="muted">loading…</p>
+        </div>
+      </details>
+
+      <!-- ============================================================ -->
+      <!-- F. Advanced tools (collapsed) -->
+      <!-- ============================================================ -->
+      <details class="card collapsible">
+        <summary>
+          <span class="summary-title">Advanced tools</span>
+          <span class="summary-help">backtest · calibration · view config · view logs</span>
+        </summary>
+        <p class="card-intro">
+          Long-running operations that are safe to use but produce technical output. Each one opens
+          an output panel below.
+        </p>
+        <div class="quick-grid">
+          <button id="btn-trading-config" type="button">View bot configuration</button>
+          <button id="btn-trading-tail" type="button">View recent system logs</button>
+          <button id="btn-trading-pyprocs" type="button">View running engine processes</button>
+        </div>
+
+        <h3>Latest run</h3>
+        <div class="kv">
+          <label>Action</label>
+          <span id="run-label">—</span>
+        </div>
+        <div class="kv">
+          <label>Status</label>
+          <span id="run-status" class="badge" data-status="idle">idle</span>
+        </div>
+        <div class="kv">
+          <label>Exit code</label>
+          <span id="run-exit">—</span>
+        </div>
+        <div class="kv">
+          <label>Duration</label>
+          <span id="run-duration">—</span>
+        </div>
+        <pre id="run-output">(no output yet)</pre>
+
+        <h3>Recent runs</h3>
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>Exit</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="runs-body">
+            <tr>
+              <td colspan="5" class="muted">no runs yet</td>
+            </tr>
+          </tbody>
+        </table>
+      </details>
+
+      <!-- ============================================================ -->
+      <!-- G. Daily P&L history (collapsed) -->
+      <!-- ============================================================ -->
+      <details class="card collapsible">
+        <summary>
+          <span class="summary-title">Daily P&amp;L history</span>
+          <span class="summary-help">last 14 days of completed trading</span>
+        </summary>
+        <p class="card-intro">Day-by-day summary of every trade the bot has closed.</p>
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Trades</th>
+              <th>Wins</th>
+              <th>Losses</th>
+              <th>Win rate</th>
+              <th>Profit/loss</th>
+            </tr>
+          </thead>
+          <tbody id="daily-pnl-body">
+            <tr>
+              <td colspan="6" class="muted">loading…</td>
+            </tr>
+          </tbody>
+        </table>
+      </details>
+
+      <!-- ============================================================ -->
+      <!-- H. Developer diagnostics (collapsed) -->
+      <!-- ============================================================ -->
+      <details class="card collapsible diag">
+        <summary>
+          <span class="summary-title">Developer diagnostics</span>
+          <span class="summary-help">database · tunnel · runtime · raw logs · expert actions</span>
+        </summary>
+        <p class="card-intro">
+          Infrastructure and runtime details. Hidden by default — most users will never need this.
+        </p>
+
+        <h3>Trading engine</h3>
+        <div class="grid-2">
+          <div class="kv"><label>Engine running</label><span id="diag-engine">—</span></div>
+          <div class="kv"><label>Halt flag</label><span id="diag-halt">—</span></div>
+          <div class="kv">
+            <label>Total decisions in DB</label><span id="diag-decision-count">—</span>
+          </div>
+          <div class="kv">
+            <label>Total trades in DB</label><span id="diag-trade-count">—</span>
+          </div>
+          <div class="kv">
+            <label>Database file</label><span id="diag-db" class="muted-mono">—</span>
+          </div>
+          <div class="kv"><label>Database modified</label><span id="diag-db-mtime">—</span></div>
+        </div>
+
+        <h3>Public access</h3>
+        <div class="kv">
+          <label for="tunnel-url">Tunnel URL</label>
+          <input id="tunnel-url" type="text" readonly value="(starting…)" />
+        </div>
+        <div class="kv">
+          <label></label>
+          <button id="btn-copy-tunnel" type="button">Copy tunnel URL</button>
+        </div>
+        <p class="hint">
+          The launcher writes the Cloudflare Quick Tunnel URL to <code>state/tunnel.url</code>.
+          Treat this URL like a password.
+        </p>
+
+        <h3>System</h3>
+        <div class="grid-2">
+          <div class="kv"><label>Hostname</label><span id="sys-host">—</span></div>
+          <div class="kv"><label>Platform</label><span id="sys-platform">—</span></div>
+          <div class="kv"><label>Node</label><span id="sys-node">—</span></div>
+          <div class="kv"><label>Uptime</label><span id="sys-uptime">—</span></div>
+          <div class="kv"><label>CPU count</label><span id="sys-cpu">—</span></div>
+          <div class="kv"><label>Load avg</label><span id="sys-load">—</span></div>
+          <div class="kv"><label>Memory total</label><span id="sys-mem-total">—</span></div>
+          <div class="kv"><label>Memory free</label><span id="sys-mem-free">—</span></div>
+          <div class="kv"><label>Panel RSS</label><span id="sys-mem-rss">—</span></div>
+          <div class="kv"><label>Project root</label><span id="sys-project">—</span></div>
+        </div>
+
+        <h3>Live trading log (raw)</h3>
+        <pre id="trading-log-tail">(loading…)</pre>
+
+        <h3>Recent decisions (raw)</h3>
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Sym</th>
+              <th>Action</th>
+              <th>Score</th>
+              <th>pWin</th>
+              <th>EV-R</th>
+            </tr>
+          </thead>
+          <tbody id="trading-decisions-body">
+            <tr>
+              <td colspan="6" class="muted">loading…</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Expert action runner</h3>
+        <p class="hint">
+          Run any allowlisted action by id. Output appears in the Latest run panel above.
+        </p>
+        <div class="action-row">
+          <select id="action-select" aria-label="Action"></select>
+          <button id="btn-run" type="button" class="primary">Run</button>
+        </div>
+        <p id="action-description" class="hint"></p>
+
+        <h3>Panel server log</h3>
+        <pre id="panel-log">(loading…)</pre>
+
+        <div class="kv">
+          <label></label>
+          <button id="btn-refresh" type="button">Refresh now</button>
+          <button id="btn-quit" type="button" class="danger">Stop the panel</button>
+        </div>
+      </details>
+    </main>
+
+    <footer class="footer">
+      <span>OpenClaw Trading Control</span>
+      <span id="hero-status-dot" class="dot" data-state="unknown"></span>
+    </footer>
+
+    <script src="static/app.js"></script>
+  </body>
+</html>

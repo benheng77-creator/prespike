@@ -1,0 +1,67 @@
+{
+  "uid": "spot-decision-funnel",
+  "title": "spot_aggro · Decision Funnel",
+  "tags": ["spot_aggro", "funnel"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "bargauge",
+      "title": "Funnel stages (latest snapshot)",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT scored, tier_passed, consensus_fired, consensus_passed, orders_entered, orders_rejected, orders_exited FROM spot_funnel ORDER BY ts DESC LIMIT 1"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Consensus pass rate (%)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "fieldConfig": {"defaults": {"unit": "percent"}},
+      "targets": [
+        {"refId": "A", "format": "time_series",
+          "rawSql": "SELECT ts AS \"time\", 100.0 * consensus_passed / CASE WHEN consensus_fired = 0 THEN 1 ELSE consensus_fired END AS pass_rate_pct FROM spot_funnel WHERE $__timeFilter(ts) ORDER BY ts"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Orders entered vs rejected",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A", "format": "time_series",
+          "rawSql": "SELECT ts AS \"time\", orders_entered, orders_rejected FROM spot_funnel WHERE $__timeFilter(ts) ORDER BY ts"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Funnel freshness (s since last sample)",
+      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 16},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 60},
+            {"color": "red", "value": 120}
+          ]}
+        }
+      },
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT datediff('s', max(ts), now()) FROM spot_funnel"}
+      ]
+    }
+  ]
+}

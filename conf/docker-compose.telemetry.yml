@@ -1,0 +1,53 @@
+# SPOT AGGRO — local telemetry stack.
+# Brings up QuestDB + Grafana on localhost. Zero cloud dependency.
+# Engine emits to :9009 when running. Grafana reads via PG :8812.
+#
+# Start:  docker compose -f conf/docker-compose.telemetry.yml up -d
+# Stop:   docker compose -f conf/docker-compose.telemetry.yml down
+#
+# Data persists under ./conf/data/. Safe to delete for a fresh start.
+
+services:
+
+  questdb:
+    image: questdb/questdb:7.3.10
+    container_name: spot_questdb
+    restart: unless-stopped
+    ports:
+      - "9000:9000"   # Web console + REST (:9000/exec to run SQL)
+      - "9009:9009"   # ILP (TCP) — engine ingest
+      - "8812:8812"   # PostgreSQL wire — Grafana reads here
+    environment:
+      QDB_PG_USER: admin
+      QDB_PG_PASSWORD: quest
+      QDB_TELEMETRY_ENABLED: "false"
+      JAVA_OPTS: "-Xms512m -Xmx1g"
+    volumes:
+      - ./data/questdb:/var/lib/questdb
+    healthcheck:
+      # QuestDB image has no wget/curl — probe the PG wire port via /dev/tcp in bash.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8812' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: spot_grafana
+    restart: unless-stopped
+    depends_on:
+      questdb:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/spot_trade_activity.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./data/grafana:/var/lib/grafana

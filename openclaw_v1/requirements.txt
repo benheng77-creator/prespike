@@ -1,0 +1,15 @@
+ccxt
+redis
+asyncpg
+numpy
+pandas
+scikit-learn
+websockets
+python-dotenv
+cryptography
+aiohttp
+vaderSentiment
+PyYAML
+pytest
+fastapi
+uvicorn[standard]

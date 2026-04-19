@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: claw247-trading
+    runtime: docker
+    dockerfilePath: openclaw_v1/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: CLAW_MODE
+        value: paper
+      - key: CLAW_VERSION
+        value: render
+      - key: TRADE_DB_PATH
+        value: /data/trades.db
+      - key: CLAW_CORS_ORIGINS
+        value: "*"
+      - key: PORT
+        value: "8080"
+    disk:
+      name: claw-data
+      mountPath: /data
+      sizeGB: 1

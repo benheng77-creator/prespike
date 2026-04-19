@@ -1,0 +1,30 @@
+{
+    "folders":  [
+                    {
+                        "path":  "..\\icoip-master-suite"
+                    }
+                ],
+    "settings":  {
+                     "terminal.integrated.cwd":  "..\\icoip-master-suite",
+                     "files.exclude":  {
+                                           "**/.cache":  true,
+                                           "**/temp":  true,
+                                           "**/build":  true,
+                                           "**/node_modules":  true,
+                                           "**/.next":  true,
+                                           "**/dist":  true,
+                                           "**/coverage":  true,
+                                           "**/tmp":  true
+                                       },
+                     "search.exclude":  {
+                                            "**/.cache":  true,
+                                            "**/temp":  true,
+                                            "**/build":  true,
+                                            "**/node_modules":  true,
+                                            "**/.next":  true,
+                                            "**/dist":  true,
+                                            "**/coverage":  true,
+                                            "**/tmp":  true
+                                        }
+                 }
+}

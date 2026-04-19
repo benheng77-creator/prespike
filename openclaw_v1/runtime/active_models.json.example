@@ -1,0 +1,12 @@
+{
+  "models": ["A", "E"],
+  "_note": [
+    "This file is written by POST /models/selection from the operator dashboard.",
+    "The launcher reads it on start-up when no --model / --models flag and no",
+    "ACTIVE_MODELS env var is present.",
+    "Treat the two Apex models as strictly independent:",
+    "  D  = Model 99-X Apex (Structural Liquidation Arbitrage)",
+    "  E  = APEX V2 (Perp-only 3-module regime adaptive)",
+    "They never share code, never share runtime state, never mix signals."
+  ]
+}

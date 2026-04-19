@@ -1,0 +1,9 @@
+name = "claw247-trading-api"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+workers_dev = true
+
+[vars]
+CLAW_MODE = "paper"
+CLAW_VERSION = "worker-v1"
+CLAW_GATE_THRESHOLD = "0.75"

@@ -1,0 +1,7 @@
+schema_version: spot.tiers.v1
+engine: spot_aggro
+execution:
+  A+: true
+  A: true
+  B: true
+  C: true

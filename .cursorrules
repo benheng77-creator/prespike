@@ -1,0 +1,19 @@
+# REPO AI CONTRACT
+
+Primary machine context:
+- .ai/AUTO_STATE.md
+- .ai/AUTO_HANDOVER.md
+- .ai/AUTO_CONTEXT.json
+
+Optional human notes:
+- .ai/STATE.md
+- .ai/TASKS.md
+- .ai/DECISIONS.md
+- .ai/HANDOVER.md
+
+Rules:
+1. Repo files are truth. Do not rely on chat memory.
+2. Use AUTO files first.
+3. If human files exist, use them as extra context only.
+4. After changes, refresh machine context.
+5. Never assume another AI session knows current repo state unless it is written in .ai or captured in git status.

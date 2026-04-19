@@ -1,0 +1,22 @@
+# Grafana datasource — QuestDB via PostgreSQL wire protocol.
+# SPOT AGGRO only: this datasource is the single read surface for all
+# spot_* tables. Any non-spot_ query is a provisioning error.
+
+apiVersion: 1
+
+datasources:
+  - name: questdb-spot
+    type: postgres
+    access: proxy
+    url: questdb:8812
+    database: qdb
+    user: admin
+    secureJsonData:
+      password: quest
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1400
+      timescaledb: false
+    isDefault: true
+    editable: true
+    uid: questdb-spot

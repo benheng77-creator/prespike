@@ -1,0 +1,73 @@
+# ============================================================================
+# SPOT AGGRO — L2 STATE TRUTH GATE
+# SPOT AGGRO ONLY. Do not reference from apex_omega.
+# ============================================================================
+#
+# Two-classifier Markov state model (spec §L2).
+#
+#   Classifier 1  (trend):      ADX + Hurst exponent
+#   Classifier 2  (squeeze):    BBW percentile + volume profile
+#
+# Six states:
+#   TREND_CONFIRMED    ADX>30, Hurst>0.55, >=3 consecutive aligned candles
+#   TREND_TRANSITION   ADX 20-30, Hurst 0.45-0.55, state just flipped
+#   SQUEEZE_CONFIRMED  BBW < 20th percentile 30d, volume contracting
+#   POST_SQUEEZE       BBW expanding, first 3 candles after squeeze break
+#   DEAD_CHOP          ADX<15, sigma_realized<30th pct, no edge available
+#   UNSTABLE           classifier disagreement >0.3, or transitions >2 in 10m
+#
+# Entry permissions (operator note: Tier C is preserved; its permissive
+# states mirror the original spec. If both classifiers disagree, state
+# becomes UNSTABLE and no tier may trade regardless of score).
+
+schema_version: "spot.state.v1"
+engine: "spot_aggro"
+
+# Classifier thresholds
+classifier_trend:
+  adx_trend_confirmed_min: 30.0
+  adx_transition_min:      20.0
+  adx_transition_max:      30.0
+  adx_dead_max:            15.0
+  hurst_trend_confirmed_min: 0.55
+  hurst_transition_min:      0.45
+  hurst_transition_max:      0.55
+  aligned_candles_required:  3
+
+classifier_squeeze:
+  bbw_squeeze_pct_max:   20.0        # BBW must be below 20th percentile (30d)
+  bbw_postsqueeze_expansion_min: 0.05   # 5% expansion vs squeeze midpoint
+  postsqueeze_max_candles: 3
+  volume_contraction_required: true
+
+unstable_detector:
+  classifier_disagreement_max: 0.3   # normalised [0,1]; above → UNSTABLE
+  max_transitions_window_s:    600   # 10 min
+  max_transitions_allowed:     2
+
+# Permission table — which tiers may trade in which state.
+# Values are lists of states. "NONE" = no trading. Size reduction is handled
+# separately via size_multiplier.
+permissions:
+  "A+":
+    allowed: [TREND_CONFIRMED, POST_SQUEEZE]
+  "A":
+    allowed: [TREND_CONFIRMED, SQUEEZE_CONFIRMED, POST_SQUEEZE]
+  "B":
+    allowed: [TREND_CONFIRMED, SQUEEZE_CONFIRMED]
+  "C":
+    # Phase 4 operator override: keep Tier C in the analysis pipeline. Its
+    # execution is still gated by the tier_toggle (Phase 4b). States here
+    # reflect where C signals are considered structurally coherent even if
+    # the operator has the C toggle off.
+    allowed: [TREND_CONFIRMED, POST_SQUEEZE]
+
+# Per-state size modifier applied AFTER tier sizing — never grants more size,
+# only reduces it. TREND_TRANSITION halves per spec §L2.
+size_multiplier:
+  TREND_CONFIRMED:   1.0
+  TREND_TRANSITION:  0.5
+  SQUEEZE_CONFIRMED: 1.0
+  POST_SQUEEZE:      1.0
+  DEAD_CHOP:         0.0      # never entered (REJECT) but explicit for safety
+  UNSTABLE:          0.0

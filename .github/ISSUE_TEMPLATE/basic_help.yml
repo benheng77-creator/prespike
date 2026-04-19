@@ -1,0 +1,63 @@
+name: Basic help / user report
+description: Something is not working and you are not a developer. Three simple questions.
+title: "[Help]: "
+labels:
+  - help-wanted
+  - user-report
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for letting us know. This form is for regular users — no code knowledge needed.
+
+        If you are a developer reporting a regression, crash, or precise behavior bug with full
+        evidence (logs, version diffs, provider chain), please use the **Bug report** template
+        instead so your report lands in the right queue.
+  - type: textarea
+    id: what_tried
+    attributes:
+      label: What were you trying to do?
+      description: In one or two sentences — describe what you clicked, what button, what feature.
+      placeholder: I clicked "Start" on the control panel and tried to open the public URL.
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened instead?
+      description: What did you see? Paste any error message if you can — even if you do not understand it.
+      placeholder: |
+        The black window closed by itself and nothing opened. Or:
+        I saw a red message that said "Node.js is not installed".
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Attach your logs (optional but helpful)
+      description: |
+        If you can, open the `state` folder next to start.cmd and drag these files into the box below:
+          • `panel.log`
+          • `tunnel.log`
+        You can also just type "don't know how" — we will help you.
+      render: shell
+  - type: dropdown
+    id: os
+    attributes:
+      label: Your operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Privacy
+      description: Please confirm you have removed anything private before attaching logs.
+      options:
+        - label: I have not pasted any API keys, tokens, or passwords in this report.
+          required: true

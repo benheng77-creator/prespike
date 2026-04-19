@@ -1,0 +1,63 @@
+# ============================================================================
+# SPOT AGGRO — L1 TRADE PHYSICS GATE
+# SPOT AGGRO ONLY. Do not reference from apex_omega.
+# ============================================================================
+#
+# L1 rejects trades whose economics cannot clear friction. It is strictly
+# per-trade: it never consults account equity, total capital, or any
+# balance-based threshold. Capital-based rejection is PROHIBITED here
+# (operator directive, Phase 2 follow-up).
+#
+# Inputs (all per-trade):
+#   notional_usd           planned order size in USD
+#   expected_move_bp       signal's horizon move estimate (bp). unknown = REJECT.
+#   fee_bp_taker           symbol-level taker fee in bp   (positive number)
+#   fee_bp_maker           symbol-level maker fee in bp
+#   half_spread_bp         half of current bid/ask spread in bp at decision time
+#   slippage_bp_estimate   expected slippage in bp (defaults to symbol prior)
+#
+# Rule (spec §L1):
+#   round_trip_cost_bp = 2 * (fee_bp + half_spread_bp + slippage_bp_estimate)
+#   REJECT unless expected_move_bp > k * round_trip_cost_bp  (k=2.0)
+#   REJECT unless notional_usd >= min_viable_notional(symbol, expected_move_bp)
+#     where min_viable_notional = cost_floor_usd / expected_move_pct
+#     and   cost_floor_usd is the absolute dollar friction this notional pays
+#
+# The exchange minimum is looked up by symbol, not from account equity.
+
+schema_version: "spot.physics.v1"
+engine: "spot_aggro"
+
+# Global parameters
+required_edge_multiple: 2.0       # k in: expected_move_bp > k * round_trip_cost_bp
+default_slippage_bp: 3.0          # prior slippage if caller supplies none
+post_only_preferred: true         # use maker fee when post-only is viable
+# OKX EEA spot taker fee = 10bp, maker = 2bp (see spot_aggro_config.yml).
+# Values here are DECISION-TIME priors; the engine is free to override with
+# live observed spread.
+default_fee_bp_taker: 10.0
+default_fee_bp_maker: 2.0
+
+# Exchange-minimum notional (OKX spot). Treated as a hard floor; a trade
+# cannot legally place below this. NOT a capital check — it's an exchange
+# constraint.
+exchange_min_notional_usd: 1.0
+
+# Symbol overrides. Keys = "BASE-USDT". Any field may be omitted; the
+# loader fills from the globals above.
+symbols:
+  "WIF-USDT":    { half_spread_bp: 4.0,  slippage_bp: 4.0 }
+  "PEPE-USDT":   { half_spread_bp: 5.0,  slippage_bp: 5.0 }
+  "BONK-USDT":   { half_spread_bp: 5.0,  slippage_bp: 5.0 }
+  "FLOKI-USDT":  { half_spread_bp: 5.0,  slippage_bp: 5.0 }
+  "ARB-USDT":    { half_spread_bp: 3.0,  slippage_bp: 3.0 }
+  "OP-USDT":     { half_spread_bp: 3.0,  slippage_bp: 3.0 }
+  "SUI-USDT":    { half_spread_bp: 3.0,  slippage_bp: 3.0 }
+  "SEI-USDT":    { half_spread_bp: 4.0,  slippage_bp: 4.0 }
+  "INJ-USDT":    { half_spread_bp: 3.0,  slippage_bp: 3.0 }
+  "TIA-USDT":    { half_spread_bp: 3.0,  slippage_bp: 3.0 }
+  "JTO-USDT":    { half_spread_bp: 4.0,  slippage_bp: 4.0 }
+  "JUP-USDT":    { half_spread_bp: 3.0,  slippage_bp: 3.0 }
+  "PYTH-USDT":   { half_spread_bp: 4.0,  slippage_bp: 4.0 }
+  "ENA-USDT":    { half_spread_bp: 4.0,  slippage_bp: 4.0 }
+  "DOT-USDT":    { half_spread_bp: 3.0,  slippage_bp: 3.0 }

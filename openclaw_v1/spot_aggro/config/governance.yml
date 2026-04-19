@@ -1,0 +1,66 @@
+# ============================================================================
+# SPOT AGGRO — Permanent Governance Layer config
+# SPOT AGGRO ONLY. Do not reference from apex_omega.
+# ============================================================================
+#
+# Two always-on AI roles:
+#   WRI (Win-Rate Root-Cause Investigator) — diagnostic, cadenced
+#   FG  (Forensic Governor / Report Approval) — gate on every report + 24h meta
+
+schema_version: "spot.governance.v1"
+engine: "spot_aggro"
+
+# -------- Win-Rate Investigator ---------------------------------------------
+wri:
+  enabled: true
+  cadences:
+    # Each cadence is (name, interval_seconds, window_seconds).
+    # A WRI run fires when `now - last_run_ts >= interval_seconds`.
+    micro:
+      interval_s: 900          # 15 minutes
+      window_s:   3600         # 1-hour trailing sample
+    operational:
+      interval_s: 7200         # 2 hours
+      window_s:  28800         # 8-hour trailing sample
+      # 8h is the practical operational horizon — spec recommended 2h review
+      # over 2h of trades is usually insufficient; 8h keeps the review
+      # cadence at 2h but with enough closed trades to be meaningful.
+    full:
+      interval_s: 86400        # 24 hours
+      window_s:  604800        # 7-day trailing sample
+  # A cluster gets a ROOT_CAUSE callout if it contains >= this many trades
+  # AND its contribution to win-rate drag >= drag_floor_pct of the total.
+  cluster_min_trades: 5
+  drag_floor_pct: 0.10
+  # Minimum n per tier before WRI claims anything tier-specific beyond
+  # WEAK confidence.
+  tier_min_trades_for_likely: 10
+  tier_min_trades_for_proven: 30
+
+# -------- Forensic Governor -------------------------------------------------
+governor:
+  enabled: true
+  # Trust thresholds — inclusive lower bounds.
+  trust_score_min_approved:   0.75
+  trust_score_min_warnings:   0.40
+  # Below trust_score_min_warnings → REJECTED.
+
+  # How many section-level UNVERIFIABLE flags before the report is downgraded.
+  unverifiable_warn_threshold:  1     # any UNVERIFIABLE → AT LEAST warnings
+  unverifiable_reject_threshold: 3    # 3+ UNVERIFIABLE  → REJECT
+
+  # Contradiction handling.
+  contradiction_warn_threshold:   1
+  contradiction_reject_threshold: 2
+
+  # Quorum (from the report's own swarm metadata, if present).
+  quorum_ok_minimum: 4                # 4-of-N swarm needed; below → REJECT
+
+  # Meta-review (24h rolling) cadence.
+  meta_review:
+    enabled: true
+    interval_s: 86400
+    window_s:  86400
+    # A defect is "recurring" if it appears in >= this fraction of reports
+    # in the window.
+    recurring_defect_fraction: 0.30

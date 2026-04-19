@@ -1,0 +1,751 @@
+"""
+Read-only FastAPI shim for the claw247 dashboard.
+
+Exposes /status, /positions, /trades, /gate backed by the same SQLite file
+TradeLogger writes (core/persistence.py). Deployable standalone; does NOT run
+the trader — run main.py alongside it or point TRADE_DB_PATH at a shared
+volume.
+"""
+
+from __future__ import annotations
+
+import os
+import sqlite3
+import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+# Load .env BEFORE anything else reads os.environ. Search order:
+#   1. $OPENCLAW_ENV_FILE (explicit override)
+#   2. <repo-root>/.env
+#   3. openclaw_v1/config/.env  (matches main.py convention)
+#   4. openclaw_v1/.env
+# All are optional; missing files are skipped silently.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _here = Path(__file__).resolve().parent
+    _candidates = [
+        os.environ.get("OPENCLAW_ENV_FILE"),
+        str(_here.parent / ".env"),
+        str(_here / "config" / ".env"),
+        str(_here / ".env"),
+    ]
+    for _c in _candidates:
+        if _c and Path(_c).exists():
+            _load_dotenv(_c, override=False)
+except ImportError:
+    # python-dotenv not installed — env vars must be set in the shell.
+    pass
+
+
+def _flag(name: str) -> bool:
+    """True only if the env var is set to an explicitly truthy value (1/true/yes).
+
+    "0", "false", "no", or empty string all return False. This prevents the
+    common Python bug where bool("0") == True.
+    """
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
+
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+from scoring import score_from_mapping
+
+DB_PATH = os.environ.get("TRADE_DB_PATH", "trades.db")
+MODE = os.environ.get("CLAW_MODE", "paper")
+VERSION = os.environ.get("CLAW_VERSION", "dev")
+CORS_ORIGINS = os.environ.get("CLAW_CORS_ORIGINS", "*").split(",")
+
+_started_at = time.time()
+
+app = FastAPI(title="claw247-trading", version=VERSION)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in CORS_ORIGINS if o.strip()],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+try:
+    from backtest_plus.api import router as _backtest_plus_router
+    app.include_router(_backtest_plus_router)
+except Exception as _bt_exc:                          # pragma: no cover - defensive
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "backtest_plus router not mounted: %s", _bt_exc,
+    )
+
+# CLAW-NIC-v1 — mount claw audit / execution-tracking / watchdog endpoints.
+try:
+    from claw.api import router as _claw_router
+    app.include_router(_claw_router)
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "CLAW-NIC-v1 mounted: bot outputs are frozen at ingest; claw never "
+        "modifies bot scores, confidence, or plans."
+    )
+except Exception as _claw_exc:                        # pragma: no cover - defensive
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "claw router not mounted: %s", _claw_exc,
+    )
+
+# Phase 11n-9-q — shared ops infrastructure (PnL, trades, consensus,
+# LLM health/cost, notifications, kill, governor, watchdog, halt/pause/
+# resume). Mounted at /spot_aggro/ops/*.
+try:
+    from spot_aggro.ops.routes_ops import router as _ops_router
+    app.include_router(_ops_router)
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "SPOT AGGRO ops router mounted at /spot_aggro/ops/*"
+    )
+except Exception as _ops_exc:                         # pragma: no cover
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "SPOT AGGRO ops router NOT mounted: %s", _ops_exc,
+    )
+
+# SPOT AGGRO owns its own engine router under /spot_aggro (separate
+# mount from /spot_aggro/ops/* shared-ops infra above). Kept separate so
+# a failure in one router does not cascade into the other.
+try:
+    from spot_aggro.api.routes import router as _spot_router
+    app.include_router(_spot_router)
+    import logging as _logging
+    _logging.getLogger(__name__).info("SPOT AGGRO router mounted at /spot_aggro/*")
+except Exception as _spot_exc:                        # pragma: no cover
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "SPOT AGGRO router NOT mounted: %s", _spot_exc,
+    )
+
+
+# Phase 11e — Path A: serve the operator dashboard directly from uvicorn.
+#
+# Before this, the dashboard only existed at https://claw247-trading.pages.dev/ops/
+# (Cloudflare Pages deployment), which was serving an orphan 52 KB HTML that
+# matched no branch in this repo and never picked up any Phase 11 work.
+# Operators viewing that URL saw a stale, contradictory page for 12+ hours
+# while the actual fixes were sitting on disk.
+#
+# Mounting web/ops/ directly bypasses the entire deploy pipeline for the
+# local case — `http://127.0.0.1:8080/ops/` now serves the current disk
+# HTML (Phase 11d, with every truth-coherence, auth, heatmap, and card
+# cleanup patch applied). Zero Cloudflare dependency for the local operator.
+try:
+    from fastapi.staticfiles import StaticFiles
+    _ops_dir = Path(__file__).resolve().parent.parent / "web" / "ops"
+    if _ops_dir.exists() and (_ops_dir / "index.html").exists():
+        # html=True makes / resolve to index.html; also serves assets
+        # (openapi.json, etc.) side-by-side.
+        app.mount("/ops", StaticFiles(directory=str(_ops_dir), html=True), name="ops")
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            "SPOT AGGRO dashboard mounted at /ops/ (live from %s)", _ops_dir,
+        )
+    else:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "web/ops/ not found at %s — dashboard not served locally", _ops_dir,
+        )
+except Exception as _ops_exc:                         # pragma: no cover
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "dashboard mount failed: %s", _ops_exc,
+    )
+
+
+# Phase 11 — SPOT AGGRO telemetry (QuestDB + Grafana + Sentry).
+# Non-blocking. If QuestDB is unreachable, emits silently drop.
+# Sentry stays dormant until SPOT_SENTRY_BACKEND_DSN is set.
+@app.on_event("startup")
+async def _spot_telemetry_startup() -> None:
+    try:
+        from spot_aggro.telemetry import init_telemetry
+        init_telemetry()
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            "spot_aggro telemetry initialised (non-blocking)"
+        )
+    except Exception as exc:  # noqa: BLE001
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "spot_aggro telemetry init failed (engine continues): %s", exc
+        )
+
+
+@app.on_event("shutdown")
+async def _spot_telemetry_shutdown() -> None:
+    try:
+        from spot_aggro.telemetry import shutdown_telemetry
+        shutdown_telemetry()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# Phase 11h — SPOT AGGRO engine MUST NOT auto-start on server boot.
+#
+# A prior implementation added a SPOT_AGGRO_AUTO_ARM gate here. It was
+# removed because even with the flag off by default, its mere presence
+# turned uvicorn boot into a live-trading surface: one stray env var
+# from a shell, a Docker compose file, or a systemd unit could silently
+# place real orders during a server restart. An incident on
+# 2026-04-19 confirmed the blast radius — an inadvertent
+# SPOT_AGGRO_AUTO_ARM=1 caused 5 live Tier C entries on OKX before the
+# operator could react.
+#
+# Policy going forward: the engine is started ONLY by the operator
+# clicking Resume on the dashboard (POST /spot_aggro/start with a valid
+# OPS_ADMIN_TOKEN). There is no server-side auto-start, no env-gated
+# auto-start, and no startup hook that instantiates the trading engine.
+# This keeps uvicorn boot purely a read-only-plus-control-plane action.
+
+
+@app.on_event("startup")
+def _start_ops_background_services() -> None:
+    """Start shared-ops schedulers: 3h PnL report + notifications ready."""
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.ops.notifications import router as _nr  # noqa: F401
+        _log.info("ops notifications router primed")
+    except Exception as exc:
+        _log.warning("ops notifications router NOT primed: %s", exc)
+    try:
+        from spot_aggro.ops.scheduler import pnl_reporter
+        pnl_reporter.start()
+        _log.info("ops PnL reporter started (3h interval)")
+    except Exception as exc:                          # pragma: no cover
+        _log.warning("ops PnL reporter NOT started: %s", exc)
+    try:
+        from spot_aggro.ops.watchdog import llm_watchdog
+        llm_watchdog.start(interval_s=300)
+        _log.info("ops LLM watchdog started (5min interval)")
+    except Exception as exc:                          # pragma: no cover
+        _log.warning("ops watchdog NOT started: %s", exc)
+    try:
+        from spot_aggro.ops.publisher import cloud_sync
+        cloud_sync.start()
+    except Exception as exc:                          # pragma: no cover
+        _log.warning("ops cloud publisher NOT started: %s", exc)
+
+
+# Phase 11j — daily SPOT AGGRO system-integrity audit.
+#
+# Runs once per day on a detached daemon thread. No APScheduler dep; uses
+# a simple repeat-timer so the scheduler can't fail import. First run
+# happens 60s after boot so the engine has time to warm up. Subsequent
+# runs every 24h. Each run stores its result in spot_system_audit_runs
+# and the dashboard's System Audit card shows the latest verdict.
+#
+# The audit is READ-ONLY over trading state — it never starts the engine,
+# never places orders, never consults capital. It only verifies that
+# every piece needed to produce a trading decision is in place, connected,
+# non-broken, and fully functional.
+# Phase 11l — hourly SPOT AGGRO win-rate research agent.
+#
+# Runs the research agent every hour on a detached daemon thread. The
+# agent reads closed-exit stats from the trade log, computes per-tier
+# win rate, soft-halts any tier with WR < WR_HALT_MIN (default 60%) on
+# a sufficient sample, and thaws any tier whose WR has recovered past
+# WR_RESUME_MIN (default 50%) — operator-lockable hysteresis.
+#
+# Read-only against trading state except for the tier-toggle flip, which
+# is the explicit execution-lane control surface the research agent is
+# authorised to use.
+@app.on_event("startup")
+def _start_spot_aggro_research_agent() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.research_agent import run_and_persist
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("spot_aggro research agent NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 3600                 # 1h
+    _FIRST_DELAY_S = 30                # run quickly so halt decisions apply fast
+
+    def _tick() -> None:
+        try:
+            r = run_and_persist(window_h=24)
+            halted = [t for t, h in (r.halt_state or {}).items() if h]
+            _log.info(
+                "[spot_aggro.research] %s WR=%s exits=%d halted=%s",
+                r.report_id,
+                (f"{r.overall_wr*100:.1f}%" if r.overall_wr is not None else "n/a"),
+                r.overall_exits,
+                halted or "none",
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("spot_aggro research agent tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro research agent scheduled (first run in %ds, then every 1h)",
+        _FIRST_DELAY_S,
+    )
+
+
+@app.on_event("startup")
+def _start_spot_aggro_daily_auditor() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.daily_system_auditor import run_and_persist
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("spot_aggro daily auditor NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 24 * 3600       # 24h
+    _FIRST_DELAY_S = 60           # let the server finish booting before first run
+
+    def _tick() -> None:
+        try:
+            r = run_and_persist()
+            _log.info(
+                "[spot_aggro.daily_audit] %s verdict=%s ok=%d warn=%d fail=%d",
+                r.run_id, r.verdict, r.n_ok, r.n_warn, r.n_fail,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("spot_aggro daily auditor tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro daily system auditor scheduled (first run in %ds, then every 24h)",
+        _FIRST_DELAY_S,
+    )
+
+
+# Phase 11n-9-s — Apex Purge Governor (Layer 10).
+#
+# Permanent trip-wire that scans for any reintroduction of the purged
+# apex_omega package or /apex/ URL surface. Runs once at boot (5s
+# delay) then every 5 minutes. When APEX_PURGE_GOV_AUTOKILL=1 is set
+# (default in the startup env), stray filesystem artifacts (legacy
+# apex directories + logs + config files) are deleted automatically.
+# Source-code regressions are flagged verdict=fail but never auto-
+# patched — a human must review + fix the code.
+@app.on_event("startup")
+def _start_spot_aggro_apex_purge_gov() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.apex_purge_gov import run_once
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("apex_purge_gov NOT started (import): %s", exc)
+        return
+    # Default AUTOKILL on in the live server process. Tests import the
+    # module directly and pass purge=False explicitly, so this env-level
+    # default does not affect them.
+    os.environ.setdefault("APEX_PURGE_GOV_AUTOKILL", "1")
+
+    _INTERVAL_S = 300             # 5 minutes
+    _FIRST_DELAY_S = 5
+
+    def _tick() -> None:
+        try:
+            r = run_once()
+            _log.info(
+                "[spot_aggro.apex_purge_gov] verdict=%s stray=%d regressions=%d purged=%d",
+                r.verdict, r.n_stray_paths, r.n_src_regressions, r.n_purged,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("apex_purge_gov tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro apex_purge_gov scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
+# Phase 11n-9-t — Apex Deep Forensic Governor (Layer 11).
+# Superset of Layer 10: scans configs (YAML/JSON/shell/.env), string
+# literals, and the process env for every apex variant. Runs on boot
+# (7s delay so Layer 10 fires first) + every 10 minutes.
+@app.on_event("startup")
+def _start_spot_aggro_apex_deep_forensic_gov() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.apex_deep_forensic_gov import run_once
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("apex_deep_forensic_gov NOT started (import): %s", exc)
+        return
+
+    _INTERVAL_S = 600             # 10 minutes
+    _FIRST_DELAY_S = 7
+
+    def _tick() -> None:
+        try:
+            r = run_once()
+            _log.info(
+                "[spot_aggro.apex_deep_forensic_gov] verdict=%s"
+                " stray=%d src=%d config=%d env=%d info_db=%d purged=%d",
+                r.verdict, r.n_stray_paths, r.n_src_strings,
+                r.n_config, r.n_env, r.n_info, r.n_purged,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("apex_deep_forensic_gov tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro apex_deep_forensic_gov scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
+# Phase 11n-8: Auto Orchestrator is 100% auto. Default ON. Set
+# SPOT_AUTO_ORCHESTRATOR=0 only if you need to disable it (tests do,
+# via monkeypatch). On boot we:
+#   (1) start the background loop,
+#   (2) fire one tick IMMEDIATELY on a daemon thread so the dashboard
+#       has real gov verdicts within ~5s of server start instead of
+#       waiting for the first scheduled interval (default 300s).
+# Read-only. Validates layers, auto-heals stuck loops, surfaces gaps.
+# Never trades.
+@app.on_event("startup")
+def _start_spot_aggro_auto_orchestrator() -> None:
+    import logging as _logging
+    import threading as _threading
+    _log = _logging.getLogger(__name__)
+    if os.environ.get("SPOT_AUTO_ORCHESTRATOR", "1").strip() == "0":
+        _log.info("spot_aggro auto-orchestrator disabled by "
+                  "SPOT_AUTO_ORCHESTRATOR=0")
+        return
+    try:
+        from spot_aggro.governance import auto_orchestrator as _ao
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("auto-orchestrator NOT started (import): %s", exc)
+        return
+    try:
+        status = _ao.start()
+        _log.info("spot_aggro auto-orchestrator: %s", status)
+    except Exception as exc:  # noqa: BLE001
+        _log.exception("auto-orchestrator start failed: %s", exc)
+        return
+
+    # Seed first tick on a daemon thread so the main startup path
+    # returns fast. The orchestrator's scheduled loop picks up the
+    # cadence after this tick completes.
+    def _first_tick():
+        try:
+            tk = _ao.run_tick()
+            _log.info(
+                "auto-orchestrator first tick: verdict=%s steps=%d gaps=%d",
+                tk.verdict, len(tk.steps), len(tk.gaps),
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("auto-orchestrator first tick failed: %s", exc)
+    _threading.Thread(
+        target=_first_tick, name="spot-auto-first-tick", daemon=True,
+    ).start()
+
+
+@app.on_event("shutdown")
+def _stop_spot_aggro_auto_orchestrator() -> None:
+    try:
+        from spot_aggro.governance import auto_orchestrator as _ao
+        _ao.stop()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@contextmanager
+def _db():
+    """SQLite connection with WAL + busy_timeout so concurrent readers and
+    the engine writer don't block each other."""
+    if not os.path.exists(DB_PATH):
+        yield None
+        return
+    con = sqlite3.connect(DB_PATH, timeout=10.0)
+    con.row_factory = sqlite3.Row
+    try:
+        con.execute("PRAGMA busy_timeout=10000")
+        yield con
+    finally:
+        con.close()
+
+
+def _rows(con: sqlite3.Connection, sql: str, args: tuple = ()) -> list[dict[str, Any]]:
+    try:
+        return [dict(r) for r in con.execute(sql, args).fetchall()]
+    except sqlite3.Error:
+        return []
+
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
+@app.get("/status")
+def status():
+    with _db() as con:
+        has_db = con is not None
+        decisions = _rows(con, "SELECT COUNT(*) AS n FROM decisions") if has_db else []
+        trades = _rows(con, "SELECT COUNT(*) AS n FROM trades") if has_db else []
+    return {
+        "mode": MODE,
+        "version": VERSION,
+        "uptime_s": int(time.time() - _started_at),
+        "db_path": DB_PATH,
+        "db_present": has_db,
+        "decisions_logged": decisions[0]["n"] if decisions else 0,
+        "trades_logged": trades[0]["n"] if trades else 0,
+        "server_time": int(time.time()),
+    }
+
+
+@app.get("/positions")
+def positions():
+    with _db() as con:
+        if con is None:
+            return []
+        return _rows(
+            con,
+            "SELECT symbol, direction, size, entry_px, stop_px, target_px, entry_ts_ms "
+            "FROM trades WHERE exit_ts_ms IS NULL ORDER BY entry_ts_ms DESC LIMIT 50",
+        )
+
+
+@app.get("/trades")
+def trades():
+    with _db() as con:
+        if con is None:
+            return []
+        return _rows(
+            con,
+            "SELECT symbol, direction, size, entry_px, exit_px, exit_reason, pnl_r, pnl_quote, "
+            "entry_ts_ms, exit_ts_ms FROM trades "
+            "WHERE exit_ts_ms IS NOT NULL ORDER BY exit_ts_ms DESC LIMIT 50",
+        )
+
+
+@app.get("/gate")
+def gate():
+    with _db() as con:
+        if con is None:
+            return {"status": "NO_DB", "window_trades": 0, "hits": 0, "accuracy": 0.0, "threshold": 0.75}
+        rows = _rows(
+            con,
+            "SELECT pnl_r FROM trades WHERE exit_ts_ms IS NOT NULL ORDER BY exit_ts_ms DESC LIMIT 128",
+        )
+    wins = sum(1 for r in rows if (r.get("pnl_r") or 0) > 0)
+    n = len(rows)
+    acc = wins / n if n else 0.0
+    threshold = float(os.environ.get("CLAW_GATE_THRESHOLD", "0.75"))
+    return {
+        "status": "UNLOCKED" if acc >= threshold and n >= 20 else "LOCKED",
+        "window_trades": n,
+        "hits": wins,
+        "accuracy": round(acc, 4),
+        "threshold": threshold,
+    }
+
+
+from fastapi import Body  # noqa: E402
+
+
+@app.post("/score")
+def score_endpoint(payload: dict = Body(...)):
+    try:
+        return score_from_mapping(payload)
+    except KeyError as e:
+        raise HTTPException(status_code=422, detail=f"missing field: {e.args[0]}")
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# OpenClaw / reports routes (additive). Lazy-imported so the existing read-only
+# shim boots even if the optional packages are not present on disk.
+# ---------------------------------------------------------------------------
+
+def _ledger():
+    from audit import AuditLedger  # noqa: WPS433
+    return AuditLedger(db_path=DB_PATH)
+
+
+@app.get("/openclaw/state")
+def openclaw_state():
+    try:
+        l = _ledger()
+        recent = l.fetch_recent(limit=20)
+        return {
+            "ok": True,
+            "actions_count": l.count(),
+            "recent_actions": recent,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/openclaw/actions")
+def openclaw_actions(limit: int = 100, correlation_id: str | None = None):
+    try:
+        l = _ledger()
+        if correlation_id:
+            return {"rows": l.fetch_by_correlation(correlation_id)}
+        return {"rows": l.fetch_recent(limit=limit)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/reports/today")
+def reports_today():
+    import os, json, datetime
+    date = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    path = os.path.join("reports", "out", f"{date}.json")
+    if not os.path.exists(path):
+        cache = os.path.join("cache", "reports", "latest.json")
+        if os.path.exists(cache):
+            with open(cache, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {"date": date, "status": "no_report_yet"}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+@app.get("/reports/{date}")
+def reports_by_date(date: str):
+    import os, json
+    path = os.path.join("reports", "out", f"{date}.json")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="report not found")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+# ---------------------------------------------------------------------------
+# Admin-gated secrets management (read masked, write raw via .env).
+# ---------------------------------------------------------------------------
+
+from fastapi import Header, status as _status  # noqa: E402
+
+
+def _require_admin(token: str | None) -> None:
+    expected = os.environ.get("OPS_ADMIN_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(status_code=403,
+                            detail="OPS_ADMIN_TOKEN is not set on this host; refusing secret access")
+    if (token or "").strip() != expected:
+        raise HTTPException(status_code=401, detail="invalid admin token")
+
+
+def _secrets_store():
+    from secrets_store import SecretsStore
+    from audit import AuditLedger
+    return SecretsStore(ledger=AuditLedger(db_path=DB_PATH))
+
+
+@app.get("/ops/secrets")
+def ops_secrets_list(x_ops_token: str | None = Header(default=None)):
+    _require_admin(x_ops_token)
+    return {"rows": _secrets_store().list()}
+
+
+@app.put("/ops/secrets/{name}")
+def ops_secrets_set(
+    name: str,
+    payload: dict = Body(...),
+    x_ops_token: str | None = Header(default=None),
+):
+    _require_admin(x_ops_token)
+    value = payload.get("value")
+    if value is None:
+        raise HTTPException(status_code=422, detail="missing value")
+    try:
+        _secrets_store().set(name, str(value))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"ok": True, "name": name}
+
+
+@app.delete("/ops/secrets/{name}")
+def ops_secrets_delete(
+    name: str,
+    x_ops_token: str | None = Header(default=None),
+):
+    _require_admin(x_ops_token)
+    ok = _secrets_store().delete(name)
+    return {"ok": ok, "name": name}
+@app.get("/engines/status")
+def engines_status():
+    """Unified status for every engine attached to this host."""
+    out: dict[str, Any] = {}
+    try:
+        from spot_aggro.ops.routes_ops import apex_status as _ops_status
+        out["spot_aggro_ops"] = _ops_status()
+    except Exception as e:
+        out["spot_aggro_ops"] = {"error": str(e)}
+    return out
+
+
+@app.get("/exchanges")
+def exchanges_status():
+    """Which exchanges are configured on this host."""
+    try:
+        from core.exchange_factory import summary
+        return summary()
+    except Exception as e:
+        return {"error": str(e), "supported": []}
+@app.post("/ops/intervene")
+def ops_intervene(
+    payload: dict = Body(...),
+    x_ops_token: str | None = Header(default=None),
+):
+    """Operator intervention (pause/resume/flatten/halt/cancel/restart).
+
+    Records to the audit ledger. Delegates to existing gateway/risk if
+    orchestrator is attached; otherwise writes an audit row and returns
+    `queued=True` so the caller knows the supervisor must pick it up at
+    next restart."""
+    _require_admin(x_ops_token)
+    from audit import AuditLedger
+    verb = (payload.get("verb") or "").upper()
+    reason = payload.get("reason") or ""
+    if verb not in ("PAUSE", "RESUME", "FLATTEN", "CANCEL_ALL", "RESTART", "EMERGENCY_STOP"):
+        raise HTTPException(status_code=422, detail=f"unknown verb: {verb}")
+    if not reason.strip():
+        raise HTTPException(status_code=422, detail="reason required")
+    ledger = AuditLedger(db_path=DB_PATH)
+    cid = ledger.record(
+        kind="escalated",
+        phase="operator_intervention",
+        verb=verb,
+        severity="warn" if verb in ("PAUSE", "CANCEL_ALL") else "critical",
+        result={"verb": verb, "reason": reason, "source": "ops_ui"},
+    )
+    return {"ok": True, "queued": True, "correlation_id": cid, "verb": verb}
+

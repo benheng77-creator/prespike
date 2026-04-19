@@ -1,0 +1,102 @@
+{
+  "uid": "spot-trade-activity",
+  "title": "spot_aggro · Trade Activity",
+  "tags": ["spot_aggro", "trades"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Trades/min by action",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT ts AS \"time\", action, count() AS n FROM spot_trades WHERE $__timeFilter(ts) SAMPLE BY 1m FILL(0) GROUP BY ts, action ORDER BY ts"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Reject-storm detector (1 min)",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 10},
+            {"color": "red", "value": 30}
+          ]}
+        }
+      },
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT count() AS rejects FROM spot_trades WHERE action='reject' AND ts > dateadd('m',-1,now())"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Pre-flight skips (5 min)",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT count() FROM spot_trades WHERE action='skip' AND ts > dateadd('m',-5,now())"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Realized PnL (24h)",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 4},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT sum(pnl_usd) FROM spot_trades WHERE action='exit' AND ts > dateadd('h',-24,now())"}
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Exits (24h)",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 4},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT count() FROM spot_trades WHERE action='exit' AND ts > dateadd('h',-24,now())"}
+      ]
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "Exit reasons mix (24h)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT reason, count() AS n FROM spot_trades WHERE action='exit' AND ts > dateadd('h',-24,now()) GROUP BY reason"}
+      ]
+    },
+    {
+      "id": 7,
+      "type": "piechart",
+      "title": "Action mix (last 1h)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "postgres", "uid": "questdb-spot"},
+      "targets": [
+        {"refId": "A",
+          "rawSql": "SELECT action, count() AS n FROM spot_trades WHERE ts > dateadd('h',-1,now()) GROUP BY action"}
+      ]
+    }
+  ]
+}

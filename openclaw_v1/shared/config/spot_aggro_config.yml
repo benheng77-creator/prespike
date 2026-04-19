@@ -1,0 +1,126 @@
+# ============================================================================
+# SPOT AGGRO v2.0 CONFIGURATION — ISOLATED FROM APEX_OMEGA
+# This file is for the spot-only squeeze/flow engine ONLY.
+# Do NOT reference apex_omega perp config. Do NOT share thresholds.
+# ============================================================================
+
+capital:
+  working_usd: 391.66            # current spot equity
+  emergency_reserve_pct: 0.05
+
+engine:
+  version: "v2.1"
+  poll_interval_s: 1
+  max_positions: 8
+  deploy_ceil: 0.95
+  kill_dd_pct: 0.08
+
+# Tier system (v2)
+tiers:
+  composite_min_actionable: 0.25
+  tier_a_plus_min: 0.65
+  tier_a_min: 0.60
+  tier_b_min: 0.40
+  tier_c_min: 0.25
+  daily_caps:
+    "A+": 5
+    A: 10
+    B: 25
+    C: 40
+  global_daily_cap: 70
+  target_daily: 55
+
+# BLITZ mode (Tier A+)
+blitz:
+  alloc: 0.60
+  spi_min: 0.85
+  cooldown_s: 14400
+  max_hold_s: 3600
+  daily_cap: 3
+
+# SPI formula — DO NOT MODIFY THESE WEIGHTS
+spi:
+  weight_fz: 0.35
+  weight_oi: 0.25
+  weight_div: 0.25
+  weight_liq: 0.15
+
+# Composite score weights (v2)
+composite:
+  weight_spi: 0.20
+  weight_funding: 0.15
+  weight_squeeze: 0.15
+  weight_momentum: 0.10
+  weight_liquidity: 0.15
+  weight_volatility: 0.10
+  weight_regime: 0.10
+  weight_micro: 0.05
+
+# 16-coin spot watchlist (OKX EEA spot-tradable)
+universe:
+  - { symbol: "WIF-USDT",   category: "meme" }
+  - { symbol: "PEPE-USDT",  category: "meme" }
+  - { symbol: "BONK-USDT",  category: "meme" }
+  - { symbol: "FLOKI-USDT", category: "meme" }
+  - { symbol: "ARB-USDT",   category: "l2" }
+  - { symbol: "OP-USDT",    category: "l2" }
+  - { symbol: "SUI-USDT",   category: "alt_l1" }
+  - { symbol: "SEI-USDT",   category: "alt_l1" }
+  - { symbol: "INJ-USDT",   category: "alt_l1" }
+  - { symbol: "TIA-USDT",   category: "alt_l1" }
+  - { symbol: "JTO-USDT",   category: "sol_eco" }
+  - { symbol: "JUP-USDT",   category: "sol_eco" }
+  - { symbol: "PYTH-USDT",  category: "sol_eco" }
+  - { symbol: "ENA-USDT",   category: "defi" }
+  # RUNE-USDT removed: no perp market on OKX, can't fetch funding data
+  - { symbol: "DOT-USDT",   category: "alt_l1" }
+
+okx:
+  default_hostname: "eea.okx.com"
+  td_mode_spot: "cash"           # SPOT ONLY — never cross/isolated
+  maker_fee: 0.0002
+  taker_fee: 0.0005
+  clordid_prefix: "sa"           # spot_aggro prefix (NOT apx)
+
+llm:
+  enabled: true
+  kl_early_stop_threshold: 0.02
+  members:
+    - { role: "pattern",      provider: "anthropic",  model: "claude-haiku-4-5" }
+    - { role: "macro",        provider: "openai",     model: "gpt-4o-mini" }
+    - { role: "sentiment",    provider: "gemini",     model: "gemini-2.5-flash" }
+    - { role: "quant_sanity", provider: "openrouter", model: "deepseek/deepseek-chat-v3" }
+    - { role: "outlier",      provider: "mistral",    model: "mistral-small-latest" }
+  veto:
+    provider: "anthropic"
+    model: "claude-opus-4-6"
+    trigger_conflict: 0.7
+  per_call_timeout_s: 12
+  total_ensemble_timeout_s: 30
+
+persistence:
+  db_path_env: "TRADE_DB_PATH"
+  db_path_default: "trades.db"
+  state_dir: "spot_aggro/state"
+
+# 5-LLM Research Swarm — permanent per-coin intelligence
+swarm:
+  enabled: true
+  heavy_interval_s: 21600      # 6 hours (4x/day)
+  standard_interval_s: 600     # 10 minutes
+  fast_interval_s: 120         # 2 minutes
+  fast_watchlist_size: 5       # top 5 for fast layer
+  standard_universe_size: 10   # top 10 for standard layer
+  per_call_timeout_s: 15
+  composite_blend_weight: 0.30 # swarm influence on composite score
+  exit_urgency_threshold: 0.85
+  agents:
+    - { role: "structure_analyst",  provider: "anthropic",  model: "claude-haiku-4-5" }
+    - { role: "quant_analyst",      provider: "openai",     model: "gpt-4o-mini" }
+    - { role: "liquidity_analyst",  provider: "gemini",     model: "gemini-2.5-flash" }
+    - { role: "regime_analyst",     provider: "openrouter", model: "deepseek/deepseek-chat-v3" }
+    - { role: "adjudicator",        provider: "mistral",    model: "mistral-small-latest" }
+
+logging:
+  level: "INFO"
+  rotate_daily: true

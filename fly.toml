@@ -1,0 +1,35 @@
+app = "claw247-trading"
+primary_region = "iad"
+
+[build]
+dockerfile = "openclaw_v1/Dockerfile"
+
+[env]
+CLAW_MODE = "paper"
+CLAW_VERSION = "fly"
+TRADE_DB_PATH = "/data/trades.db"
+CLAW_CORS_ORIGINS = "*"
+PORT = "8080"
+
+[[mounts]]
+source = "claw_data"
+destination = "/data"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 0
+
+[[http_service.checks]]
+grace_period = "10s"
+interval = "30s"
+method = "GET"
+path = "/health"
+protocol = "http"
+timeout = "5s"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "512mb"

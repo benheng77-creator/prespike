@@ -1,0 +1,48 @@
+# ============================================================================
+# SPOT AGGRO — L0 CAPITAL VIABILITY ADVISORY (non-blocking)
+# SPOT AGGRO ONLY. Do not reference from apex_omega.
+# ============================================================================
+#
+# L0 is ADVISORY, not a startup blocker. Per operator directive it must never
+# refuse to start the engine and must never reject a trade because working
+# capital is below any threshold. It publishes an analysis + gap + optional
+# recommendation, and the engine continues normally.
+#
+# All thresholds live here — not in code. Changing a number here must not
+# require a Python edit.
+
+schema_version: "spot.capital.v2"
+engine: "spot_aggro"
+mode: "directional"               # directional | delta_neutral (future)
+
+# --- Reporting reference values (informational only) -----------------------
+# This is the capital level at which the strategy is "comfortably viable" per
+# spec §L0. Sub-threshold capital produces a WARN verdict; it does NOT block
+# startup or trading. Name intentionally carries "reference_" prefix so
+# nobody reading code mistakes it for a lock.
+reference_min_viable_capital_usd: 2000.0
+
+# --- Inputs used to derive reference_min_viable_capital --------------------
+# reference_min_viable = max(
+#     reference_min_viable_capital_usd,
+#     daily_friction_usd / safety_cost_multiple,
+# )
+
+avg_notional_usd: 20.0            # planned average ticket in directional mode
+daily_trade_count: 40             # planned target trades / day (all tiers summed)
+round_trip_cost_bp: 30.0          # fee+spread+slippage (OKX spot taker ~10bp * 2 + spread)
+required_edge_multiple: 2.0       # k from spec §L1: expected_move_bp > k * cost_bp
+safety_cost_multiple: 0.15        # daily_friction <= 15% of working capital (reporting reference)
+emergency_reserve_pct: 0.05       # 5% held out of deployable (sizing hint, not a gate)
+
+# --- Cadence ---------------------------------------------------------------
+recheck_interval_days: 30         # rerun advisory every 30 days
+recheck_on_startup: true
+
+# --- Advisory recommendation ------------------------------------------------
+# Printed alongside a WARN verdict. Never used to reroute — the operator
+# decides. L0 does not cross-engine.
+recommendation_when_below_reference:
+  summary: "Working capital is below the spot-directional reference threshold."
+  suggestion: "Consider APEX-OMEGA delta-neutral mode (separate engine) if sustained."
+  contact: "Operator decides; L0 is advisory and does not cross-engine route."
