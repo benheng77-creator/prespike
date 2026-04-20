@@ -427,17 +427,22 @@ def _build_variant_view(variant: str, cutoff_ms: int) -> dict[str, Any]:
                 " GROUP BY reason ORDER BY n DESC LIMIT 5",
                 (variant, cutoff_ms),
             ).fetchall()
-            # Active opportunities: admitted rows for this variant with
-            # no matching exit yet (look at shadow_variant_exits).
+            # Active opportunities: admitted rows for this variant, one
+            # row per symbol (latest score). Previous query returned every
+            # re-scoring cycle's row, so a single symbol appeared 3-10x.
+            # Also removed the shadow_variant_exits join — that was meant
+            # to mean "no exit yet" but the match condition was wrong and
+            # it was exploding via LEFT JOIN fan-out.
             active = con.execute(
-                "SELECT a.symbol, a.variant_score, a.ts_ms"
-                " FROM shadow_variant_authorizations a"
-                " LEFT JOIN shadow_variant_exits e"
-                "   ON e.correlation_id = a.live_authz_id AND e.variant = a.variant"
-                " WHERE a.variant = ? AND a.variant_passed = 1"
-                "   AND a.ts_ms >= ?"
-                "   AND e.id IS NULL"
-                " ORDER BY a.ts_ms DESC LIMIT 20",
+                "SELECT symbol,"
+                "       MAX(variant_score) AS variant_score,"
+                "       MAX(ts_ms) AS ts_ms,"
+                "       COUNT(*) AS n_scores"
+                " FROM shadow_variant_authorizations"
+                " WHERE variant = ? AND variant_passed = 1"
+                "   AND ts_ms >= ?"
+                " GROUP BY symbol"
+                " ORDER BY ts_ms DESC LIMIT 20",
                 (variant, cutoff_ms),
             ).fetchall()
         finally:
@@ -460,6 +465,7 @@ def _build_variant_view(variant: str, cutoff_ms: int) -> dict[str, Any]:
                     "symbol": a["symbol"],
                     "score": float(a["variant_score"] or 0),
                     "ts_ms": int(a["ts_ms"]),
+                    "n_scores": int(a["n_scores"] or 1),
                 }
                 for a in active
             ],
@@ -475,7 +481,19 @@ def _build_variant_view(variant: str, cutoff_ms: int) -> dict[str, Any]:
 
 
 def _build_pipeline(cutoff_ms: int) -> dict[str, Any]:
-    """Decision pipeline counters — strategy-scoped to CDV variants."""
+    """Decision pipeline counters — strategy-scoped to CDV variants.
+
+    Four distinct funnel stages (fixed phase-ww+):
+      scanned       = total scoring events written in window
+      shortlisted   = unique (symbol, variant) pairs with at least one pass
+      approved      = unique symbols that resulted in a LIVE entry row
+                      in spot_live_variant_entries (status != 'skip')
+      rejected      = scoring events with variant_passed = 0
+
+    Previously scanned/shortlisted/approved/rejected were all derived
+    from the same total-vs-passed count, making the panel show identical
+    or doubled numbers that didn't reflect real funnel stages.
+    """
     try:
         con = _connect()
         try:
@@ -484,11 +502,31 @@ def _build_pipeline(cutoff_ms: int) -> dict[str, Any]:
                 f" WHERE {scoped_variants_sql_in_clause()} AND ts_ms >= ?",
                 (cutoff_ms,),
             ).fetchone()
-            r_admit = con.execute(
+            r_reject = con.execute(
                 "SELECT COUNT(*) AS n FROM shadow_variant_authorizations"
-                f" WHERE {scoped_variants_sql_in_clause()} AND variant_passed = 1 AND ts_ms >= ?",
+                f" WHERE {scoped_variants_sql_in_clause()}"
+                " AND variant_passed = 0 AND ts_ms >= ?",
                 (cutoff_ms,),
             ).fetchone()
+            r_shortlisted = con.execute(
+                "SELECT COUNT(DISTINCT symbol || '|' || variant) AS n"
+                " FROM shadow_variant_authorizations"
+                f" WHERE {scoped_variants_sql_in_clause()}"
+                " AND variant_passed = 1 AND ts_ms >= ?",
+                (cutoff_ms,),
+            ).fetchone()
+            # Approved = symbols that reached spot_live_variant_entries
+            # in the same window. Uses CDV variants only.
+            try:
+                r_approved = con.execute(
+                    "SELECT COUNT(DISTINCT symbol) AS n"
+                    " FROM spot_live_variant_entries"
+                    " WHERE variant IN ('contrarian','deep_value')"
+                    "  AND COALESCE(opened_ts_ms, ts_ms) >= ?",
+                    (cutoff_ms,),
+                ).fetchone()
+            except Exception:
+                r_approved = None
             # Approx reject bucket inference from reason substrings.
             bucket_rows = con.execute(
                 "SELECT reason, COUNT(*) AS n"
@@ -513,12 +551,9 @@ def _build_pipeline(cutoff_ms: int) -> dict[str, Any]:
             con.close()
         return {
             "scanned": int(r_total["n"] or 0) if r_total else 0,
-            "shortlisted": int(r_admit["n"] or 0) if r_admit else 0,
-            "approved": int(r_admit["n"] or 0) if r_admit else 0,
-            "rejected": (
-                int(r_total["n"] or 0) - int(r_admit["n"] or 0)
-                if r_total and r_admit else 0
-            ),
+            "shortlisted": int(r_shortlisted["n"] or 0) if r_shortlisted else 0,
+            "approved": int(r_approved["n"] or 0) if r_approved else 0,
+            "rejected": int(r_reject["n"] or 0) if r_reject else 0,
             "blocked_by_depth": blocked_depth,
             "blocked_by_regime": blocked_regime,
             "blocked_by_governance": blocked_gov,
