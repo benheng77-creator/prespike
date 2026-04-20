@@ -11,7 +11,7 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-ll-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-qq-2026-04-20"/>
 <!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
      dashboard to their phone home screen and the iOS/Android status
      bar matches the dark theme. -->
@@ -2562,6 +2562,49 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- Phase 11n-9-qq — Exchange comparison (OKX vs Crypto.com). Read-
+     only public-API feed. Updated every 60s by a separate daemon.
+     Used for governance: which exchange has better liquidity/spread
+     per tier-C coin. No orders, no balances from Crypto.com. -->
+<div class="c" id="c-exchange-compare"
+     data-lane="governance"
+     data-source-id="/spot_aggro/gov/exchange_comparison"
+     data-scope-id="spot_aggro:exchange_compare"
+     data-window-basis="last 30min rolling"
+     data-refresh-basis="60s"
+     data-summary-source="per_symbol_depth_spread_gap"
+     data-confidence-source="both_okx_and_cdc_returned_ok">
+  <div class="h"><h3>Exchange Comparison</h3><span class="sub">OKX vs Crypto.com · read-only</span></div>
+  <div class="helper">Parallel market data; audit which exchange has better depth/spread per coin</div>
+  <div class="truth-meta">
+    <span class="lane-governance">governance</span>
+    <span>source: /spot_aggro/gov/exchange_comparison</span>
+    <span>scope: OKX vs Crypto.com</span>
+    <span>window: 30 min</span>
+    <span>refresh: 60s</span>
+  </div>
+  <div class="b">
+    <div id="xcmp-summary" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:8px;background:var(--alt);border-radius:4px">
+      <span style="color:var(--ink2);font-size:11px">DEPTH WINNER</span>
+      <span id="xcmp-winner" style="font-weight:700;font-size:12px;color:var(--ink1)">—</span>
+    </div>
+    <table id="xcmp-table" style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;font-size:9px">
+        <th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--border)">Symbol</th>
+        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">OKX depth</th>
+        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">CDC depth</th>
+        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">OKX bp</th>
+        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">CDC bp</th>
+        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">Drift bp</th>
+      </tr></thead>
+      <tbody id="xcmp-tbody"><tr><td colspan="6" style="text-align:center;padding:8px;color:var(--ink3)">awaiting first comparison cycle…</td></tr></tbody>
+    </table>
+    <div style="margin-top:8px">
+      <button class="btn" id="xcmp-run-btn" style="font-size:10px;padding:3px 8px">Run Compare Now</button>
+    </div>
+  </div>
+</div>
+
 <!-- Phase 11n-9-ll — Governance Board. Sufficiency test vs 2%/trade
      target, edge contribution per factor, formula-review verdict,
      latest 24h report. Updates every 30s. -->
@@ -3058,7 +3101,8 @@ const _TAB_CARDS = {
   alerts:       ["c-alerts", "c-issues", "c-infra"],
   research:     ["c-research", "c-mio", "c-universe",
                  "c-swarm", "c-llm", "c-horse-race", "c-kill-ladder",
-                 "c-model-gov", "c-resilience", "c-gov-board"],
+                 "c-model-gov", "c-resilience", "c-gov-board",
+                 "c-exchange-compare"],
   system:       ["c-runtime", "c-schedule", "c-settings",
                  "c-exchange"],
   formula:      [],  // rendered by its own tab-formula grid
@@ -3511,6 +3555,9 @@ async function refresh() {
 
   // Phase 11n-9-ll — paint governance board card + wire buttons.
   try { _refreshGovBoard(); _wireGovBoardButtons(); } catch (e) { console.warn("_refreshGovBoard", e); }
+
+  // Phase 11n-9-qq — paint OKX vs Crypto.com comparison card.
+  try { _refreshExchangeCompare(); _wireExchangeCompareBtn(); } catch (e) { console.warn("_refreshExchangeCompare", e); }
 
   // ── 1. Trading Engine Status ──
   // Phase 11h — end the "READY while engine is actually stopped"
@@ -5055,6 +5102,72 @@ async function _refreshEngineState() {
     const j = await r.json();
     if (j && typeof j === "object") window._engineStateCache = j;
   } catch (e) { /* non-fatal */ }
+}
+
+// Phase 11n-9-qq — Exchange comparison renderer.
+async function _refreshExchangeCompare() {
+  try {
+    const r = await fetch("/spot_aggro/gov/exchange_comparison?window_min=30", {cache: "no-store"}).then(x => x.json()).catch(() => null);
+    const tbody = document.getElementById("xcmp-tbody");
+    const winnerEl = document.getElementById("xcmp-winner");
+    if (!r || !r.ok) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:8px;color:var(--ink3)">error fetching</td></tr>';
+      return;
+    }
+    const gap = r.gap || [];
+    if (winnerEl) {
+      const okx = r.depth_winner_okx || 0;
+      const cdc = r.depth_winner_cryptocom || 0;
+      if (okx > cdc) {
+        winnerEl.textContent = `OKX (${okx} of ${okx+cdc})`;
+        winnerEl.style.color = "#10b981";
+      } else if (cdc > okx) {
+        winnerEl.textContent = `Crypto.com (${cdc} of ${okx+cdc})`;
+        winnerEl.style.color = "#f59e0b";
+      } else {
+        winnerEl.textContent = `tie (${okx}/${cdc})`;
+        winnerEl.style.color = "#6e7681";
+      }
+    }
+    if (tbody) {
+      if (!gap.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:8px;color:var(--ink3)">no comparison data yet</td></tr>';
+      } else {
+        tbody.innerHTML = gap.map(g => {
+          const okxD = (g.okx_depth_usd || 0).toFixed(0);
+          const cdcD = (g.cdc_depth_usd || 0).toFixed(0);
+          const okxS = (g.okx_spread_bp || 0).toFixed(1);
+          const cdcS = (g.cdc_spread_bp || 0).toFixed(1);
+          const drift = (g.price_drift_bp || 0).toFixed(1);
+          const winDepth = g.depth_winner || "?";
+          const okxCls = winDepth === "okx" ? 'color:var(--pos);font-weight:600' : 'color:var(--ink2)';
+          const cdcCls = winDepth === "cryptocom" ? 'color:var(--warn);font-weight:600' : 'color:var(--ink2)';
+          return `<tr>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);color:var(--ink1)">${g.symbol}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;${okxCls};font-variant-numeric:tabular-nums">$${okxD}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;${cdcCls};font-variant-numeric:tabular-nums">$${cdcD}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums">${okxS}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums">${cdcS}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;color:var(--ink3);font-variant-numeric:tabular-nums;font-size:10px">${drift}</td>
+          </tr>`;
+        }).join("");
+      }
+    }
+  } catch (e) { /* non-fatal */ }
+}
+
+function _wireExchangeCompareBtn() {
+  const b = document.getElementById("xcmp-run-btn");
+  if (b && !b._wired) {
+    b._wired = true;
+    b.addEventListener("click", async () => {
+      const token = localStorage.getItem("spot_ops_token") || "";
+      await fetch("/spot_aggro/gov/exchange_comparison/run", {
+        method: "POST", headers: {"X-Ops-Token": token},
+      });
+      setTimeout(_refreshExchangeCompare, 1200);
+    });
+  }
 }
 
 // Phase 11n-9-ll — Governance Board renderer.

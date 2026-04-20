@@ -901,6 +901,33 @@ def _start_spot_aggro_three_way_shadow() -> None:
     )
 
 
+# Phase 11n-9-qq: Crypto.com read-only comparison-feed daemon. Fetches
+# ticker + top-of-book depth for admitted tier-C symbols every 60s
+# from BOTH OKX and Crypto.com public REST. Writes
+# `spot_exchange_comparison` rows for governance + dashboard review.
+# Never places orders. Never reads balances. Failure on either side is
+# non-fatal — partial rows persist.
+@app.on_event("startup")
+def _start_spot_aggro_exchange_comparison() -> None:
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.ops.scheduler import exchange_comparison_feed
+    except Exception as exc:  # noqa: BLE001
+        _log.warning(
+            "spot_aggro exchange_comparison_feed NOT started (import): %s",
+            exc,
+        )
+        return
+    try:
+        exchange_comparison_feed.start()
+        _log.info("spot_aggro exchange_comparison_feed started (60s cadence)")
+    except Exception as exc:  # noqa: BLE001
+        _log.warning(
+            "spot_aggro exchange_comparison_feed start failed: %s", exc,
+        )
+
+
 # Phase 11n-9-dd: heartbeat writer keeps equity_marks fresh even while
 # the engine is intentionally stopped, so Trading Engine + Account
 # Snapshot cards no longer flip to STALE/FAIL when the operator chooses

@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-pp-2026-04-20"
+SERVER_BUILD = "phase-11n-9-qq-2026-04-20"
 
 
 @router.get("/build")
@@ -148,6 +148,8 @@ def spot_aggro_build() -> dict[str, Any]:
             "momentum_3of4_bullish_or": True,     # Phase 11n-9-pp Q — 3-of-4 core + bullish-OR gate
             "deep_value_thinbook_wr55": True,     # Phase 11n-9-pp R — $2k depth + 55% WR compensating
             "ranker_return_24h_4h": True,         # Phase 11n-9-pp — 1h candles fetch for momentum
+            "exchange_comparison_feed": True,     # Phase 11n-9-qq — Crypto.com public market data (read-only) alongside OKX
+            "cryptocom_readonly_adapter": True,   # Phase 11n-9-qq — no auth, no orders, no balances
         },
     }
 
@@ -506,6 +508,54 @@ def spot_aggro_engine_state() -> dict[str, Any]:
         },
         "ts_ms": int(time.time() * 1000),
     }
+
+
+# Phase 11n-9-qq — Crypto.com read-only comparison feed.
+@router.get("/gov/exchange_comparison")
+def spot_aggro_exchange_comparison(
+    window_min: int = Query(30, ge=1, le=1440),
+) -> dict[str, Any]:
+    """Per-symbol OKX vs Crypto.com comparison (latest within window).
+
+    Read-only. Crypto.com data is public-API only — no orders, no
+    balances, no auth. Used to audit liquidity / spread differences
+    between exchanges and inform future routing decisions.
+    """
+    try:
+        from spot_aggro.ops.scheduler.exchange_comparison_feed import (
+            per_symbol_gap, latest_comparison_rows,
+        )
+        gap = per_symbol_gap(window_min=window_min)
+        okx_better = sum(1 for g in gap if g["depth_winner"] == "okx")
+        cdc_better = sum(1 for g in gap if g["depth_winner"] == "cryptocom")
+        return {
+            "ok": True,
+            "window_min": window_min,
+            "n_symbols": len(gap),
+            "depth_winner_okx": okx_better,
+            "depth_winner_cryptocom": cdc_better,
+            "gap": gap,
+            "raw_rows": latest_comparison_rows(window_min=window_min),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/exchange_comparison/run")
+def spot_aggro_exchange_comparison_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Force a single immediate comparison cycle. Admin-only."""
+    _require_admin(x_ops_token)
+    try:
+        import asyncio as _asyncio
+        from spot_aggro.ops.scheduler.exchange_comparison_feed import (
+            fetch_one_cycle,
+        )
+        n = _asyncio.run(fetch_one_cycle())
+        return {"ok": True, "rows_persisted": n}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
 
 
 # Phase 11n-9-ll — Governance Board endpoints.
