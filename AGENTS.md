@@ -24,21 +24,16 @@ Read this file first.
 ## AUTO SNAPSHOT
 - Git: yes
 - Branch: main-clean
-- Dirty files: 13
+- Dirty files: 8
 - Changed:
   -  M .github/copilot-instructions.md
   -  M AGENTS.md
   -  M CLAUDE.md
   -  M GEMINI.md
   -  M deploy/spot-aggro-v2/index.html
-  -  M openclaw_v1/shared/llm/consensus.py
   -  M openclaw_v1/spot_aggro/api/routes.py
-  -  M openclaw_v1/spot_aggro/engine.py
-  -  M openclaw_v1/spot_aggro/ops/llm/consensus.py
-  -  M openclaw_v1/spot_aggro/swarm/runner.py
   -  M web/ops/index.html
-  - ?? openclaw_v1/spot_aggro/swarm/prefilter.py
-  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9bb_swarm_prefilter.py
+  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9cc_button_state.py
 - Stack: Node
 - Scripts:
   - npm run android:assemble
@@ -62,13 +57,9 @@ Read this file first.
   -  M CLAUDE.md
   -  M GEMINI.md
   -  M deploy/spot-aggro-v2/index.html
-  -  M openclaw_v1/shared/llm/consensus.py
   -  M openclaw_v1/spot_aggro/api/routes.py
-  -  M openclaw_v1/spot_aggro/engine.py
-  -  M openclaw_v1/spot_aggro/ops/llm/consensus.py
-  -  M openclaw_v1/spot_aggro/swarm/runner.py
   -  M web/ops/index.html
-  - ?? openclaw_v1/spot_aggro/swarm/prefilter.py
+  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9cc_button_state.py
 
 ## MANUAL FOLLOW-UP
 # CURRENT FOLLOW-UP

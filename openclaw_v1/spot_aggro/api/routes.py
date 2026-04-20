@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-bb-2026-04-20"
+SERVER_BUILD = "phase-11n-9-cc-2026-04-20"
 
 
 @router.get("/build")
@@ -106,6 +106,7 @@ def spot_aggro_build() -> dict[str, Any]:
             "start_endpoint_honors_readiness": True,  # Phase 11n-9-aa (409 when not ready)
             "swarm_prefilter": True,             # Phase 11n-9-bb (LLM cost gate)
             "llm_cost_telemetry": True,          # Phase 11n-9-bb (/gov/llm_cost_24h)
+            "action_button_state_machine": True, # Phase 11n-9-cc (allowed/suggested/disabled buttons)
         },
     }
 

@@ -11,7 +11,7 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-bb-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-cc-2026-04-20"/>
 <!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
      dashboard to their phone home screen and the iOS/Android status
      bar matches the dark theme. -->
@@ -65,6 +65,59 @@ header .btn:hover{background:rgba(255,255,255,.2)}
 header .btn.danger{background:#ef4444;border-color:#ef4444}
 header .btn.start{background:#10b981;border-color:#10b981;font-weight:700}
 header .btn.start:hover{background:#059669;border-color:#059669}
+
+/* Phase 11n-9-cc — action-button state system.
+   Four visual states + a "suggested" pulse so the operator knows
+   exactly which button to tap right now.
+
+   .action-suggested  — the single button they should tap next
+                        (green/red outline pulse)
+   .action-allowed    — clickable, the action is valid in current state
+   .action-disabled   — greyed out; click is blocked, tooltip shows why
+   .action-danger     — inherits `.btn.danger` styling (HALT)
+
+   Applied once per refresh() tick by _applyActionButtonStates().
+*/
+.action-btn{
+  opacity:.55;transition:opacity .15s ease, background .15s ease,
+    border-color .15s ease, box-shadow .2s ease;
+  position:relative;
+}
+.action-btn.action-allowed{opacity:1}
+.action-btn.action-disabled{opacity:.35;cursor:not-allowed;filter:grayscale(.6)}
+.action-btn.action-suggested{
+  opacity:1;
+  box-shadow:0 0 0 2px #10b981, 0 0 12px rgba(16,185,129,.55);
+  animation:action-pulse 1.6s ease-in-out infinite;
+}
+.action-btn.action-danger.action-allowed{
+  background:#ef4444;border-color:#ef4444;
+}
+.action-btn.action-danger.action-disabled{
+  background:#ef444455;border-color:#ef444477;
+}
+@keyframes action-pulse{
+  0%,100%{box-shadow:0 0 0 2px #10b981, 0 0 12px rgba(16,185,129,.55)}
+  50%   {box-shadow:0 0 0 2px #10b981, 0 0 20px rgba(16,185,129,.9)}
+}
+/* Specific kind colors for allowed state. */
+#btn-start.action-allowed{background:#10b981;border-color:#10b981;color:#fff;font-weight:700}
+#btn-stop.action-allowed{background:#f59e0b;border-color:#f59e0b;color:#0d1117}
+#btn-resume.action-allowed{background:#1877f2;border-color:#1877f2;color:#fff}
+#btn-pause.action-allowed{background:#f59e0b;border-color:#f59e0b;color:#0d1117}
+#btn-refresh.action-allowed{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3)}
+/* A subtle label under the button bar telling the operator what
+   state the engine is currently in + what's suggested next. */
+#engine-posture-hint{
+  font-size:10px;color:var(--ink3);letter-spacing:.04em;
+  padding:2px 6px;margin-left:auto;
+  white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;
+  align-self:center;
+}
+#engine-posture-hint b{color:var(--ink1);font-weight:600}
+#engine-posture-hint .hint-run{color:#10b981}
+#engine-posture-hint .hint-stop{color:#8b949e}
+#engine-posture-hint .hint-halt{color:#ef4444}
 
 /* grid — 3-col desktop, 2-col tablet, 1-col mobile. Max-width 1600 so
    the dashboard keeps a comfortable reading width on ultra-wide monitors;
@@ -973,22 +1026,41 @@ tr:last-child td{border-bottom:none}
     <button class="btn ops-token-btn" onclick="opsTokenTest()" title="Probe /spot_aggro/auth/ping">Test</button>
     <button class="btn ops-token-btn" onclick="opsTokenClear()" title="Remove stored token">Clear</button>
   </div>
-  <div class="acts">
-    <!-- Phase 11n-9-o — mobile collapses this row via CSS. Primary
-         actions (START/Pause/HALT) stay visible; secondary tuck into
-         More menu. Desktop shows everything inline. -->
-    <button class="btn start" id="btn-start" onclick="startSpotEngine()"
-            title="Start the SPOT AGGRO engine. Requires OPS_ADMIN_TOKEN.">START</button>
-    <button class="btn mobile-secondary" onclick="stopSpotEngine()"
-            title="Stop the SPOT AGGRO engine. Does NOT close positions.">STOP</button>
-    <button class="btn mobile-secondary" onclick="doAction('resume')" title="Un-halt the orchestrator (different from engine start)">Resume</button>
-    <button class="btn" onclick="doAction('pause')" title="Pause the orchestrator">Pause</button>
-    <button class="btn danger" onclick="if(confirm('HALT — close all positions?'))doAction('halt')">HALT</button>
-    <button class="btn mobile-secondary" onclick="refresh()" title="Refresh">&#8635;</button>
+  <div class="acts" id="engine-acts">
+    <!-- Phase 11n-9-cc — every button carries a stable id + data-kind
+         so _applyActionButtonStates() can mark exactly one as
+         `.action-suggested` (pulsing border, what to tap next),
+         any number as `.action-allowed`, and the rest as
+         `.action-disabled`. Clicking a disabled button is blocked
+         in JS and the title reveals why. -->
+    <button class="btn action-btn" id="btn-start" data-kind="start"
+            onclick="startSpotEngine()"
+            title="Start the SPOT AGGRO engine">START</button>
+    <button class="btn action-btn mobile-secondary" id="btn-stop" data-kind="stop"
+            onclick="stopSpotEngine()"
+            title="Stop the engine loop. Does NOT close open positions.">STOP</button>
+    <button class="btn action-btn mobile-secondary" id="btn-resume" data-kind="resume"
+            onclick="doAction('resume')"
+            title="Un-halt the orchestrator after a pause">Resume</button>
+    <button class="btn action-btn" id="btn-pause" data-kind="pause"
+            onclick="doAction('pause')"
+            title="Pause the orchestrator without stopping the loop">Pause</button>
+    <button class="btn action-btn action-danger" id="btn-halt" data-kind="halt"
+            onclick="if(confirm('HALT — close all positions?'))doAction('halt')"
+            title="Emergency HALT — closes all positions + locks kill switch">HALT</button>
+    <button class="btn action-btn mobile-secondary" id="btn-refresh" data-kind="refresh"
+            onclick="refresh()" title="Refresh dashboard now">&#8635;</button>
     <!-- Mobile-only More button. Tap reveals the secondary actions
          (Stop/Resume/Refresh) + Token controls in a popover menu. -->
     <button class="btn mobile-more-btn" onclick="_mtShowActMenu()"
             title="More actions">More ▾</button>
+    <!-- Phase 11n-9-cc — live posture hint: tells operator the
+         engine's current state + the next action. Updated every 5s
+         by refresh() via _applyActionButtonStates. -->
+    <span id="engine-posture-hint" title="Engine state + suggested next action">
+      <b id="eph-state">—</b>
+      <span id="eph-next"></span>
+    </span>
   </div>
   <!-- Action-bar More popover (mobile). Hidden until _mtShowActMenu flips it. -->
   <div class="mobile-act-menu" id="mobile-act-menu" style="display:none">
@@ -3209,6 +3281,9 @@ async function refresh() {
   $("eng-refresh").textContent = now.toLocaleTimeString();
   $("rt-time").textContent = now.toISOString().slice(0,19) + "Z";
 
+  // Phase 11n-9-cc — update action-button visual states every tick.
+  try { _applyActionButtonStates(sa, kill); } catch (e) { console.warn("_applyActionButtonStates", e); }
+
   // ── 1. Trading Engine Status ──
   // Phase 11h — end the "READY while engine is actually stopped"
   // contradiction. Previously `paused` was a dead-copy of `halted`, so a
@@ -4712,6 +4787,130 @@ async function doAction(verb) {
     alert("Command failed: " + JSON.stringify(r));
   } catch (e) { alert("Command error: " + e); }
 }
+
+// Phase 11n-9-cc — action-button state machine.
+//
+// On every refresh() tick we compute the engine's current state and
+// mark each of the 6 action buttons with exactly one of:
+//   action-allowed   — clickable, matches current state
+//   action-suggested — the single button the operator should tap next
+//   action-disabled  — greyed; click is blocked with an explanation
+//
+// States (mutually exclusive):
+//   UNKNOWN  sa not available
+//   HALTED   kill switch locked  OR  sa.halted === true
+//   STOPPED  sa.running === false
+//   PAUSED   sa.running === true AND sa.paused === true
+//   RUNNING  sa.running === true AND sa.paused !== true
+function _applyActionButtonStates(sa, kill) {
+  const locked = !!(kill && (kill.locked || (kill.latest_event && !kill.latest_event.resolved)));
+  let state = "UNKNOWN";
+  if (!sa) state = "UNKNOWN";
+  else if (locked) state = "HALTED";
+  else if (sa.halted === true) state = "HALTED";
+  else if (sa.running === false) state = "STOPPED";
+  else if (sa.paused === true) state = "PAUSED";
+  else if (sa.running === true) state = "RUNNING";
+
+  // Which button is VALID in each state + which is SUGGESTED next.
+  // allowed[kind] ∈ {allowed, disabled}. suggested is a single kind.
+  const table = {
+    UNKNOWN: {
+      allowed: {start:0, stop:0, resume:0, pause:0, halt:0, refresh:1},
+      suggested: "refresh",
+      label: "connecting…",
+      cls: "hint-stop",
+      reason: {start:"engine state unknown", stop:"engine state unknown",
+               resume:"engine state unknown", pause:"engine state unknown",
+               halt:"engine state unknown"},
+    },
+    STOPPED: {
+      allowed: {start:1, stop:0, resume:0, pause:0, halt:0, refresh:1},
+      suggested: "start",
+      label: "STOPPED — tap START",
+      cls: "hint-stop",
+      reason: {stop:"engine already stopped", resume:"engine is stopped, not paused",
+               pause:"engine is not running", halt:"engine is not running"},
+    },
+    RUNNING: {
+      allowed: {start:0, stop:1, resume:0, pause:1, halt:1, refresh:1},
+      suggested: null,
+      label: "RUNNING",
+      cls: "hint-run",
+      reason: {start:"engine already running", resume:"engine is not paused"},
+    },
+    PAUSED: {
+      allowed: {start:0, stop:1, resume:1, pause:0, halt:1, refresh:1},
+      suggested: "resume",
+      label: "PAUSED — tap Resume",
+      cls: "hint-stop",
+      reason: {start:"engine already running (paused)",
+               pause:"engine already paused"},
+    },
+    HALTED: {
+      allowed: {start:0, stop:0, resume:0, pause:0, halt:0, refresh:1},
+      suggested: null,
+      label: "HALTED — kill switch locked",
+      cls: "hint-halt",
+      reason: {start:"kill switch locked (run unlock script)",
+               stop:"already halted", resume:"halted, cannot resume via UI",
+               pause:"halted", halt:"already halted"},
+    },
+  };
+  const t = table[state] || table.UNKNOWN;
+
+  // Apply classes to each button.
+  document.querySelectorAll(".action-btn").forEach(btn => {
+    const kind = btn.getAttribute("data-kind");
+    btn.classList.remove("action-allowed", "action-disabled", "action-suggested");
+    const canClick = !!(t.allowed && t.allowed[kind]);
+    btn.classList.add(canClick ? "action-allowed" : "action-disabled");
+    if (t.suggested === kind) btn.classList.add("action-suggested");
+    if (canClick) {
+      btn.removeAttribute("aria-disabled");
+      // Clear tooltip to its original (onload) value if we had saved it
+      if (btn.dataset.originalTitle) btn.title = btn.dataset.originalTitle;
+    } else {
+      btn.setAttribute("aria-disabled", "true");
+      // Save original title once so we can restore it when re-enabled
+      if (!btn.dataset.originalTitle) btn.dataset.originalTitle = btn.title || "";
+      const why = (t.reason && t.reason[kind]) || "not available in current state";
+      btn.title = btn.dataset.originalTitle
+        ? `${btn.dataset.originalTitle} — BLOCKED: ${why}`
+        : `BLOCKED: ${why}`;
+    }
+  });
+  // Update the inline posture hint span.
+  const stateEl = document.getElementById("eph-state");
+  const nextEl = document.getElementById("eph-next");
+  const hint = document.getElementById("engine-posture-hint");
+  if (stateEl && nextEl && hint) {
+    stateEl.textContent = state;
+    nextEl.textContent = t.suggested ? " · next: " + t.suggested.toUpperCase() : "";
+    hint.classList.remove("hint-run", "hint-stop", "hint-halt");
+    hint.classList.add(t.cls);
+  }
+}
+
+// Guard: block clicks on action-disabled buttons with a single
+// document-level listener so every .action-btn is covered without
+// per-button JS. Prevents accidental taps and surfaces the reason.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".action-btn");
+  if (!btn) return;
+  if (btn.classList.contains("action-disabled")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    // Flash the button so the operator sees it's blocked, not ignored.
+    btn.style.transition = "none";
+    btn.style.filter = "invert(1) grayscale(.8)";
+    setTimeout(() => {
+      btn.style.transition = "";
+      btn.style.filter = "";
+    }, 180);
+    return false;
+  }
+}, true);   // capture phase so we run before the inline onclick
 
 // Phase 11h — explicit START / STOP controls for the SPOT AGGRO engine.
 //
