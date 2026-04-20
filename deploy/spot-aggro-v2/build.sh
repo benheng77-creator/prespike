@@ -29,6 +29,25 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC="$REPO/web/ops/index.html"
 DST="$REPO/deploy/spot-aggro-v2/index.html"
 
+# Phase 11n-9-uu — verify the HTML dashboard-build meta tag matches the
+# server SERVER_BUILD constant. Mismatch causes the operator-facing
+# "BUILD · MISMATCH · TAP TO RELOAD" pill, which is annoying-yet-correct
+# symptom of forgetting to bump the HTML when the server bumps.
+SERVER_BUILD=$(grep -oE 'SERVER_BUILD *= *"phase-11n-9-[a-z]+-2026-04-20"' \
+    "$REPO/openclaw_v1/spot_aggro/api/routes.py" \
+    | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+HTML_BUILD=$(grep -oE 'dashboard-build" content="phase-11n-9-[a-z]+-2026-04-20"' \
+    "$SRC" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ "$SERVER_BUILD" != "$HTML_BUILD" ]; then
+  echo "[build] ERROR: build tag mismatch"
+  echo "[build]   SERVER_BUILD in routes.py : $SERVER_BUILD"
+  echo "[build]   dashboard-build in HTML   : $HTML_BUILD"
+  echo "[build] Bump the <meta name=\"dashboard-build\"> content in $SRC to match."
+  exit 1
+fi
+echo "[build] build tags aligned: $SERVER_BUILD"
+
 TUNNEL_URL="${1:-https://washing-dictionaries-lung-coal.trycloudflare.com}"
 
 # Strip any trailing slash.
@@ -69,4 +88,20 @@ fi
 
 size=$(wc -c < "$DST")
 echo "[build] wrote $size bytes"
+
+# Phase 11n-9-ss — also build the isolated Contrarian + Deep Value panel.
+CDV_SRC="$REPO/web/strategy/contrarian-deepvalue/index.html"
+CDV_DST_DIR="$REPO/deploy/spot-aggro-v2/strategy/contrarian_deepvalue"
+CDV_DST="$CDV_DST_DIR/index.html"
+if [ -f "$CDV_SRC" ]; then
+  mkdir -p "$CDV_DST_DIR"
+  cp "$CDV_SRC" "$CDV_DST"
+  # The CDV panel's JS derives API_BASE from location.hostname so no
+  # hard-coded localhost rewrite is needed. Just verify the file landed.
+  cdv_size=$(wc -c < "$CDV_DST")
+  echo "[build] CDV panel shipped to /strategy/contrarian_deepvalue/ ($cdv_size bytes)"
+else
+  echo "[build] CDV panel source missing — skipping"
+fi
+
 echo "[build] done"
