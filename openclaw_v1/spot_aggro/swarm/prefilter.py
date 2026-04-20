@@ -67,13 +67,30 @@ def should_call_llm(
     if bypass:
         return True, "bypass"
 
+    # Phase 11n-9-hh follow-up: when SPOT_SHADOW_COLLECT=1, bypass the
+    # readiness gate so the three-way shadow scorer (control / contrarian
+    # / mean_reversion) can collect authz rows even before a variant has
+    # been promoted. This is the chicken-and-egg fix — the readiness
+    # gate wants a promoted variant, but promotion requires 200 shadow
+    # exits. In paper mode (SPOT_DRY_RUN=1), this is safe because no
+    # real capital is deployed; the engine still only "opens" paper
+    # positions. In live mode the flag is a no-op unless the operator
+    # also sets SPOT_DRY_RUN=0 themselves, at which point the existing
+    # pre-trade gate + execution_integrity still apply.
+    import os as _os
+    _shadow_collect = _os.environ.get("SPOT_SHADOW_COLLECT", "0").strip() == "1"
+
     # 1. Engine readiness. If the engine is halted or not ready, no
     #    coin can trade; skip LLM spend.
     try:
         from spot_aggro.governance.trade_readiness import is_ready_to_trade
         if not is_ready_to_trade():
+            if _shadow_collect:
+                return True, "shadow_collect_bypass_readiness"
             return False, "engine_not_ready"
     except Exception:
+        if _shadow_collect:
+            return True, "shadow_collect_bypass_readiness_err"
         return False, "readiness_probe_error"
 
     # 2. Contradiction freeze. Same logic.

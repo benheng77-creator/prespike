@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-hh-2026-04-20"
+SERVER_BUILD = "phase-11n-9-ii-2026-04-20"
 
 
 @router.get("/build")
@@ -126,6 +126,10 @@ def spot_aggro_build() -> dict[str, Any]:
             "recovery_playbook": True,            # Phase 11n-9-hh (post-restart forensic summary)
             "aml_audit_export": True,             # Phase 11n-9-hh (MAS-grade JSON bundle)
             "human_in_loop_L3_L4": True,          # Phase 11n-9-hh (two-person rule — shipped ff)
+            "live_variant_gate": True,            # Phase 11n-9-ii (contrarian+deep_value live path)
+            "deep_value_variant": True,           # Phase 11n-9-ii (WR>=55% filter)
+            "live_exposure_cap_50usd": True,      # Phase 11n-9-ii ($50 total exposure cap)
+            "live_dd_kill_10usd": True,           # Phase 11n-9-ii (-$10 session DD auto-halt)
         },
     }
 
@@ -484,6 +488,27 @@ def spot_aggro_engine_state() -> dict[str, Any]:
         },
         "ts_ms": int(time.time() * 1000),
     }
+
+
+# Phase 11n-9-ii — Live variant gate state.
+@router.get("/gov/live_variant_gate")
+def spot_aggro_live_variant_gate() -> dict[str, Any]:
+    """Current state of the live-variant gate: enabled variants,
+    current exposure, session PnL, headroom to caps."""
+    try:
+        from spot_aggro.governance import live_variant_gate as _lvg
+        return {
+            "ok": True,
+            "active": _lvg.live_variants_active(),
+            "enabled_variants": list(_lvg._enabled_variants()),
+            "current_exposure_usd": _lvg._current_exposure_usd(),
+            "max_exposure_usd": _lvg._max_exposure_usd(),
+            "session_pnl_usd": _lvg._live_session_pnl_usd(),
+            "max_dd_usd": _lvg._max_dd_usd(),
+            "kill_ladder_blocks": _lvg._kill_ladder_blocks(),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
 
 
 # Phase 11n-9-hh — Layer 3 Resilience & Compliance.
@@ -906,8 +931,17 @@ def spot_aggro_start(
             },
         )
     from spot_aggro import start_engine
-    start_engine()
-    return {"ok": True, "engine": "spot_aggro", "forced": bool(force)}
+    # Phase 11n-9-hh follow-up: honor SPOT_DRY_RUN / TRADE_DRY_RUN env so
+    # paper-mode operators don't accidentally hit live when they restart.
+    _dry = (
+        os.environ.get("SPOT_DRY_RUN", "0").strip() == "1"
+        or os.environ.get("TRADE_DRY_RUN", "0").strip() == "1"
+    )
+    start_engine(dry_run=_dry)
+    return {
+        "ok": True, "engine": "spot_aggro",
+        "forced": bool(force), "dry_run": _dry,
+    }
 
 
 @router.post("/stop")

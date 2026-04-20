@@ -202,10 +202,111 @@ def evaluate_mean_reversion(coin: dict[str, Any], mio: Any) -> VariantDecision:
 
 
 # ---------------------------------------------------------------------------
+# Variant: deep_value — Phase 11n-9-ii — WR-proven + undervalued + liquid
+#
+# The ONE signal we have real edge evidence on is the 7-day historical WR
+# multiplier in scoring.py: coins with WR >= 70% got +15% boost historically.
+# Deep Value inverts the causality: only admit coins whose recent realized
+# behavior proves they bounce profitably, AND that are currently in a
+# drawdown deep enough to offer discount but not so deep they're dying.
+#
+# Filters (ALL must pass):
+#   - historical WR >= 55% over >= 3 exits in research_agent data
+#   - 7d return in [-30%, -3%]  (oversold but not terminal)
+#   - funding_z <= 0            (no squeeze against us)
+#   - depth_usd >= $500k        (real liquidity, not dust)
+#   - spread_bp <= 10           (tight spreads — fillable)
+#
+# Score = WR × depth_strength × drawdown_strength. Higher = stronger admit.
+# ---------------------------------------------------------------------------
+
+DV_MIN_WR = 0.55
+DV_MIN_EXITS = 3
+DV_MIN_7D_RET = -0.30
+DV_MAX_7D_RET = -0.03
+DV_MAX_FUNDING_Z = 0.0
+DV_MIN_DEPTH_USD = 500_000.0
+DV_MAX_SPREAD_BP = 10.0
+
+
+def _historical_wr(symbol: str) -> tuple[float | None, int]:
+    """Pull 7d WR + exit count for a symbol from research_agent.
+    Returns (wr_frac, n_exits). wr_frac is None if insufficient data."""
+    try:
+        from spot_aggro.governance.research_agent import latest_report
+        rpt = latest_report() or {}
+        rows = [r for r in (rpt.get("per_symbol") or [])
+                if r.get("symbol") == symbol]
+        if not rows:
+            return None, 0
+        exits = sum(int(r.get("exits", 0) or 0) for r in rows)
+        wins = sum(int(r.get("wins", 0) or 0) for r in rows)
+        if exits < DV_MIN_EXITS:
+            return None, exits
+        return wins / exits, exits
+    except Exception:
+        return None, 0
+
+
+def evaluate_deep_value(coin: dict[str, Any], mio: Any) -> VariantDecision:
+    sym = coin.get("symbol", "")
+    fz = _safe_float(coin.get("funding_z"), default=999.0)
+    ret_7d = _safe_float(coin.get("ret_7d"), default=0.0)
+    depth = _safe_float(coin.get("depth_usd"), default=0.0)
+    spread = _safe_float(coin.get("spread_bp"), default=999.0)
+
+    wr, n_exits = _historical_wr(sym)
+
+    checks = {
+        "wr_proven": wr is not None and wr >= DV_MIN_WR,
+        "oversold_but_alive": DV_MIN_7D_RET <= ret_7d <= DV_MAX_7D_RET,
+        "no_squeeze_against": fz <= DV_MAX_FUNDING_Z,
+        "liquid": depth >= DV_MIN_DEPTH_USD,
+        "tight_spread": spread <= DV_MAX_SPREAD_BP,
+    }
+    passed = all(checks.values())
+    failed = [k for k, v in checks.items() if not v]
+
+    # Score: WR × depth_strength × drawdown_strength, 0..1
+    wr_strength = min(max((wr - 0.50) / 0.30, 0.0), 1.0) if wr is not None else 0.0
+    depth_strength = min(max((depth - DV_MIN_DEPTH_USD) / 5_000_000, 0.0), 1.0)
+    dd_strength = min(max((-ret_7d) / 0.15, 0.0), 1.0)
+    score = round(wr_strength * 0.5 + depth_strength * 0.25
+                  + dd_strength * 0.25, 4)
+
+    if passed:
+        reason = (
+            f"deep-value ADMIT wr={wr * 100:.0f}% (n={n_exits}) "
+            f"ret7d={ret_7d * 100:.1f}% depth=${depth:,.0f}"
+        )
+    else:
+        wr_display = f"{wr * 100:.0f}%" if wr is not None else "<thin>"
+        reason = (
+            f"deep-value reject wr={wr_display} n={n_exits} "
+            f"failed={','.join(failed)}"
+        )
+
+    return VariantDecision(
+        variant="deep_value",
+        score=score,
+        passed=passed,
+        reason=reason,
+        evidence={
+            "historical_wr": wr, "n_exits": n_exits,
+            "ret_7d": ret_7d, "funding_z": fz,
+            "depth_usd": depth, "spread_bp": spread,
+            "checks": checks,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
-VARIANT_NAMES: tuple[str, ...] = ("control", "contrarian", "mean_reversion")
+VARIANT_NAMES: tuple[str, ...] = (
+    "control", "contrarian", "mean_reversion", "deep_value",
+)
 
 
 def evaluate_all(coin: dict[str, Any], mio: Any) -> list[VariantDecision]:
@@ -216,6 +317,7 @@ def evaluate_all(coin: dict[str, Any], mio: Any) -> list[VariantDecision]:
         ("control", evaluate_control),
         ("contrarian", evaluate_contrarian),
         ("mean_reversion", evaluate_mean_reversion),
+        ("deep_value", evaluate_deep_value),
     ):
         try:
             out.append(fn(coin, mio))

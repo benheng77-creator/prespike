@@ -398,8 +398,19 @@ class SpotAggroEngine:
             await self.halt(f"kill: DD > {KILL_DD_PCT*100:.0f}%")
             return
 
-        if self.dry_run:
-            return
+        # Phase 11n-9-hh follow-up: in dry_run (paper) mode we used to
+        # short-circuit here and do nothing. That meant paper mode was
+        # "idle" — no ranking, no authz, no shadow rows. That made the
+        # three-way horse race impossible to fuel.
+        #
+        # Now we fall through to the full heartbeat. The actual order-
+        # placement sites (adapter.place_post_only, exit fills) already
+        # check self.dry_run and skip the exchange call. So in paper
+        # mode we get:
+        #   - real rankings from live market data
+        #   - real composite scores, tiers, pre-trade authz
+        #   - real three-way shadow rows for every authz
+        #   - simulated fills (no real capital touched)
 
         adapter = self._ensure_adapter()
 
@@ -713,14 +724,49 @@ class SpotAggroEngine:
                     pass
                 continue
 
+            # Phase 11n-9-hh follow-up: record three-way shadow BEFORE
+            # the readiness/universe/freeze gates. The horse race needs
+            # a decision row for every coin that made it through
+            # consensus, regardless of whether downstream gates let it
+            # trade. Uses a synthetic authz_id since the real authz is
+            # downstream; the engine-path authz record still comes when
+            # authorize_trade fires below.
+            try:
+                import uuid as _uuid
+                _shadow_authz_id = f"shadow-{int(time.time()*1000)}-{_uuid.uuid4().hex[:6]}"
+                from spot_aggro.governance.three_way_shadow import (
+                    record_authz as _tw_record_authz_early,
+                )
+                from .research.runner import get_mio as _get_mio_early
+                _tw_record_authz_early(
+                    live_authz_id=_shadow_authz_id,
+                    symbol=r["symbol"], side="buy", tier=str(tc.tier),
+                    coin=r, mio=_get_mio_early(),
+                )
+            except Exception as _tw_early_err:  # noqa: BLE001
+                log.debug(
+                    "three_way_shadow early record failed: %s",
+                    _tw_early_err,
+                )
+
             # Phase 11n-9-aa: Trade Readiness gate — the mechanical
             # release flag. Must pass C1..C5 before anything else
             # runs. is_ready_to_trade() is a derived read; the
             # readiness daemon keeps it fresh. Fail-closed on any
             # probe error.
+            #
+            # Phase 11n-9-hh follow-up: SPOT_SHADOW_COLLECT=1 bypasses
+            # this gate for paper-mode shadow collection. In dry_run
+            # the bypass is safe because synthesized receipts never
+            # hit the exchange. Live mode ignores the flag.
+            import os as _os
+            _shadow_collect = (
+                _os.environ.get("SPOT_SHADOW_COLLECT", "0").strip() == "1"
+                and self.dry_run
+            )
             try:
                 from spot_aggro.governance.trade_readiness import is_ready_to_trade
-                if not is_ready_to_trade():
+                if not is_ready_to_trade() and not _shadow_collect:
                     try:
                         _emit_trade(
                             "skip", symbol=r["symbol"], tier=tc.tier,
@@ -732,24 +778,26 @@ class SpotAggroEngine:
                         pass
                     continue
             except Exception:  # noqa: BLE001
-                try:
-                    _emit_trade(
-                        "skip", symbol=r["symbol"], tier=tc.tier,
-                        module=tc.module, notional_usd=size,
-                        reason="trade_readiness_probe_error",
-                        composite=r.get("composite"), spi=r.get("spi"),
-                    )
-                except Exception:
-                    pass
-                continue
+                if not _shadow_collect:
+                    try:
+                        _emit_trade(
+                            "skip", symbol=r["symbol"], tier=tc.tier,
+                            module=tc.module, notional_usd=size,
+                            reason="trade_readiness_probe_error",
+                            composite=r.get("composite"), spi=r.get("spi"),
+                        )
+                    except Exception:
+                        pass
+                    continue
 
             # Phase 11n-9-aa: Universe Gatekeeper — cell must be in
             # admitted state. Seed cells are Tier-C + {ENA, DOT}; the
             # universe expands by ratchet rule as cells prove edge.
+            # Phase 11n-9-hh follow-up: SPOT_SHADOW_COLLECT bypass.
             try:
                 from spot_aggro.governance.universe_gatekeeper import is_cell_admitted
                 cell_key = f"{tc.tier}|{r['symbol']}"
-                if not is_cell_admitted("tier_symbol", cell_key):
+                if not is_cell_admitted("tier_symbol", cell_key) and not _shadow_collect:
                     try:
                         _emit_trade(
                             "skip", symbol=r["symbol"], tier=tc.tier,
@@ -762,7 +810,8 @@ class SpotAggroEngine:
                     continue
             except Exception:  # noqa: BLE001
                 # Fail-closed on gatekeeper probe error.
-                continue
+                if not _shadow_collect:
+                    continue
 
             # Phase 11n-9-y: Layer 3 Contradiction Freeze gate — must
             # run BEFORE the Layer 8 pre-trade check so a freeze shuts
@@ -803,6 +852,43 @@ class SpotAggroEngine:
             # Phase 11n-9-y: bypass now raises GateBlocked — an explicit
             # named exception so any code path that forgets to call the
             # gate is visibly wrong during regression testing.
+            # Phase 11n-9-ii — Live variant gate. When
+            # SPOT_LIVE_VARIANTS=contrarian,deep_value is set, the
+            # engine switches from the control composite scorer to
+            # OR-logic across the named variants + enforces $50 total
+            # exposure cap + $10 live-session-DD kill. In paper mode
+            # the gate is advisory only.
+            try:
+                from spot_aggro.governance import live_variant_gate as _lvg
+                if _lvg.live_variants_active() and not self.dry_run:
+                    from .research.runner import get_mio as _lvg_get_mio
+                    _lv_verdict = _lvg.evaluate(
+                        coin=r, mio=_lvg_get_mio(),
+                        candidate_size_usd=size,
+                    )
+                    if not _lv_verdict.ok:
+                        try:
+                            _emit_trade(
+                                "skip", symbol=r["symbol"], tier=tc.tier,
+                                module=tc.module, notional_usd=size,
+                                reason=f"live_variant_block:{_lv_verdict.reason}"[:120],
+                                composite=r.get("composite"), spi=r.get("spi"),
+                            )
+                        except Exception:
+                            pass
+                        continue
+                    log.info(
+                        "live variant admit: %s (%s) size=$%.2f",
+                        r["symbol"], _lv_verdict.admitting_variant, size,
+                    )
+            except Exception as _lvg_err:  # noqa: BLE001
+                log.warning(
+                    "live_variant_gate error (fail-closed skip): %s",
+                    _lvg_err,
+                )
+                if not self.dry_run:
+                    continue
+
             _live_authz_id = ""
             try:
                 from spot_aggro.governance import pre_trade_gov
@@ -818,13 +904,19 @@ class SpotAggroEngine:
                     from spot_aggro.governance.three_way_shadow import (
                         record_authz as _tw_record_authz,
                     )
+                    # mio is a local variable in _heartbeat; the scan
+                    # path doesn't carry it directly — pull a fresh one.
+                    from .research.runner import get_mio as _get_mio
                     _tw_record_authz(
                         live_authz_id=_live_authz_id,
                         symbol=r["symbol"], side="buy", tier=str(tc.tier),
-                        coin=r, mio=self.state.mio,
+                        coin=r, mio=_get_mio(),
                     )
-                except Exception:
-                    pass
+                except Exception as _tw_err:  # noqa: BLE001
+                    log.debug(
+                        "three_way_shadow record_authz failed (non-fatal): %s",
+                        _tw_err,
+                    )
                 if not authz.passed:
                     try:
                         _emit_trade(
@@ -886,12 +978,33 @@ class SpotAggroEngine:
                     pass
                 continue
 
-            # Place spot buy
-            receipt = await adapter.place_post_only(
-                symbol=r["symbol"], side="buy", notional_usd=size,
-                reference_price=r["price"], leg="spot",
-                idempotency_seed=f"sa:{r['symbol']}:{int(time.time()//60)}",
-            )
+            # Place spot buy. Phase 11n-9-hh follow-up: in dry_run (paper)
+            # mode we synthesize an OK fill receipt here instead of
+            # calling the real adapter. That way the heartbeat runs end-
+            # to-end — rankings, authz, shadow rows, position bookkeeping
+            # — with zero real capital at risk. The exit path also checks
+            # self.dry_run and skips the exchange sell call.
+            if self.dry_run:
+                from shared.adapters.okx_unified import OrderReceipt as _OR
+                receipt = _OR(
+                    ok=True,
+                    order_id=f"paper-{int(time.time()*1000)}-{r['symbol']}",
+                    cl_ord_id=None,
+                    filled_qty=size / max(r["price"], 1e-9),
+                    avg_px=r["price"],
+                    side="buy",
+                    symbol=r["symbol"],
+                    notional_usd=size,
+                    fee_usd=0.0,
+                    raw={"paper": True},
+                    error=None,
+                )
+            else:
+                receipt = await adapter.place_post_only(
+                    symbol=r["symbol"], side="buy", notional_usd=size,
+                    reference_price=r["price"], leg="spot",
+                    idempotency_seed=f"sa:{r['symbol']}:{int(time.time()//60)}",
+                )
             if not receipt.ok:
                 # Phase 11b final — reject rows carry tier explicitly so
                 # the heatmap's canonical-activity lane can count
