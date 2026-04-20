@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-ss-2026-04-20"
+SERVER_BUILD = "phase-11n-9-tt-2026-04-20"
 
 
 @router.get("/build")
@@ -154,6 +154,7 @@ def spot_aggro_build() -> dict[str, Any]:
             "best_of_both_exchange_depth": True,  # Phase 11n-9-rr step-A — meta-gate + variants use MAX(okx, cdc) depth
             "cdv_panel_isolated": True,           # Phase 11n-9-ss — /strategy/contrarian_deepvalue scoped panel
             "cdv_panel_rbac_two_operator": True,  # Phase 11n-9-ss — freeze requires X-CDV-Second-Operator header
+            "cdv_system_activity_card": True,     # Phase 11n-9-tt — live daemon liveness on CDV panel
         },
     }
 

@@ -392,6 +392,34 @@
     </div>
   </section>
 
+  <!-- SECTION 8.5 — System Activity (what the system is doing right now) -->
+  <section class="section" id="sec-activity">
+    <div class="section-header">
+      <h2 class="section-title">System Activity</h2>
+      <span class="section-hint">every background process · live liveness</span>
+    </div>
+    <div class="section-body">
+      <div id="act-overall" style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;margin-bottom:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px">
+        <span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em">Overall Status</span>
+        <span id="act-overall-val" class="pill muted">—</span>
+      </div>
+      <table class="data" id="act-table">
+        <thead><tr>
+          <th>Component</th>
+          <th>Cadence</th>
+          <th>Status</th>
+          <th>Last Tick</th>
+          <th>Next In</th>
+          <th>Observation</th>
+        </tr></thead>
+        <tbody id="act-tbody"><tr><td colspan="6" style="text-align:center;color:var(--ink-3);padding:14px">awaiting first activity scan…</td></tr></tbody>
+      </table>
+      <div style="margin-top:10px;font-size:11px;color:var(--ink-3)">
+        All processes run 24/7 autonomously. Zero input needed while the engine is live.
+      </div>
+    </div>
+  </section>
+
   <!-- SECTION 9 — Daily Report -->
   <section class="section" id="sec-daily">
     <div class="section-header">
@@ -568,6 +596,70 @@
     setText("risk-rollback", cap(r.rollback_state));
   }
 
+  function paintActivity(a) {
+    const overall = document.getElementById("act-overall-val");
+    if (overall) {
+      const st = a.overall_status || "unknown";
+      overall.textContent = `${a.n_healthy || 0} / ${a.n_total || 0} healthy`;
+      overall.className = `pill ${st === 'all_green' ? 'pos' : st === 'degraded' ? 'warn' : 'muted'}`;
+    }
+    const body = document.getElementById("act-tbody");
+    if (!body) return;
+    const comps = a.components || [];
+    if (!comps.length) {
+      body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--ink-3);padding:14px">no activity data</td></tr>`;
+      return;
+    }
+    const statusPill = (c) => {
+      const st = c.status || "unknown";
+      const cls = c.ok ? "pos" : st === "stale" || st === "escalated" || st === "halted" ? "neg" : "warn";
+      return `<span class="pill ${cls}" style="font-size:10px;padding:2px 8px">${cap(st)}</span>`;
+    };
+    const cadenceFmt = (s) => {
+      if (s === 0 || s === null || s === undefined) return "—";
+      if (s < 60) return `${s}s`;
+      if (s < 3600) return `${Math.round(s / 60)}m`;
+      return `${Math.round(s / 3600)}h`;
+    };
+    const nextFmt = (s) => {
+      if (s === null || s === undefined) return "—";
+      if (s <= 0) return "due now";
+      if (s < 60) return `${s}s`;
+      if (s < 3600) return `${Math.round(s / 60)}m`;
+      return `${Math.round(s / 3600)}h`;
+    };
+    const lastFmt = (ageS) => {
+      if (ageS === null || ageS === undefined) return "—";
+      if (ageS < 60) return `${ageS}s ago`;
+      if (ageS < 3600) return `${Math.round(ageS / 60)}m ago`;
+      return `${Math.round(ageS / 3600)}h ago`;
+    };
+    body.innerHTML = comps.map(c => `
+      <tr>
+        <td style="color:var(--ink-1);font-weight:500">${c.label || c.name}</td>
+        <td style="color:var(--ink-2);font-size:11px">${cadenceFmt(c.cadence_s)}</td>
+        <td>${statusPill(c)}</td>
+        <td style="color:var(--ink-2);font-size:11px">${lastFmt(c.last_age_s)}</td>
+        <td style="color:var(--ink-3);font-size:11px">${nextFmt(c.next_run_in_s)}</td>
+        <td style="color:var(--ink-2);font-size:11px">${c.observation || '—'}</td>
+      </tr>`).join('');
+  }
+
+  async function fetchActivity() {
+    try {
+      const resp = await fetch(`${API_BASE}/strategy/contrarian_deepvalue/system_activity`, {
+        cache: "no-store",
+        headers: {
+          "X-CDV-Role": ROLE || "strategy:contrarian_deepvalue_viewer",
+          "X-Ops-Token": OPS,
+        },
+      });
+      if (!resp.ok) return;
+      const d = await resp.json();
+      if (d.ok) paintActivity(d);
+    } catch (e) { /* non-fatal */ }
+  }
+
   function paintDaily(d) {
     setText("dr-date", d.report_date || "—");
     const v = document.getElementById("dr-verdict");
@@ -660,7 +752,9 @@
 
   // Initial + 30s refresh.
   fetchDashboard();
+  fetchActivity();
   setInterval(fetchDashboard, 30_000);
+  setInterval(fetchActivity, 15_000);   // faster: so operator sees daemons ticking
 })();
 </script>
 </body>

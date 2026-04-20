@@ -580,6 +580,261 @@ def cdv_freeze_new_entries(
         return {"ok": False, "error": str(exc)[:200]}
 
 
+@router.get("/system_activity")
+def cdv_system_activity(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Phase 11n-9-tt — background-process liveness for the operator.
+
+    Shows every daemon doing work silently: last tick timestamp,
+    next-run ETA, last observation/result, and health status. No more
+    waiting-for-nothing; the operator sees exactly what's running.
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    now_ms = int(time.time() * 1000)
+    comps: list[dict[str, Any]] = []
+
+    # 1. Engine heartbeat
+    try:
+        from spot_aggro import _engine_instance
+        if _engine_instance is not None:
+            s = _engine_instance.status() or {}
+            cycles = int(s.get("cycles") or 0)
+            comps.append({
+                "name": "engine_heartbeat",
+                "label": "Engine Heartbeat",
+                "cadence_s": 1,
+                "status": "running" if not s.get("halted") else "halted",
+                "last_tick_ts_ms": None,
+                "next_run_in_s": 1,
+                "observation": f"cycle #{cycles} · {len(s.get('positions') or {})} positions · {s.get('mode')}",
+                "ok": not s.get("halted"),
+            })
+        else:
+            comps.append({
+                "name": "engine_heartbeat", "label": "Engine Heartbeat",
+                "cadence_s": 1, "status": "idle",
+                "last_tick_ts_ms": None, "next_run_in_s": None,
+                "observation": "engine not started",
+                "ok": False,
+            })
+    except Exception as e:
+        comps.append({
+            "name": "engine_heartbeat", "label": "Engine Heartbeat",
+            "cadence_s": 1, "status": "error",
+            "observation": str(e)[:120], "ok": False,
+        })
+
+    # 2. Shadow scorer (per authz; cadence = tied to engine scan rate)
+    try:
+        con = _connect()
+        try:
+            latest = con.execute(
+                "SELECT MAX(ts_ms) AS t, COUNT(*) AS n"
+                " FROM shadow_variant_authorizations"
+                f" WHERE {scoped_variants_sql_in_clause()}"
+            ).fetchone()
+            n_24h = con.execute(
+                "SELECT COUNT(*) AS n"
+                " FROM shadow_variant_authorizations"
+                f" WHERE {scoped_variants_sql_in_clause()} AND ts_ms >= ?",
+                (now_ms - 86_400_000,),
+            ).fetchone()
+        finally:
+            con.close()
+        last_t = int(latest["t"]) if latest and latest["t"] else None
+        age_s = (now_ms - last_t) // 1000 if last_t else None
+        comps.append({
+            "name": "shadow_scorer", "label": "Shadow Scorer",
+            "cadence_s": 0,
+            "status": "running" if age_s is not None and age_s < 300 else "stale",
+            "last_tick_ts_ms": last_t,
+            "last_age_s": age_s,
+            "next_run_in_s": None,
+            "observation": (
+                f"{(n_24h['n'] or 0) if n_24h else 0} rows/24h · "
+                f"last {age_s}s ago"
+                if age_s is not None else "no rows yet"
+            ),
+            "ok": age_s is not None and age_s < 300,
+        })
+    except Exception as e:
+        comps.append({
+            "name": "shadow_scorer", "label": "Shadow Scorer",
+            "cadence_s": 0, "status": "error",
+            "observation": str(e)[:120], "ok": False,
+        })
+
+    # 3. Exchange comparison feed
+    try:
+        con = _connect()
+        try:
+            latest = con.execute(
+                "SELECT MAX(ts_ms) AS t, COUNT(*) AS n"
+                " FROM spot_exchange_comparison"
+            ).fetchone()
+        finally:
+            con.close()
+        last_t = int(latest["t"]) if latest and latest["t"] else None
+        age_s = (now_ms - last_t) // 1000 if last_t else None
+        next_in = max(0, 60 - age_s) if age_s is not None else None
+        comps.append({
+            "name": "exchange_comparison", "label": "Exchange Comparison Feed",
+            "cadence_s": 60,
+            "status": "running" if age_s is not None and age_s < 180 else "stale",
+            "last_tick_ts_ms": last_t,
+            "last_age_s": age_s,
+            "next_run_in_s": next_in,
+            "observation": (
+                f"{latest['n'] if latest else 0} rows · "
+                f"last {age_s}s ago · OKX vs Crypto.com"
+                if age_s is not None else "no rows yet"
+            ),
+            "ok": age_s is not None and age_s < 180,
+        })
+    except Exception as e:
+        comps.append({
+            "name": "exchange_comparison", "label": "Exchange Comparison Feed",
+            "cadence_s": 60, "status": "error",
+            "observation": str(e)[:120], "ok": False,
+        })
+
+    # 4. Formula review daemon (6h)
+    try:
+        from spot_aggro.governance.formula_review import latest as fr_latest
+        rows = fr_latest(limit=1)
+        if rows:
+            last_t = int(rows[0].ts_ms)
+            age_s = (now_ms - last_t) // 1000
+            next_in = max(0, 6 * 3600 - age_s)
+            comps.append({
+                "name": "formula_review", "label": "Governance: Formula Review",
+                "cadence_s": 6 * 3600,
+                "status": "running" if age_s < 7 * 3600 else "stale",
+                "last_tick_ts_ms": last_t,
+                "last_age_s": age_s,
+                "next_run_in_s": next_in,
+                "observation": (
+                    f"verdict={rows[0].verdict} · "
+                    f"last {age_s // 60}m ago · every 6h"
+                ),
+                "ok": age_s < 7 * 3600,
+            })
+        else:
+            comps.append({
+                "name": "formula_review", "label": "Governance: Formula Review",
+                "cadence_s": 6 * 3600, "status": "pending",
+                "last_tick_ts_ms": None, "next_run_in_s": None,
+                "observation": "awaiting first cycle (fires 2min after boot)",
+                "ok": True,
+            })
+    except Exception as e:
+        comps.append({
+            "name": "formula_review", "label": "Governance: Formula Review",
+            "cadence_s": 6 * 3600, "status": "error",
+            "observation": str(e)[:120], "ok": False,
+        })
+
+    # 5. Daily report daemon (24h)
+    try:
+        from spot_aggro.governance.daily_report import latest_full as dr_full
+        r = dr_full()
+        if r:
+            last_t = int(r.get("ts_ms", 0) or 0)
+            age_s = (now_ms - last_t) // 1000
+            next_in = max(0, 24 * 3600 - age_s)
+            comps.append({
+                "name": "daily_report", "label": "Governance: Daily Report",
+                "cadence_s": 24 * 3600,
+                "status": "running" if age_s < 25 * 3600 else "stale",
+                "last_tick_ts_ms": last_t,
+                "last_age_s": age_s,
+                "next_run_in_s": next_in,
+                "observation": (
+                    f"{r.get('report_date')} · verdict={r.get('verdict')} · "
+                    f"last {age_s // 60}m ago · every 24h"
+                ),
+                "ok": age_s < 25 * 3600,
+            })
+        else:
+            comps.append({
+                "name": "daily_report", "label": "Governance: Daily Report",
+                "cadence_s": 24 * 3600, "status": "pending",
+                "last_tick_ts_ms": None, "next_run_in_s": None,
+                "observation": "awaiting first 24h tick (fires 5min after boot)",
+                "ok": True,
+            })
+    except Exception as e:
+        comps.append({
+            "name": "daily_report", "label": "Governance: Daily Report",
+            "cadence_s": 24 * 3600, "status": "error",
+            "observation": str(e)[:120], "ok": False,
+        })
+
+    # 6. Kill ladder daemon (60s)
+    try:
+        from spot_aggro.governance.kill_ladder import (
+            current_state as kl_state, recent_reject_count,
+        )
+        st = kl_state()
+        rc = recent_reject_count()
+        comps.append({
+            "name": "kill_ladder", "label": "Kill Ladder Auto-Pause",
+            "cadence_s": 60,
+            "status": "running" if st.level == "L0" else "escalated",
+            "last_tick_ts_ms": None,
+            "next_run_in_s": 60,
+            "observation": (
+                f"level={st.level} · rejects_10min={rc} · threshold=3"
+            ),
+            "ok": st.level == "L0",
+        })
+    except Exception as e:
+        comps.append({
+            "name": "kill_ladder", "label": "Kill Ladder Auto-Pause",
+            "cadence_s": 60, "status": "error",
+            "observation": str(e)[:120], "ok": False,
+        })
+
+    # 7. Heartbeat writer (60s)
+    try:
+        from spot_aggro.ops.scheduler.heartbeat_writer import last_tick_ts_ms
+        last_t = last_tick_ts_ms()
+        age_s = (now_ms - last_t) // 1000 if last_t else None
+        next_in = max(0, 60 - age_s) if age_s is not None else 60
+        comps.append({
+            "name": "heartbeat_writer", "label": "Equity Heartbeat Writer",
+            "cadence_s": 60,
+            "status": "running" if age_s is not None and age_s < 180 else "stale",
+            "last_tick_ts_ms": last_t,
+            "last_age_s": age_s,
+            "next_run_in_s": next_in,
+            "observation": (
+                f"last {age_s}s ago · keeps equity_marks fresh"
+                if age_s is not None else "awaiting first tick"
+            ),
+            "ok": age_s is not None and age_s < 180,
+        })
+    except Exception as e:
+        comps.append({
+            "name": "heartbeat_writer", "label": "Equity Heartbeat Writer",
+            "cadence_s": 60, "status": "error",
+            "observation": str(e)[:120], "ok": False,
+        })
+
+    n_healthy = sum(1 for c in comps if c.get("ok"))
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": now_ms,
+        "n_total": len(comps),
+        "n_healthy": n_healthy,
+        "overall_status": "all_green" if n_healthy == len(comps) else "degraded",
+        "components": comps,
+    }
+
+
 @router.get("/health")
 def cdv_health(
     x_cdv_role: str | None = Header(default=None),
