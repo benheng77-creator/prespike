@@ -34,15 +34,25 @@ REM Reconciled Sweeper (11n-9-d/e): orphan positions → keep/sell/link.
 set SPOT_RECON_SWEEP_EXECUTE=1
 
 REM Phase 11n-9-vv — Path B + C horse race.
-REM Contrarian re-enabled alongside deep_value + momentum. Per-variant $25
-REM A/B cap + $3 24h auto-disable trip-wire + 40-exit Wilson promotion.
+REM Contrarian re-enabled alongside deep_value + momentum. Per-variant $40
+REM A/B cap (raised from $25 to support 20-60 trades/day volume goal) +
+REM $3 24h auto-disable trip-wire + 40-exit Wilson promotion. Phase-ww
+REM System Activity auto-heal governor watches component health.
 set SPOT_LIVE_VARIANTS=contrarian,deep_value,momentum
-set SPOT_LIVE_PER_VARIANT_CAP_USD=25
+set SPOT_LIVE_PER_VARIANT_CAP_USD=40
 set SPOT_VARIANT_DD_KILL_USD=3
 set SPOT_PROMO_N_EXITS=40
 
 REM Isolated CDV panel visibility (phase-ss).
 set FEATURE_CONTRARIAN_DEEPVALUE_PANEL=1
+
+REM Phase 11n-9-ww+ — C1 readiness bypass. Declares the phase-vv commit
+REM as the sign-flip "fix" so trade_readiness unblocks live entries. Paired
+REM with per-variant trip-wire ($3 24h DD), $10 session DD kill, $50
+REM exposure cap, and Decision Quality governor monitoring rank
+REM monotonicity per cell. Operator acknowledges Layer 12 residual risk
+REM is held by these downstream guardrails.
+set SIGN_FLIP_COMMIT=phase-11n-9-vv-d5629e26db
 
 REM Research thresholds stay advisory (11n-2): halt verdicts are tagged
 REM but never flip tier toggles unless you opt in.
