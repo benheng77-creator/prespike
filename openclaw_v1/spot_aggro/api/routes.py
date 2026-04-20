@@ -1134,12 +1134,39 @@ def spot_aggro_start(
 # inherited-positions state into a clean-slate live run. Admin-only.
 # Uses the engine's _close_position which honors dry_run; in LIVE mode
 # this sends real OKX sells.
+#
+# Opportunity Fabric hygiene patch: reject reason strings that collide
+# with real engine exit reasons (SL, TP, TRAIL, TIME_STOP, COMPOSITE_DECAY,
+# SPI_DECAY_CONFIRMED, SWARM_EXIT, halt, BLITZ_TIMEOUT). Operator-
+# initiated mass closes must use an audit-distinct label so the causal
+# replay / decision-quality governors can tell them apart from normal
+# exits. One historical close_all?reason=SL call on 2026-04-18 poisoned
+# 11 trades worth of analytics. Never again.
+_ENGINE_EXIT_REASONS = frozenset({
+    "SL", "TP", "TRAIL", "TIME_STOP", "BLITZ_TIMEOUT",
+    "COMPOSITE_DECAY", "SPI_DECAY_CONFIRMED", "SWARM_EXIT",
+    "halt", "SL_LEGACY",
+})
+
+
 @router.post("/positions/close_all")
 def spot_aggro_positions_close_all(
     reason: str = Query("operator_close_all", description="Audit reason"),
     x_ops_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _require_admin(x_ops_token)
+    if reason in _ENGINE_EXIT_REASONS:
+        return {
+            "ok": False,
+            "error": "reserved_reason",
+            "detail": (
+                f"reason={reason!r} collides with engine exit reasons "
+                f"({sorted(_ENGINE_EXIT_REASONS)}). Use an operator-distinct "
+                "label like 'operator_close_all', 'operator_rebalance', or "
+                "'operator_emergency_stop' so the causal governors can "
+                "distinguish operator action from engine exit."
+            ),
+        }
     try:
         from spot_aggro import _engine_instance
         if _engine_instance is None:

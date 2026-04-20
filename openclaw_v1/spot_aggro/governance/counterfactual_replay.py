@@ -173,9 +173,27 @@ def _model_counterfactual_pnl(
     )
 
 
+# Outlier threshold: single-trade realized return beyond this (abs) is
+# treated as non-ordinary execution (operator close_all, reconciler
+# cleanup, phantom fills). Excluded from replay so aggregate stats
+# reflect the normal exit path only. Tune via env.
+OUTLIER_RET_PCT = float(os.environ.get("SPOT_CFR_OUTLIER_PCT", "0.10"))
+
+
+def _is_outlier(row: sqlite3.Row) -> bool:
+    notional = float(row["notional_usd"] or 0.0)
+    if notional <= 0:
+        return False
+    realized = float(row["realized_pnl_usd"] or 0.0)
+    return abs(realized / notional) > OUTLIER_RET_PCT
+
+
 def replay_one(entry_id: int, counterfactual_policy: str) -> ReplayResult:
     """Run a single counterfactual replay and persist the result.
-    Idempotent on (entry_id, policy) via UNIQUE constraint."""
+    Idempotent on (entry_id, policy) via UNIQUE constraint.
+    Outlier entries (|realized_ret| > OUTLIER_RET_PCT) are SKIPPED so
+    operator close_all / reconciler-cleanup artifacts don't distort
+    aggregate causal stats."""
     _init_schema()
     if counterfactual_policy not in POLICY_TARGETS:
         return ReplayResult(
@@ -198,6 +216,45 @@ def replay_one(entry_id: int, counterfactual_policy: str) -> ReplayResult:
             causal_delta_bp=None,
             rationale="entry not found or not yet closed",
         )
+    if _is_outlier(row):
+        notional = float(row["notional_usd"] or 0.0)
+        realized = float(row["realized_pnl_usd"] or 0.0)
+        ret_pct = realized / notional if notional > 0 else 0.0
+        outlier_result = ReplayResult(
+            entry_id=entry_id,
+            live_variant=row["variant"],
+            counterfactual_policy=counterfactual_policy,
+            realized_pnl_usd=round(realized, 4),
+            counterfactual_pnl_usd=None,
+            causal_delta_bp=None,
+            rationale=(
+                f"outlier skipped: |realized_ret|={abs(ret_pct)*100:.1f}% "
+                f"> {OUTLIER_RET_PCT*100:.1f}% threshold (likely operator "
+                "close_all or reconciler artifact)"
+            ),
+            context={"notional_usd": notional, "outlier": True},
+        )
+        # Persist so aggregate_stats can count outliers correctly.
+        try:
+            con = _connect()
+            try:
+                con.execute(
+                    "INSERT OR REPLACE INTO spot_counterfactual_replay("
+                    " ts_ms, entry_id, live_variant, counterfactual_policy,"
+                    " realized_pnl_usd, counterfactual_pnl_usd,"
+                    " causal_delta_bp, rationale, context_json)"
+                    " VALUES(?,?,?,?,?,?,?,?,?)",
+                    (int(time.time() * 1000), int(entry_id),
+                     outlier_result.live_variant, counterfactual_policy,
+                     outlier_result.realized_pnl_usd, None, None,
+                     outlier_result.rationale[:240],
+                     json.dumps(outlier_result.context, default=str)),
+                )
+            finally:
+                con.close()
+        except Exception:
+            pass
+        return outlier_result
     tp, sl = POLICY_TARGETS[counterfactual_policy]
     realized = float(row["realized_pnl_usd"] or 0.0)
     cf_pnl, rationale = _model_counterfactual_pnl(row, tp, sl)
@@ -265,37 +322,55 @@ def replay_all_closed(policies: tuple[str, ...] = ("conservative", "exploratory"
 
 
 def aggregate_stats(policy: str) -> dict[str, Any]:
-    """Summary of causal deltas vs a single counterfactual policy."""
+    """Summary of causal deltas vs a single counterfactual policy.
+    Outlier-skipped entries are excluded from the means but counted
+    separately in n_outliers_excluded."""
     _init_schema()
     try:
         con = _connect()
         try:
             rows = con.execute(
                 "SELECT causal_delta_bp, realized_pnl_usd,"
-                "       counterfactual_pnl_usd, live_variant"
+                "       counterfactual_pnl_usd, live_variant, rationale"
                 " FROM spot_counterfactual_replay"
-                " WHERE counterfactual_policy = ?"
-                "  AND causal_delta_bp IS NOT NULL",
+                " WHERE counterfactual_policy = ?",
                 (policy,),
             ).fetchall()
         finally:
             con.close()
     except Exception:
         rows = []
-    if not rows:
-        return {"policy": policy, "n": 0,
-                "mean_delta_bp": None,
-                "live_wins": 0, "cf_wins": 0, "ties": 0}
-    deltas = [float(r["causal_delta_bp"]) for r in rows]
+
+    clean = [r for r in rows if r["causal_delta_bp"] is not None]
+    outliers = [r for r in rows
+                if r["causal_delta_bp"] is None
+                and r["rationale"]
+                and "outlier skipped" in (r["rationale"] or "")]
+
+    if not clean:
+        return {
+            "policy": policy, "n": 0,
+            "mean_delta_bp": None,
+            "live_wins": 0, "cf_wins": 0, "ties": 0,
+            "n_outliers_excluded": len(outliers),
+            "outlier_pnl_usd_sum": round(
+                sum(float(r["realized_pnl_usd"] or 0) for r in outliers), 2
+            ),
+        }
+    deltas = [float(r["causal_delta_bp"]) for r in clean]
     wins = sum(1 for d in deltas if d > 0)
     losses = sum(1 for d in deltas if d < 0)
     ties = sum(1 for d in deltas if d == 0)
     mean = sum(deltas) / len(deltas)
     return {
         "policy": policy,
-        "n": len(rows),
+        "n": len(clean),
         "mean_delta_bp": round(mean, 2),
         "live_wins": wins,
         "cf_wins": losses,
         "ties": ties,
+        "n_outliers_excluded": len(outliers),
+        "outlier_pnl_usd_sum": round(
+            sum(float(r["realized_pnl_usd"] or 0) for r in outliers), 2
+        ),
     }
