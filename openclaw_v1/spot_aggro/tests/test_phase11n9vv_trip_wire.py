@@ -217,10 +217,14 @@ def test_permanent_disable_when_wilson_upper_le_zero(_iso_trip_db):
 # Build metadata
 # ---------------------------------------------------------------------------
 
-def test_server_build_phase_vv():
+def test_server_build_phase_vv_or_later():
+    """SERVER_BUILD must be phase-vv or a later phase (alphabetical suffix)."""
     from spot_aggro.api import routes as r
     importlib.reload(r)
-    assert "vv" in r.SERVER_BUILD, r.SERVER_BUILD
+    import re
+    m = re.search(r"phase-11n-9-([a-z]+)-", r.SERVER_BUILD)
+    assert m, r.SERVER_BUILD
+    assert m.group(1) >= "vv", f"build is {r.SERVER_BUILD}, expected vv or later"
 
 
 def test_routes_feature_flags_include_vv():
@@ -237,16 +241,19 @@ def test_routes_feature_flags_include_vv():
         assert flag in flag_source, f"missing vv feature flag: {flag}"
 
 
-def test_dashboard_meta_phase_vv():
+def test_dashboard_meta_phase_vv_or_later():
+    import re
     html = REPO / "web" / "ops" / "index.html"
     txt = html.read_text(encoding="utf-8", errors="replace")
-    assert 'dashboard-build" content="phase-11n-9-vv-2026-04-20"' in txt
+    m = re.search(r'dashboard-build"\s+content="phase-11n-9-([a-z]+)-', txt)
+    assert m, "no dashboard-build meta in ops/index.html"
+    assert m.group(1) >= "vv", m.group(0)
 
 
-def test_cdv_panel_meta_phase_vv():
+def test_cdv_panel_meta_phase_vv_or_later():
+    import re
     html = REPO / "web" / "strategy" / "contrarian-deepvalue" / "index.html"
     txt = html.read_text(encoding="utf-8", errors="replace")
-    assert (
-        'dashboard-build" content="cdv-panel-phase-11n-9-vv-2026-04-20"'
-        in txt
-    )
+    m = re.search(r'dashboard-build"\s+content="cdv-panel-phase-11n-9-([a-z]+)-', txt)
+    assert m, "no dashboard-build meta in CDV panel"
+    assert m.group(1) >= "vv", m.group(0)

@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-vv-2026-04-20"
+SERVER_BUILD = "phase-11n-9-ww-2026-04-20"
 
 
 @router.get("/build")
@@ -161,6 +161,8 @@ def spot_aggro_build() -> dict[str, Any]:
             "variant_trip_wire": True,            # Phase 11n-9-vv Path C — per-variant $3 DD kill
             "horse_race_40_exit_promo": True,     # Phase 11n-9-vv Path C — Wilson-gated promote/permanent_disable
             "contrarian_live_horse_race": True,   # Phase 11n-9-vv Path C — contrarian re-enabled with safety rails
+            "activity_auto_heal": True,           # Phase 11n-9-ww — System Activity auto-heal governor
+            "trade_timer_card": True,             # Phase 11n-9-vv+ — live-ticking trade-timer card
         },
     }
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<meta name="dashboard-build" content="cdv-panel-phase-11n-9-vv-2026-04-20"/>
+<meta name="dashboard-build" content="cdv-panel-phase-11n-9-ww-2026-04-20"/>
 <meta name="theme-color" content="#0a0d13"/>
 <meta name="strategy-namespace" content="contrarian_deepvalue"/>
 <title>Contrarian + Deep Value — Strategy Control</title>
@@ -489,6 +489,28 @@
       <div style="margin-top:10px;font-size:11px;color:var(--ink-3)">
         All processes run 24/7 autonomously. Zero input needed while the engine is live.
       </div>
+
+      <!-- Phase 11n-9-ww — Auto-Heal sub-card -->
+      <div style="margin-top:18px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;color:var(--ink-1);font-weight:600">Auto-Heal Governor</span>
+          <span id="ah-live" class="pill muted">—</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px">
+          <div><div class="kpi-label">Yellow</div><div class="kpi-value small warn" id="ah-yellow">—</div></div>
+          <div><div class="kpi-label">Red</div><div class="kpi-value small neg" id="ah-red">—</div></div>
+          <div><div class="kpi-label">Healed (last pass)</div><div class="kpi-value small pos" id="ah-healed">—</div></div>
+          <div><div class="kpi-label">Cooldown</div><div class="kpi-value small muted" id="ah-cooldown">—</div></div>
+        </div>
+        <div class="kpi-label" style="margin-bottom:4px">Recent Heal Events</div>
+        <table class="data" id="ah-events-table">
+          <thead><tr><th>When</th><th>Component</th><th>Severity</th><th>Action</th><th>Outcome</th><th>Rationale</th></tr></thead>
+          <tbody id="ah-events-body"><tr><td colspan="6" style="text-align:center;color:var(--ink-3);padding:10px">no heal events yet</td></tr></tbody>
+        </table>
+        <div style="margin-top:8px;font-size:11px;color:var(--ink-3)">
+          Fires every 60s. Yellow/red components get scoped recovery actions with cooldown + strike-cap guardrails. Engine start and kill-ladder release are operator-only.
+        </div>
+      </div>
     </div>
   </section>
 
@@ -877,6 +899,62 @@
     } catch (e) { /* non-fatal */ }
   }
 
+  // Phase 11n-9-ww — Auto-heal governor widget.
+  function paintAutoHeal(d) {
+    const cur = d.current || {};
+    const cfg = d.config || {};
+    setText("ah-yellow", cur.n_yellow ?? 0);
+    setText("ah-red", cur.n_red ?? 0);
+    setText("ah-healed", cur.n_healed ?? 0);
+    setText("ah-cooldown", cfg.cooldown_s ? `${cfg.cooldown_s}s` : "—");
+    const live = document.getElementById("ah-live");
+    if (live) {
+      const nRed = cur.n_red ?? 0;
+      const nYel = cur.n_yellow ?? 0;
+      if (nRed > 0) { live.textContent = `${nRed} RED`; live.className = "pill neg"; }
+      else if (nYel > 0) { live.textContent = `${nYel} STALE`; live.className = "pill warn"; }
+      else { live.textContent = "ALL GREEN"; live.className = "pill pos"; }
+    }
+    const body = document.getElementById("ah-events-body");
+    const events = d.events || [];
+    if (!body) return;
+    if (!events.length) {
+      body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--ink-3);padding:10px">no heal events yet</td></tr>`;
+      return;
+    }
+    const outcomeCls = (o) => ({
+      healed: "pos", failed: "neg", struck_out: "neg",
+      skipped_cooldown: "muted", no_handler: "warn",
+    })[o] || "muted";
+    const sevCls = (s) => ({ red: "neg", yellow: "warn", green: "pos" })[s] || "muted";
+    body.innerHTML = events.map(e => {
+      const when = new Date(e.ts_ms).toLocaleTimeString();
+      return `<tr>
+        <td style="white-space:nowrap">${when}</td>
+        <td>${e.component}</td>
+        <td><span class="pill ${sevCls(e.severity)}">${(e.severity||'').toUpperCase()}</span></td>
+        <td style="font-family:monospace;font-size:11px">${e.action}</td>
+        <td><span class="pill ${outcomeCls(e.outcome)}">${(e.outcome||'').toUpperCase().replace(/_/g,' ')}</span></td>
+        <td style="color:var(--ink-2);font-size:11px">${(e.rationale||'').slice(0,120)}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  async function fetchAutoHeal() {
+    try {
+      const resp = await fetch(`${API_BASE}/strategy/contrarian_deepvalue/auto_heal?limit=20`, {
+        cache: "no-store",
+        headers: {
+          "X-CDV-Role": ROLE || "strategy:contrarian_deepvalue_viewer",
+          "X-Ops-Token": OPS,
+        },
+      });
+      if (!resp.ok) return;
+      const d = await resp.json();
+      if (d.ok) paintAutoHeal(d);
+    } catch (e) { /* non-fatal */ }
+  }
+
   function paintDaily(d) {
     setText("dr-date", d.report_date || "—");
     const v = document.getElementById("dr-verdict");
@@ -976,6 +1054,8 @@
   setInterval(fetchActivity, 15_000);   // faster: so operator sees daemons ticking
   setInterval(fetchXIntel, 60_000);     // exchange intelligence updates every 60s
   setInterval(tickTimer, 1_000);        // phase-vv — live-tick trade-timer every second
+  fetchAutoHeal();
+  setInterval(fetchAutoHeal, 20_000);   // phase-ww — auto-heal governor widget
 })();
 </script>
 </body>

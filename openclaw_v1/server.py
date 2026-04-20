@@ -960,6 +960,48 @@ def _start_spot_aggro_variant_trip_wire() -> None:
     )
 
 
+# Phase 11n-9-ww: Activity auto-heal governor. Every 60s inspects the
+# System Activity component table and triggers scoped recovery actions
+# for any component that flips yellow/red. Cooldown + strike-cap
+# prevent tight retry loops; kill-ladder and engine start are
+# observe-only (safety-sensitive, operator-required).
+@app.on_event("startup")
+def _start_spot_aggro_activity_auto_heal() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.activity_auto_heal import evaluate as _ah_eval, EVAL_INTERVAL_S as _ah_interval
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("activity_auto_heal NOT started (import): %s", exc)
+        return
+    _FIRST_DELAY_S = 90            # let components first tick before monitoring
+
+    def _tick() -> None:
+        try:
+            r = _ah_eval()
+            if r.get("n_red") or r.get("n_healed"):
+                _log.warning(
+                    "[spot_aggro.activity_auto_heal] yellow=%d red=%d healed=%d actions=%d",
+                    r.get("n_yellow", 0), r.get("n_red", 0),
+                    r.get("n_healed", 0), r.get("n_actions", 0),
+                )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("activity_auto_heal tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_ah_interval, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro activity_auto_heal scheduled (first in %ds, then every %ds)",
+        _FIRST_DELAY_S, _ah_interval,
+    )
+
+
 # Phase 11n-9-qq: Crypto.com read-only comparison-feed daemon. Fetches
 # ticker + top-of-book depth for admitted tier-C symbols every 60s
 # from BOTH OKX and Crypto.com public REST. Writes

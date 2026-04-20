@@ -985,6 +985,43 @@ def cdv_system_activity(
     }
 
 
+@router.get("/auto_heal")
+def cdv_auto_heal(
+    limit: int = Query(30, ge=1, le=200),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Phase 11n-9-ww — recent activity auto-heal events + live status.
+
+    Returns the most recent heal attempts (healed / failed / cooldown /
+    struck_out) so the operator can see WHAT the governor is doing.
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance.activity_auto_heal import (
+            evaluate as ah_eval, recent_events,
+            COOLDOWN_S, STRIKE_CAP, EVAL_INTERVAL_S,
+        )
+    except Exception as e:
+        return {"ok": False, "error": f"auto_heal import failed: {str(e)[:200]}"}
+    try:
+        current = ah_eval()
+    except Exception as e:
+        current = {"error": str(e)[:200]}
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "config": {
+            "cooldown_s": COOLDOWN_S,
+            "strike_cap": STRIKE_CAP,
+            "eval_interval_s": EVAL_INTERVAL_S,
+        },
+        "current": current,
+        "events": recent_events(limit=limit),
+    }
+
+
 @router.get("/health")
 def cdv_health(
     x_cdv_role: str | None = Header(default=None),
