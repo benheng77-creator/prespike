@@ -535,6 +535,18 @@ def _escalate(evaluation: FreezeEvaluation) -> list[str]:
             out.append("T+30_forensic_pdf")
         except Exception:
             pass
+        # Phase 11n-9-gg: open retrain tickets for all three variants.
+        try:
+            from spot_aggro.governance.retrain_queue import (
+                on_contradiction_freeze,
+            )
+            jid = on_contradiction_freeze(
+                "T3", reason=evaluation.primary_cause or "unknown",
+            )
+            if jid:
+                out.append(f"T+30_retrain_queued_job_{jid}")
+        except Exception:
+            pass
 
     # T+60: full kill_switch
     if age >= _LADDER_T_KILL_MS:

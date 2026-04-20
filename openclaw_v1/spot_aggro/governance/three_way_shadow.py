@@ -42,6 +42,9 @@ _DB_LOCK = threading.Lock()
 MIN_EXITS_FOR_PROMOTION = 200
 # Wilson-lower must exceed second-best Wilson-upper by this margin.
 PROMOTION_MARGIN = 0.02
+# Phase 11n-9-gg — minimum age in days between first variant authz and
+# promotion. Prevents flash-promotion from a narrow market regime.
+MIN_AGE_DAYS_FOR_PROMOTION = 30
 
 
 def _db_path() -> str:
@@ -74,9 +77,19 @@ def _init_schema() -> None:
                 " variant_score REAL,"
                 " variant_passed INTEGER,"
                 " reason TEXT,"
-                " evidence_json TEXT"
+                " evidence_json TEXT,"
+                " model_version TEXT"
                 ")"
             )
+            # Phase 11n-9-gg — additive migration for pre-existing
+            # deployments. Ignore error if column already present.
+            try:
+                con.execute(
+                    "ALTER TABLE shadow_variant_authorizations"
+                    " ADD COLUMN model_version TEXT"
+                )
+            except sqlite3.OperationalError:
+                pass
             con.execute(
                 "CREATE INDEX IF NOT EXISTS idx_shadow_var_authz_ts "
                 "ON shadow_variant_authorizations(ts_ms DESC)"
@@ -146,25 +159,35 @@ def record_authz(
     try:
         _init_schema()
         from spot_aggro.governance.strategy_variants import evaluate_all
+        from spot_aggro.governance.model_registry import (
+            current_version, stamp_authz,
+        )
         decisions = evaluate_all(coin or {}, mio)
         now = int(time.time() * 1000)
         with _DB_LOCK:
             con = _connect()
             try:
                 for d in decisions:
+                    version = current_version(d.variant)
                     con.execute(
                         "INSERT INTO shadow_variant_authorizations("
                         " live_authz_id, ts_ms, symbol, side, tier,"
                         " variant, variant_score, variant_passed,"
-                        " reason, evidence_json"
-                        ") VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        " reason, evidence_json, model_version"
+                        ") VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                         (
                             live_authz_id, now, symbol, side, tier,
                             d.variant, float(d.score),
                             int(bool(d.passed)),
                             d.reason[:240] if d.reason else "",
                             json.dumps(d.evidence or {}),
+                            version,
                         ),
+                    )
+                    # Observation log for audit traceability.
+                    stamp_authz(
+                        d.variant, live_authz_id, version=version,
+                        payload={"score": d.score, "passed": d.passed},
                     )
                 return len(decisions)
             finally:
@@ -346,27 +369,63 @@ def evaluate() -> ThreeWayVerdict:
     else:
         leader = None
 
+    # Phase 11n-9-gg — age gate. Oldest authz-ts for this variant must
+    # be at least MIN_AGE_DAYS_FOR_PROMOTION days old before promotion
+    # is possible. Prevents promotion from a single market-regime
+    # window that happens to align with the variant's bias.
+    now_ms = int(time.time() * 1000)
+    min_age_ms = MIN_AGE_DAYS_FOR_PROMOTION * 86400 * 1000
+    ages_by_variant: dict[str, int] = {}
+    try:
+        with _DB_LOCK:
+            con = _connect()
+            try:
+                for row in con.execute(
+                    "SELECT variant, MIN(ts_ms) AS first_ts"
+                    " FROM shadow_variant_authorizations"
+                    " GROUP BY variant"
+                ).fetchall():
+                    ages_by_variant[row["variant"]] = int(row["first_ts"] or now_ms)
+            finally:
+                con.close()
+    except Exception:
+        ages_by_variant = {}
+
     # Promotion: any variant with n_exits >= MIN and lower > 0 and
-    # margin > PROMOTION_MARGIN over second-best upper.
+    # margin > PROMOTION_MARGIN over second-best upper AND first authz
+    # older than MIN_AGE_DAYS_FOR_PROMOTION days.
     candidates = [s for s in standings if s.n_exits >= MIN_EXITS_FOR_PROMOTION]
     promoted = None
+    too_young: list[str] = []
     if candidates:
         # Rank by exp_lower desc.
         candidates.sort(key=lambda s: s.exp_lower, reverse=True)
-        best = candidates[0]
-        # Second-best upper across ALL variants (not just candidates).
-        others = [s for s in standings if s.variant != best.variant]
-        second_upper = max((s.exp_upper for s in others), default=0.0)
-        if (
-            best.exp_lower > 0
-            and best.exp_lower > second_upper + PROMOTION_MARGIN
-        ):
-            promoted = best
+        for best in candidates:
+            first_ts = ages_by_variant.get(best.variant, now_ms)
+            age_ms = now_ms - first_ts
+            if age_ms < min_age_ms:
+                too_young.append(best.variant)
+                continue
+            # Second-best upper across ALL variants (not just candidates).
+            others = [s for s in standings if s.variant != best.variant]
+            second_upper = max((s.exp_upper for s in others), default=0.0)
+            if (
+                best.exp_lower > 0
+                and best.exp_lower > second_upper + PROMOTION_MARGIN
+            ):
+                promoted = best
+                break
     if promoted is not None:
         v.promotion_verdict = "promote"
         v.reason = (
             f"{promoted.variant} has exp_lower={promoted.exp_lower:+.4f} "
             f"at n={promoted.n_exits}; second-best upper + margin cleared."
+        )
+    elif too_young:
+        v.promotion_verdict = "racing"
+        v.reason = (
+            f"variant(s) {','.join(too_young)} met exits+margin but age "
+            f"< {MIN_AGE_DAYS_FOR_PROMOTION}d; waiting for more diverse regime coverage."
         )
     elif any(s.n_exits > 0 for s in standings):
         v.promotion_verdict = "racing"

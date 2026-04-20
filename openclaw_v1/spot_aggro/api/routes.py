@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-ff-2026-04-20"
+SERVER_BUILD = "phase-11n-9-gg-2026-04-20"
 
 
 @router.get("/build")
@@ -116,6 +116,10 @@ def spot_aggro_build() -> dict[str, Any]:
             "exec_integrity_2pct_risk": True,    # Phase 11n-9-ff (per-trade risk cap)
             "exec_integrity_price_tol_15bp": True,  # Phase 11n-9-ff (price drift cap)
             "reject_storm_autopause": True,      # Phase 11n-9-ff (3-in-10min -> L1)
+            "model_registry": True,              # Phase 11n-9-gg (versioned models + code hashes)
+            "shadow_model_version_stamp": True,  # Phase 11n-9-gg (version on every shadow authz)
+            "promotion_min_age_30d": True,       # Phase 11n-9-gg (anti-flash-promotion)
+            "retrain_queue_on_freeze": True,     # Phase 11n-9-gg (auto-open tickets on T3 freeze)
         },
     }
 
@@ -474,6 +478,57 @@ def spot_aggro_engine_state() -> dict[str, Any]:
         },
         "ts_ms": int(time.time() * 1000),
     }
+
+
+# Phase 11n-9-gg — Layer 2 Model Governance: registry + retrain queue.
+@router.get("/gov/model_registry")
+def spot_aggro_model_registry() -> dict[str, Any]:
+    """List every registered model + its current version + code hash."""
+    try:
+        from spot_aggro.governance.model_registry import all_models
+        return {
+            "ok": True,
+            "models": [m.to_dict() for m in all_models()],
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/gov/retrain_queue")
+def spot_aggro_retrain_queue() -> dict[str, Any]:
+    """Retrain tickets (pending + recent 50 resolved/cancelled)."""
+    try:
+        from spot_aggro.governance.retrain_queue import all_tickets
+        return {
+            "ok": True,
+            "tickets": [t.to_dict() for t in all_tickets(limit=50)],
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/retrain_queue/open")
+def spot_aggro_retrain_queue_open(
+    target_model: str = Query(...),
+    reason: str = Query("operator"),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.retrain_queue import open_ticket
+    jid = open_ticket(target_model, reason, payload={"source": "operator"})
+    return {"ok": bool(jid), "job_id": jid}
+
+
+@router.post("/gov/retrain_queue/resolve")
+def spot_aggro_retrain_queue_resolve(
+    job_id: int = Query(...),
+    resolution: str = Query(...),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.retrain_queue import resolve_ticket
+    ok = resolve_ticket(job_id, resolution)
+    return {"ok": ok}
 
 
 # Phase 11n-9-ff — Layer 1 Execution Integrity + 4-tier kill ladder.

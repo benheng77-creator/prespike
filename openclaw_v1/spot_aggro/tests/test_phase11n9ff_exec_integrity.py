@@ -216,8 +216,12 @@ def test_l3_escalate_requires_oversight_token(_iso_db, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_phase_ff_build_and_flags():
+    import re
     from spot_aggro.api.routes import spot_aggro_build, SERVER_BUILD
-    assert SERVER_BUILD == "phase-11n-9-ff-2026-04-20"
+    m = re.match(r"phase-11n-9-([a-z]+)-2026-04-20$", SERVER_BUILD)
+    assert m and (len(m.group(1)), m.group(1)) >= (2, "ff"), (
+        f"SERVER_BUILD must be >= phase-ff (got {SERVER_BUILD})"
+    )
     body = spot_aggro_build()
     feats = body.get("features") or {}
     assert feats.get("kill_ladder_l1_l4") is True
@@ -231,7 +235,11 @@ def test_phase_ff_build_and_flags():
 # ---------------------------------------------------------------------------
 
 def test_dashboard_build_ff():
-    assert 'content="phase-11n-9-ff-2026-04-20"' in HTML
+    import re
+    m = re.search(r'content="phase-11n-9-([a-z]+)-2026-04-20"', HTML)
+    assert m and (len(m.group(1)), m.group(1)) >= (2, "ff"), (
+        f"dashboard build must be >= phase-ff, got {m.group(0) if m else '—'}"
+    )
 
 
 def test_kill_ladder_card_present():

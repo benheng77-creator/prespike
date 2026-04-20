@@ -732,6 +732,22 @@ def _start_spot_aggro_trade_readiness() -> None:
     )
 
 
+# Phase 11n-9-gg: Model-registry self-registration on boot.
+@app.on_event("startup")
+def _start_spot_aggro_model_registry_bootstrap() -> None:
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.model_registry import bootstrap_self_register
+        recs = bootstrap_self_register()
+        _log.info(
+            "spot_aggro model_registry bootstrap: %d model versions registered",
+            len(recs),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("model_registry bootstrap failed: %s", exc)
+
+
 # Phase 11n-9-ff: Kill-ladder auto-pause daemon. Every 60s evaluates
 # the reject-storm detector and auto-releases L1 after cooldown.
 # L2/L3/L4 never auto-release — operator-only.

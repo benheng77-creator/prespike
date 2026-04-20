@@ -11,7 +11,7 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-ff-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-gg-2026-04-20"/>
 <!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
      dashboard to their phone home screen and the iOS/Android status
      bar matches the dark theme. -->
@@ -2562,6 +2562,41 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- Phase 11n-9-gg — Model registry + retrain queue. Shows every
+     registered scoring model with version + code hash + data
+     snapshot. Retrain tickets auto-open on T3 contradiction freeze. -->
+<div class="c" id="c-model-gov"
+     data-lane="governance"
+     data-source-id="/spot_aggro/gov/model_registry"
+     data-scope-id="spot_aggro:model_registry"
+     data-window-basis="cumulative registry"
+     data-refresh-basis="on-change"
+     data-summary-source="registered_versions"
+     data-confidence-source="code_hash_match">
+  <div class="h"><h3>Model Governance</h3><span class="sub">Layer 2 · registry + retrain queue</span></div>
+  <div class="helper">version + code-hash per model; retrain opens on T3 freeze</div>
+  <div class="truth-meta">
+    <span class="lane-governance">governance</span>
+    <span>source: /spot_aggro/gov/model_registry</span>
+    <span>scope: model registry + retrain queue</span>
+    <span>window: cumulative</span>
+    <span>refresh: on-change</span>
+  </div>
+  <div class="b">
+    <div style="font-size:10px;color:var(--ink3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Registered models</div>
+    <table id="mg-models" style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:8px">
+      <thead><tr style="color:var(--ink3);text-transform:uppercase;letter-spacing:.04em">
+        <th style="text-align:left;padding:2px 4px">Model</th>
+        <th style="text-align:left;padding:2px 4px">Version</th>
+        <th style="text-align:left;padding:2px 4px">Code hash</th>
+      </tr></thead>
+      <tbody id="mg-models-body"><tr><td colspan="3" style="padding:4px;color:var(--ink3)">loading…</td></tr></tbody>
+    </table>
+    <div style="font-size:10px;color:var(--ink3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Retrain queue</div>
+    <div id="mg-retrain" style="color:var(--ink2);font-size:11px">loading…</div>
+  </div>
+</div>
+
 <!-- Phase 11n-9-ff — 4-tier kill ladder. Shows current rung
      (L0..L4), reject-storm counter, and escalation controls. Two-
      person rule enforced for L3/L4. -->
@@ -2944,7 +2979,8 @@ const _TAB_CARDS = {
                  "c-forensic", "c-forensic-v2", "c-botledger"],
   alerts:       ["c-alerts", "c-issues", "c-infra"],
   research:     ["c-research", "c-mio", "c-universe",
-                 "c-swarm", "c-llm", "c-horse-race", "c-kill-ladder"],
+                 "c-swarm", "c-llm", "c-horse-race", "c-kill-ladder",
+                 "c-model-gov"],
   system:       ["c-runtime", "c-schedule", "c-settings",
                  "c-exchange"],
   formula:      [],  // rendered by its own tab-formula grid
@@ -3388,6 +3424,9 @@ async function refresh() {
 
   // Phase 11n-9-ff — paint the 4-tier kill ladder card + wire buttons.
   try { _refreshKillLadder(); _wireKillLadderButtons(); } catch (e) { console.warn("_refreshKillLadder", e); }
+
+  // Phase 11n-9-gg — paint the model-governance card.
+  try { _refreshModelGov(); } catch (e) { console.warn("_refreshModelGov", e); }
 
   // ── 1. Trading Engine Status ──
   // Phase 11h — end the "READY while engine is actually stopped"
@@ -4931,6 +4970,42 @@ async function _refreshEngineState() {
     if (!r.ok) return;
     const j = await r.json();
     if (j && typeof j === "object") window._engineStateCache = j;
+  } catch (e) { /* non-fatal */ }
+}
+
+// Phase 11n-9-gg — Model-governance renderer. Paints model registry
+// + retrain queue.
+async function _refreshModelGov() {
+  try {
+    const [mr, rq] = await Promise.all([
+      fetch("/spot_aggro/gov/model_registry", {cache: "no-store"}).then(r => r.json()).catch(() => null),
+      fetch("/spot_aggro/gov/retrain_queue", {cache: "no-store"}).then(r => r.json()).catch(() => null),
+    ]);
+    const body = document.getElementById("mg-models-body");
+    if (body) {
+      const models = (mr && mr.models) || [];
+      if (!models.length) {
+        body.innerHTML = '<tr><td colspan="3" style="padding:4px;color:var(--ink3)">no models registered yet</td></tr>';
+      } else {
+        body.innerHTML = models.map(m => `
+          <tr><td style="padding:2px 4px;color:var(--ink1);font-weight:600">${m.model_id}</td>
+              <td style="padding:2px 4px;color:var(--ink2);font-family:monospace">${m.version}</td>
+              <td style="padding:2px 4px;color:var(--ink3);font-family:monospace">${(m.code_hash || "").slice(0,10)}…</td>
+          </tr>`).join("");
+      }
+    }
+    const rEl = document.getElementById("mg-retrain");
+    if (rEl) {
+      const tickets = (rq && rq.tickets) || [];
+      const pending = tickets.filter(t => t.status === "pending");
+      if (!tickets.length) {
+        rEl.textContent = "no retrain tickets";
+      } else if (pending.length) {
+        rEl.innerHTML = `<span style="color:var(--warn);font-weight:600">${pending.length} pending</span> · ${tickets.length} total (last: ${tickets[0].trigger_reason})`;
+      } else {
+        rEl.textContent = `${tickets.length} resolved (last: ${tickets[0].resolution || tickets[0].trigger_reason})`;
+      }
+    }
   } catch (e) { /* non-fatal */ }
 }
 
