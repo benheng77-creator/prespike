@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-jj-2026-04-20"
+SERVER_BUILD = "phase-11n-9-kk-2026-04-20"
 
 
 @router.get("/build")
@@ -131,6 +131,7 @@ def spot_aggro_build() -> dict[str, Any]:
             "live_exposure_cap_50usd": True,      # Phase 11n-9-ii ($50 total exposure cap)
             "live_dd_kill_10usd": True,           # Phase 11n-9-ii (-$10 session DD auto-halt)
             "market_verified_fills": True,        # Phase 11n-9-jj (poll fetch_order until filled; fixes phantom positions)
+            "verified_exit_from_balance": True,   # Phase 11n-9-kk (sell from live OKX balance, not engine-tracked qty)
         },
     }
 

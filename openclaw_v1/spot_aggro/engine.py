@@ -1355,16 +1355,39 @@ class SpotAggroEngine:
             pass
 
         if not self.dry_run:
+            # Phase 11n-9-kk: use place_market_verified_sell which reads
+            # live OKX balance (not engine-tracked qty) and polls for
+            # actual fill. If OKX has zero balance (position never
+            # filled on entry OR already closed externally) the call
+            # returns ok=False with explicit reason. In that case we
+            # SKIP booking PnL because there's no real trade to book.
             try:
-                # Sell spot
-                qty = pos.size_usd / max(pos.entry_price, 1e-9)
-                await asyncio.to_thread(
-                    self._ensure_adapter()._client.create_market_order,
-                    self._ensure_adapter()._spot_for(symbol), "sell", qty,
-                    {"tdMode": "cash"},
+                adapter = self._ensure_adapter()
+                exit_receipt = await adapter.place_market_verified_sell(
+                    symbol=symbol, leg="spot",
+                    idempotency_seed=f"sa-exit:{symbol}:{int(time.time()//60)}",
+                )
+                if not exit_receipt.ok:
+                    log.warning(
+                        "exit sell FAILED for %s: %s — skipping PnL book",
+                        symbol, exit_receipt.error,
+                    )
+                    # Position stays in state; operator review required.
+                    return
+                # Re-compute realized PnL from actual fill avg_px vs entry.
+                filled_qty = exit_receipt.filled_qty
+                filled_avg_px = exit_receipt.avg_px
+                filled_notional = filled_qty * filled_avg_px
+                # Override pnl based on real fill.
+                pnl = filled_notional - pos.size_usd
+                fee_est = exit_receipt.fee_usd or (pos.size_usd * 0.001 * 2)
+                log.info(
+                    "exit VERIFIED %s: filled_qty=%.6f avg_px=%.6f notional=$%.4f pnl=$%+.4f",
+                    symbol, filled_qty, filled_avg_px, filled_notional, pnl,
                 )
             except Exception as exc:
-                log.warning("spot sell failed for %s: %s", symbol, exc)
+                log.warning("spot sell failed for %s: %s — skipping PnL book", symbol, exc)
+                return
 
         # Intraday compounding (spec §4)
         self.state.capital_usd += pnl

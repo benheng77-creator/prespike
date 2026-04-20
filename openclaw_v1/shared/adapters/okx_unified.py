@@ -450,6 +450,125 @@ class OKXUnified:
             fee_usd=fee_usd, raw=order,
         )
 
+    async def place_market_verified_sell(
+        self,
+        *,
+        symbol: str,
+        leg: str,                       # "perp" | "spot"
+        idempotency_seed: str,
+        poll_attempts: int = 4,
+        poll_interval_s: float = 0.5,
+    ) -> OrderReceipt:
+        """Phase 11n-9-kk — verified spot SELL using live OKX balance.
+
+        Unlike place_market_verified(side=sell), this function reads the
+        CURRENT OKX balance for the base coin to determine quantity —
+        not the engine's tracked size. That's the fix for the exit-side
+        phantom bug: engine-tracked size may drift from OKX balance
+        across partial fills, fee deductions, or multi-order rounding.
+        Using the live balance as the source of truth guarantees the
+        sell matches actual holdings.
+
+        Fails fast if the OKX balance is zero (position already closed
+        or never filled). Returns ok=False with reason='no_balance'.
+        """
+        if leg != "spot":
+            raise ValueError("verified sell only supports spot leg")
+        instr = self._spot_for(symbol)
+        base = symbol.split("-")[0]
+        # Read live balance for the base coin.
+        try:
+            bal = await asyncio.to_thread(self._client.fetch_balance)
+        except Exception as exc:
+            return OrderReceipt(
+                ok=False, order_id=None, cl_ord_id=None,
+                filled_qty=0.0, avg_px=0.0,
+                side="sell", symbol=instr,
+                notional_usd=0.0, fee_usd=0.0,
+                raw={}, error=f"balance_probe_failed: {str(exc)[:120]}",
+            )
+        total_qty = float((bal.get("total", {}) or {}).get(base, 0) or 0)
+        # Round to 8 decimals to avoid ccxt precision rejects.
+        total_qty = float(f"{total_qty:.8f}")
+        if total_qty <= 0:
+            return OrderReceipt(
+                ok=False, order_id=None, cl_ord_id=None,
+                filled_qty=0.0, avg_px=0.0,
+                side="sell", symbol=instr,
+                notional_usd=0.0, fee_usd=0.0,
+                raw={}, error=f"no_balance: {base} total=0",
+            )
+        # Also check ticker for dust-filter.
+        try:
+            ticker = await asyncio.to_thread(
+                self._client.fetch_ticker, f"{base}/USDT"
+            )
+            cur_px = float(ticker.get("last") or 0)
+        except Exception:
+            cur_px = 0.0
+        if cur_px > 0 and total_qty * cur_px < 1.0:
+            return OrderReceipt(
+                ok=False, order_id=None, cl_ord_id=None,
+                filled_qty=0.0, avg_px=cur_px,
+                side="sell", symbol=instr,
+                notional_usd=total_qty * cur_px, fee_usd=0.0,
+                raw={"dust": True},
+                error=f"dust_only: ${total_qty * cur_px:.4f} below $1 floor",
+            )
+
+        cl_ord_id = self._mk_cl_ord_id(idempotency_seed)
+        params = {"tdMode": "cash", "clOrdId": cl_ord_id}
+        # Sell the entire base balance.
+        try:
+            order = await asyncio.to_thread(
+                self._client.create_order,
+                instr, "market", "sell", total_qty, None, params,
+            )
+        except Exception as exc:
+            return OrderReceipt(
+                ok=False, order_id=None, cl_ord_id=cl_ord_id,
+                filled_qty=0.0, avg_px=cur_px,
+                side="sell", symbol=instr,
+                notional_usd=total_qty * cur_px, fee_usd=0.0,
+                raw={}, error=f"submit_failed: {str(exc)[:160]}",
+            )
+        order_id = str(order.get("id") or "")
+        filled_qty = float(order.get("filled") or 0)
+        avg_px = float(order.get("average") or 0) or cur_px
+        status = order.get("status", "open")
+        for _ in range(poll_attempts):
+            if status in ("closed", "canceled") and filled_qty > 0:
+                break
+            await asyncio.sleep(poll_interval_s)
+            try:
+                fresh = await asyncio.to_thread(
+                    self._client.fetch_order, order_id, instr,
+                )
+                filled_qty = float(fresh.get("filled") or filled_qty)
+                avg_px = float(fresh.get("average") or avg_px)
+                status = fresh.get("status", status)
+                order = fresh
+            except Exception:
+                continue
+
+        fee_usd = self._extract_fee(order)
+        if filled_qty <= 0:
+            return OrderReceipt(
+                ok=False, order_id=order_id, cl_ord_id=cl_ord_id,
+                filled_qty=0.0, avg_px=avg_px,
+                side="sell", symbol=instr,
+                notional_usd=0.0, fee_usd=fee_usd,
+                raw=order,
+                error=f"zero_fill_after_{poll_attempts * poll_interval_s:.1f}s_status={status}",
+            )
+        return OrderReceipt(
+            ok=True, order_id=order_id, cl_ord_id=cl_ord_id,
+            filled_qty=filled_qty, avg_px=avg_px,
+            side="sell", symbol=instr,
+            notional_usd=filled_qty * avg_px,
+            fee_usd=fee_usd, raw=order,
+        )
+
 
     async def place_post_only(
         self,
