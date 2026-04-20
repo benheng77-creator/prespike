@@ -1106,6 +1106,54 @@ def cdv_entry_provenance(
     }
 
 
+@router.get("/counterfactual_replay")
+def cdv_counterfactual_replay(
+    policy: str | None = Query(None),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 6 — aggregate causal-delta stats.
+
+    Returns per-policy summaries of how the live trades would have
+    performed under each counterfactual policy:
+      - conservative: tp=1.5%, sl=-1.0%
+      - exploratory:  tp=2.0%, sl=-1.5%
+      - aggressive:   tp=3.0%, sl=-2.0%
+
+    Positive mean_delta_bp = live path beat the counterfactual.
+    Negative = the counterfactual would have outperformed.
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import counterfactual_replay as cfr
+    except Exception as e:
+        return {"ok": False, "error": f"cfr import failed: {str(e)[:200]}"}
+    policies = [policy] if policy else ("conservative", "exploratory", "aggressive")
+    stats = {p: cfr.aggregate_stats(p) for p in policies}
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "stats": stats,
+    }
+
+
+@router.post("/counterfactual_replay/run")
+def cdv_counterfactual_replay_run(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Operator-triggered immediate replay pass. Idempotent (UNIQUE
+    constraint on (entry_id, policy) means re-runs are cheap)."""
+    _require_admin(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import counterfactual_replay as cfr
+    except Exception as e:
+        return {"ok": False, "error": f"cfr import failed: {str(e)[:200]}"}
+    r = cfr.replay_all_closed()
+    return {"ok": True, "strategy": CDV_STRATEGY_NAMESPACE, **r}
+
+
 @router.get("/provenance/recent")
 def cdv_provenance_recent(
     limit: int = Query(20, ge=1, le=200),

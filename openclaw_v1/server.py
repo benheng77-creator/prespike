@@ -1087,6 +1087,52 @@ def _start_spot_aggro_exploration_wallet() -> None:
     )
 
 
+# Opportunity Fabric Sprint 6 — counterfactual replay daemon. Every
+# 10 min replays every closed CDV entry against conservative /
+# exploratory / aggressive policies and computes causal delta.
+# Write-only — does not gate admission. Feeds aggregate_stats() for
+# the panel "which policy would have won" question.
+@app.on_event("startup")
+def _start_spot_aggro_counterfactual_replay() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.counterfactual_replay import (
+            replay_all_closed,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("counterfactual_replay NOT started (import): %s", exc)
+        return
+    _INTERVAL_S = 600
+    _FIRST_DELAY_S = 180       # let bridge mirror first
+
+    def _tick() -> None:
+        try:
+            r = replay_all_closed()
+            if r.get("n_results"):
+                _log.info(
+                    "[spot_aggro.counterfactual_replay] "
+                    "entries=%d policies=%d results=%d",
+                    r.get("n_entries", 0), r.get("n_policies", 0),
+                    r.get("n_results", 0),
+                )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("counterfactual_replay tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro counterfactual_replay scheduled (first in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
 # Phase 11n-9-qq: Crypto.com read-only comparison-feed daemon. Fetches
 # ticker + top-of-book depth for admitted tier-C symbols every 60s
 # from BOTH OKX and Crypto.com public REST. Writes
