@@ -74,9 +74,19 @@ def _enabled_variants() -> tuple[str, ...]:
         from spot_aggro.governance.variant_trip_wire import (
             enabled_variants_filter,
         )
-        return enabled_variants_filter(parsed)
+        parsed = enabled_variants_filter(parsed)
     except Exception:
-        return parsed
+        pass
+    # Opportunity Fabric Sprint 1 — if the exploration wallet is enabled
+    # AND tripped (24h DD breach), strip the exploratory variants from
+    # the live set. Conservative variants (funded by production capital)
+    # remain live. Failure in the wallet module must not block trading.
+    try:
+        from spot_aggro.governance.exploration_wallet import filter_variants
+        parsed = filter_variants(parsed)
+    except Exception:
+        pass
+    return parsed
 
 
 def live_variants_active() -> bool:

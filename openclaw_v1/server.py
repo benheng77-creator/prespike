@@ -1002,6 +1002,91 @@ def _start_spot_aggro_activity_auto_heal() -> None:
     )
 
 
+# Opportunity Fabric bridge — every 30s mirror new trade_log entries
+# into spot_live_variant_entries so the phase-vv variant governance
+# stack (trip-wire, exploration wallet, execution SLO) observes live
+# activity. Never places orders; pure read/mirror.
+@app.on_event("startup")
+def _start_spot_aggro_trade_log_bridge() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.trade_log_bridge import run_once
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("trade_log_bridge NOT started (import): %s", exc)
+        return
+    _INTERVAL_S = 30
+    _FIRST_DELAY_S = 20
+
+    def _tick() -> None:
+        try:
+            r = run_once()
+            if r.inserted or r.closed:
+                _log.info(
+                    "[spot_aggro.bridge] mirrored inserted=%d closed=%d",
+                    r.inserted, r.closed,
+                )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("trade_log_bridge tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro trade_log_bridge scheduled (first in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
+# Opportunity Fabric Sprint 1 — exploration wallet daemon. Every 60s
+# checks the exploratory-variant 24h PnL against the DD kill threshold.
+# Disables all exploratory variants on breach (operator-reset required).
+# Default-OFF: does nothing unless SPOT_EXPLORATION_WALLET_USD > 0.
+@app.on_event("startup")
+def _start_spot_aggro_exploration_wallet() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.exploration_wallet import (
+            evaluate as _ew_eval, is_enabled,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("exploration_wallet NOT started (import): %s", exc)
+        return
+    if not is_enabled():
+        _log.info("exploration_wallet disabled (SPOT_EXPLORATION_WALLET_USD unset)")
+        return
+    _INTERVAL_S = 60
+    _FIRST_DELAY_S = 120
+
+    def _tick() -> None:
+        try:
+            r = _ew_eval()
+            if r.get("action") == "killed":
+                _log.warning("[spot_aggro.exploration_wallet] KILL: %s",
+                             r.get("state", {}).get("last_kill_reason", "?"))
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("exploration_wallet tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro exploration_wallet scheduled (first in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
 # Phase 11n-9-qq: Crypto.com read-only comparison-feed daemon. Fetches
 # ticker + top-of-book depth for admitted tier-C symbols every 60s
 # from BOTH OKX and Crypto.com public REST. Writes

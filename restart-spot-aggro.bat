@@ -54,6 +54,15 @@ REM monotonicity per cell. Operator acknowledges Layer 12 residual risk
 REM is held by these downstream guardrails.
 set SIGN_FLIP_COMMIT=phase-11n-9-vv-d5629e26db
 
+REM Opportunity Fabric Sprint 1 — exploration wallet. Hard-separates
+REM R&D capital ($30) from production (~$335). When exploratory
+REM variants (contrarian, deep_value) drop -$5 over a rolling 24h
+REM window, they are disabled until operator reset. Momentum keeps
+REM trading. Default-OFF otherwise — uncomment to activate.
+set SPOT_EXPLORATION_WALLET_USD=30
+set SPOT_EXPLORATION_DD_KILL_USD=5
+set SPOT_EXPLORATION_VARIANTS=contrarian,deep_value
+
 REM Research thresholds stay advisory (11n-2): halt verdicts are tagged
 REM but never flip tier toggles unless you opt in.
 REM  set SPOT_RESEARCH_ENFORCE_HALT=1
