@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-aa-2026-04-20"
+SERVER_BUILD = "phase-11n-9-bb-2026-04-20"
 
 
 @router.get("/build")
@@ -104,6 +104,8 @@ def spot_aggro_build() -> dict[str, Any]:
             "universe_gatekeeper": True,         # Phase 11n-9-aa (auto-admit/deprecate cells)
             "trade_readiness_mechanical": True,  # Phase 11n-9-aa (ready_to_trade flag)
             "start_endpoint_honors_readiness": True,  # Phase 11n-9-aa (409 when not ready)
+            "swarm_prefilter": True,             # Phase 11n-9-bb (LLM cost gate)
+            "llm_cost_telemetry": True,          # Phase 11n-9-bb (/gov/llm_cost_24h)
         },
     }
 
@@ -308,6 +310,81 @@ def spot_aggro_decision_quality_run(
     from spot_aggro.governance.decision_quality_gov import run_once
     v = run_once()
     return {"ok": True, "result": v.to_dict()}
+
+
+# Phase 11n-9-bb — LLM cost telemetry.
+#
+# Reports REAL-pricing estimated cost, not the historical `cost_usd`
+# column (which under-reported by ~400× until this phase's fix).
+# Call count × per-model real price is the operator's authoritative view.
+_REAL_PRICE_PER_CALL = {
+    # Approximate call-volume-weighted avg cost per call given the
+    # swarm's ~500-char prompts + 200-char responses (175 tokens avg):
+    # haiku $1.5/MTok -> $0.000263 per call
+    # opus  $25/MTok  -> $0.00438  per call
+    # gpt-4o-mini $0.30/MTok -> $0.0000525 per call
+    # gemini-flash $0.20/MTok -> $0.000035 per call
+    # mistral-small $0.30/MTok -> $0.0000525 per call
+    # deepseek $0.20/MTok -> $0.000035 per call
+    ("anthropic", "claude-haiku-4-5"):            0.000263,
+    ("anthropic", "claude-opus-4-6"):             0.00438,
+    ("openai",    "gpt-4o-mini"):                 0.0000525,
+    ("gemini",    "gemini-2.5-flash"):            0.000035,
+    ("mistral",   "mistral-small-latest"):        0.0000525,
+    ("openrouter","deepseek/deepseek-chat-v3"):   0.000035,
+}
+
+
+@router.get("/gov/llm_cost_24h")
+def spot_aggro_llm_cost_24h() -> dict[str, Any]:
+    """Aggregate llm_cost over the last 24h. Returns BOTH the stored
+    cost (may be historical / under-reported) and a real-pricing
+    estimate (volume × real per-call cost)."""
+    try:
+        import os, sqlite3, time
+        db = (os.environ.get("TRADE_DB_PATH")
+              or os.environ.get("CLAW_DB_PATH") or "trades.db")
+        con = sqlite3.connect(db)
+        con.row_factory = sqlite3.Row
+        cut = int(time.time() * 1000) - 24 * 3600 * 1000
+        rows = con.execute(
+            "SELECT provider, model, COUNT(*) n,"
+            " SUM(cost_usd) cost_usd,"
+            " AVG(latency_ms) avg_lat"
+            " FROM llm_cost WHERE ts_ms >= ?"
+            " GROUP BY provider, model ORDER BY n DESC", (cut,),
+        ).fetchall()
+        stored_cost = 0.0
+        real_cost = 0.0
+        total_calls = 0
+        per = []
+        for r in rows:
+            key = (r["provider"], r["model"])
+            n = r["n"] or 0
+            real_per_call = _REAL_PRICE_PER_CALL.get(key, 0.0005)
+            row_real = n * real_per_call
+            per.append({
+                "provider": r["provider"], "model": r["model"],
+                "n": n,
+                "stored_cost_usd": round(r["cost_usd"] or 0, 4),
+                "real_cost_usd": round(row_real, 4),
+                "avg_latency_ms": int(r["avg_lat"] or 0),
+            })
+            stored_cost += r["cost_usd"] or 0
+            real_cost += row_real
+            total_calls += n
+        con.close()
+        return {
+            "ok": True,
+            "window_hours": 24,
+            "total_calls": total_calls,
+            "stored_cost_usd": round(stored_cost, 4),
+            "real_cost_usd": round(real_cost, 4),
+            "projected_monthly_usd": round(real_cost * 30, 2),
+            "by_provider_model": per,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
 
 
 # Phase 11n-9-z — Card-Truth Mismatch Detector (M1-M7).

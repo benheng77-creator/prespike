@@ -419,20 +419,30 @@ async def _run_opus_veto(*, symbol: str, conflict: float,
     return mr
 
 
-# Rough per-provider prices as of 2026. Used for telemetry only; authoritative
-# cost is whatever the provider bills. Prices per MTok (input/output averaged).
+# Phase 11n-9-bb — price table corrected to real 2026 list pricing
+# (input + output blended, per 1M tokens). Anthropic API pricing:
+#   haiku-4-5: $1 in / $5 out  -> blend $3/MTok (heavily input-weighted
+#     for our prompts, so use $1.5/MTok as realistic blend).
+#   opus-4-6:  $15 in / $75 out -> blend $25/MTok realistic.
+# OpenAI gpt-4o-mini: $0.15 in / $0.60 out -> blend $0.30/MTok.
+# Gemini 2.5 flash: $0.10 in / $0.40 out -> blend $0.20/MTok.
+# Mistral small: $0.20 in / $0.60 out -> blend $0.30/MTok.
+# DeepSeek v3 via openrouter: $0.14 in / $0.28 out -> blend $0.20/MTok.
+# Prior table was ~400x below billing — operator Anthropic bill confirmed.
 _PRICES = {
-    ("anthropic", "claude-haiku-4-5"):  0.0025,
-    ("openai",    "gpt-4o-mini"):       0.0015,
-    ("gemini",    "gemini-2.5-flash"):  0.0008,
-    ("openrouter","deepseek/deepseek-chat-v3"): 0.0005,
-    ("mistral",   "mistral-small-latest"): 0.0007,
-    ("anthropic", "claude-opus-4-6"):  0.04,
+    ("anthropic", "claude-haiku-4-5"):            1.50,
+    ("openai",    "gpt-4o-mini"):                 0.30,
+    ("gemini",    "gemini-2.5-flash"):            0.20,
+    ("openrouter","deepseek/deepseek-chat-v3"):   0.20,
+    ("mistral",   "mistral-small-latest"):        0.30,
+    ("anthropic", "claude-opus-4-6"):             25.00,
 }
 
 
 def _rough_cost_usd(provider: str, model: str, prompt_chars: int, out_chars: int) -> float:
-    price = _PRICES.get((provider, model), 0.001)
-    # ~4 chars per token heuristic
-    tokens = (prompt_chars + out_chars) / 4 / 1_000_000
-    return price * tokens * 1_000_000 / 1_000_000  # retained for clarity; == price * tokens
+    """Estimate cost in USD given char counts. Price table is USD per
+    1M tokens; we convert chars->tokens via the 4-chars-per-token
+    heuristic used by most tokenizers."""
+    price_per_mtok = _PRICES.get((provider, model), 0.50)
+    tokens = (prompt_chars + out_chars) / 4.0
+    return price_per_mtok * tokens / 1_000_000.0

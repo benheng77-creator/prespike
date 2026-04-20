@@ -419,20 +419,22 @@ async def _run_opus_veto(*, symbol: str, conflict: float,
     return mr
 
 
-# Rough per-provider prices as of 2026. Used for telemetry only; authoritative
-# cost is whatever the provider bills. Prices per MTok (input/output averaged).
+# Phase 11n-9-bb — real 2026 list pricing per 1M tokens (input/output
+# blended). Prior table undercounted by ~400x — operator's Anthropic
+# billing confirmed haiku at ~$1-1.5/MTok and opus at ~$25/MTok.
 _PRICES = {
-    ("anthropic", "claude-haiku-4-5"):  0.0025,
-    ("openai",    "gpt-4o-mini"):       0.0015,
-    ("gemini",    "gemini-2.5-flash"):  0.0008,
-    ("openrouter","deepseek/deepseek-chat-v3"): 0.0005,
-    ("mistral",   "mistral-small-latest"): 0.0007,
-    ("anthropic", "claude-opus-4-6"):  0.04,
+    ("anthropic", "claude-haiku-4-5"):            1.50,
+    ("openai",    "gpt-4o-mini"):                 0.30,
+    ("gemini",    "gemini-2.5-flash"):            0.20,
+    ("openrouter","deepseek/deepseek-chat-v3"):   0.20,
+    ("mistral",   "mistral-small-latest"):        0.30,
+    ("anthropic", "claude-opus-4-6"):             25.00,
 }
 
 
 def _rough_cost_usd(provider: str, model: str, prompt_chars: int, out_chars: int) -> float:
-    price = _PRICES.get((provider, model), 0.001)
-    # ~4 chars per token heuristic
-    tokens = (prompt_chars + out_chars) / 4 / 1_000_000
-    return price * tokens * 1_000_000 / 1_000_000  # retained for clarity; == price * tokens
+    """Estimate cost in USD. Price table is USD per 1M tokens;
+    tokens = chars / 4 (standard tokenizer heuristic)."""
+    price_per_mtok = _PRICES.get((provider, model), 0.50)
+    tokens = (prompt_chars + out_chars) / 4.0
+    return price_per_mtok * tokens / 1_000_000.0

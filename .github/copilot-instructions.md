@@ -24,22 +24,21 @@ Read this file first.
 ## AUTO SNAPSHOT
 - Git: yes
 - Branch: main-clean
-- Dirty files: 14
+- Dirty files: 13
 - Changed:
   -  M .github/copilot-instructions.md
   -  M AGENTS.md
   -  M CLAUDE.md
   -  M GEMINI.md
-  -  M openclaw_v1/server.py
+  -  M deploy/spot-aggro-v2/index.html
+  -  M openclaw_v1/shared/llm/consensus.py
   -  M openclaw_v1/spot_aggro/api/routes.py
   -  M openclaw_v1/spot_aggro/engine.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9p_tab_aware_audit.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9q_apex_purge.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9r_mobile_overlay.py
+  -  M openclaw_v1/spot_aggro/ops/llm/consensus.py
+  -  M openclaw_v1/spot_aggro/swarm/runner.py
   -  M web/ops/index.html
-  - ?? openclaw_v1/spot_aggro/governance/trade_readiness.py
-  - ?? openclaw_v1/spot_aggro/governance/universe_gatekeeper.py
-  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9aa_gatekeeper_readiness.py
+  - ?? openclaw_v1/spot_aggro/swarm/prefilter.py
+  - ?? openclaw_v1/spot_aggro/tests/test_phase11n9bb_swarm_prefilter.py
 - Stack: Node
 - Scripts:
   - npm run android:assemble
@@ -62,14 +61,14 @@ Read this file first.
   -  M AGENTS.md
   -  M CLAUDE.md
   -  M GEMINI.md
-  -  M openclaw_v1/server.py
+  -  M deploy/spot-aggro-v2/index.html
+  -  M openclaw_v1/shared/llm/consensus.py
   -  M openclaw_v1/spot_aggro/api/routes.py
   -  M openclaw_v1/spot_aggro/engine.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9p_tab_aware_audit.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9q_apex_purge.py
-  -  M openclaw_v1/spot_aggro/tests/test_phase11n9r_mobile_overlay.py
+  -  M openclaw_v1/spot_aggro/ops/llm/consensus.py
+  -  M openclaw_v1/spot_aggro/swarm/runner.py
   -  M web/ops/index.html
-  - ?? openclaw_v1/spot_aggro/governance/trade_readiness.py
+  - ?? openclaw_v1/spot_aggro/swarm/prefilter.py
 
 ## MANUAL FOLLOW-UP
 # CURRENT FOLLOW-UP

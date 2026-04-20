@@ -589,6 +589,34 @@ class SpotAggroEngine:
                 if time.time() - self.state.last_blitz_time < BLITZ_COOLDOWN_S:
                     continue
 
+            # Phase 11n-9-bb: swarm prefilter — skip the expensive
+            # 5-LLM consensus unless this coin × tier can actually
+            # trade right now. Cuts API spend ~95% when the admitted
+            # universe is small.
+            from .swarm.prefilter import should_call_llm
+            allow_llm, prefilter_reason = should_call_llm(
+                r["symbol"], layer=f"consensus:{tc.tier}",
+            )
+            if not allow_llm:
+                # Also honor per-tier cell admission specifically (not
+                # just "any tier admitted for this symbol"): the coin
+                # may be admitted on Tier C but the current candidate
+                # is for Tier B, etc.
+                log.debug("swarm consensus skipped %s tier=%s: %s",
+                          r["symbol"], tc.tier, prefilter_reason)
+                continue
+            try:
+                from spot_aggro.governance.universe_gatekeeper import is_cell_admitted
+                cell_key = f"{tc.tier}|{r['symbol']}"
+                if not is_cell_admitted("tier_symbol", cell_key):
+                    log.debug("swarm consensus skipped %s: cell %s not admitted",
+                              r["symbol"], cell_key)
+                    continue
+            except Exception:
+                # Fail-closed on gatekeeper probe error — don't pay
+                # for LLMs when we can't verify admission.
+                continue
+
             # Per-tier LLM consensus (member_count varies by tier)
             ctx = {**r, "ret_24h": 0, "ret_7d": 0, "oi_usd": 0, "oi_change": 0,
                    "spi_fz": r["components"]["fz"], "spi_oi": r["components"]["oi"],
@@ -1159,6 +1187,21 @@ class SpotAggroEngine:
 
         best = rankings[0]
         if best["spi"] < BLITZ_SPI_MIN:
+            return
+
+        # Phase 11n-9-bb: swarm prefilter (BLITZ).
+        try:
+            from .swarm.prefilter import should_call_llm
+            from spot_aggro.governance.universe_gatekeeper import is_cell_admitted
+            allow_llm, reason = should_call_llm(best["symbol"], layer="blitz")
+            if not allow_llm:
+                log.info("BLITZ consensus skipped: %s", reason)
+                return
+            if not is_cell_admitted("tier_symbol", f"A+|{best['symbol']}"):
+                log.info("BLITZ consensus skipped: A+|%s not admitted",
+                         best["symbol"])
+                return
+        except Exception:
             return
 
         # Tighter consensus for BLITZ

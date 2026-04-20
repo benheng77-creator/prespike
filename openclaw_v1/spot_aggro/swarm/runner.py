@@ -238,17 +238,39 @@ async def run_coin_analysis(
 # ---------------------------------------------------------------------------
 
 async def _run_heavy(engine_ref: Any) -> None:
-    """Full universe deep analysis. 4x/day."""
+    """Full universe deep analysis. 4x/day.
+
+    Phase 11n-9-bb: prefilter to admitted-universe only. When only
+    ENA + DOT are admitted (seed state), the HEAVY layer drops from
+    ~40 coins × 5 LLMs = 200 calls/run to 2 × 5 = 10 calls/run.
+    """
     from ..research.runner import get_mio
+    from .prefilter import filter_coin_list
     mio = get_mio()
     rankings = getattr(engine_ref, '_rank_cache', []) or []
     positions = engine_ref.state.positions
+    # Always keep the original rank map so CI downstream can consult it
+    rank_by_sym = {r.get("symbol"): i + 1 for i, r in enumerate(rankings)}
+    # Prefilter out coins with no admitted tier (keeps currently-held
+    # positions because the engine may still need to act on those).
+    held_syms = set(positions)
+    cost_gated, n_skipped = filter_coin_list(rankings, layer="heavy")
+    # Rescue currently-held positions even if gatekeeper demoted them —
+    # we still need exit intelligence.
+    admitted_set = {c.get("symbol") for c in cost_gated}
+    for sym in held_syms:
+        if sym not in admitted_set:
+            for r in rankings:
+                if r.get("symbol") == sym:
+                    cost_gated.append(r)
+                    break
 
-    log.info("swarm HEAVY: analyzing %d coins", len(rankings))
-    for i, coin in enumerate(rankings):
+    log.info("swarm HEAVY: analyzing %d coins (skipped %d by prefilter)",
+             len(cost_gated), n_skipped)
+    for coin in cost_gated:
         sym = coin.get("symbol", "?")
         ci = await run_coin_analysis(coin, mio, "heavy", has_position=sym in positions)
-        ci.rank = i + 1
+        ci.rank = rank_by_sym.get(sym, 0)
 
     # Update fast watchlist (top 5 by buy_confidence)
     with _lock:
@@ -261,18 +283,32 @@ async def _run_heavy(engine_ref: Any) -> None:
 
 
 async def _run_standard(engine_ref: Any) -> None:
-    """Top 10 re-scoring. Every 10 min."""
+    """Top 10 re-scoring. Every 10 min.
+
+    Phase 11n-9-bb: admitted-universe prefilter (plus held positions).
+    """
     from ..research.runner import get_mio
+    from .prefilter import filter_coin_list
     mio = get_mio()
     rankings = getattr(engine_ref, '_rank_cache', []) or []
     positions = engine_ref.state.positions
     coins = rankings[:STANDARD_UNIVERSE_SIZE]
+    rank_by_sym = {c.get("symbol"): i + 1 for i, c in enumerate(coins)}
+    cost_gated, n_skipped = filter_coin_list(coins, layer="standard")
+    admitted_set = {c.get("symbol") for c in cost_gated}
+    for sym in positions:
+        if sym not in admitted_set:
+            for c in coins:
+                if c.get("symbol") == sym:
+                    cost_gated.append(c)
+                    break
 
-    log.info("swarm STANDARD: scoring %d coins", len(coins))
-    for i, coin in enumerate(coins):
+    log.info("swarm STANDARD: scoring %d coins (skipped %d by prefilter)",
+             len(cost_gated), n_skipped)
+    for coin in cost_gated:
         sym = coin.get("symbol", "?")
         ci = await run_coin_analysis(coin, mio, "standard", has_position=sym in positions)
-        ci.rank = i + 1
+        ci.rank = rank_by_sym.get(sym, 0)
 
     with _lock:
         _state.last_standard_ts = time.time()
@@ -303,8 +339,22 @@ async def _run_fast(engine_ref: Any) -> None:
     if not coins:
         return
 
-    log.debug("swarm FAST: %d coins %s", len(coins), [c["symbol"] for c in coins])
-    for coin in coins:
+    # Phase 11n-9-bb: prefilter — FAST is the highest-frequency layer
+    # (every 2 min = 720x/day). 95% cost cut lives here.
+    from .prefilter import filter_coin_list
+    cost_gated, n_skipped = filter_coin_list(coins, layer="fast")
+    admitted_set = {c.get("symbol") for c in cost_gated}
+    for sym in positions:
+        if sym not in admitted_set and sym in rmap:
+            cost_gated.append(rmap[sym])
+
+    if not cost_gated:
+        log.debug("swarm FAST: no admitted coins in watchlist, skip cycle")
+        return
+
+    log.debug("swarm FAST: %d coins (skipped %d by prefilter)",
+              len(cost_gated), n_skipped)
+    for coin in cost_gated:
         sym = coin.get("symbol", "?")
         await run_coin_analysis(coin, mio, "fast", has_position=sym in positions)
 
