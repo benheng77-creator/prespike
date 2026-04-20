@@ -52,8 +52,13 @@ from typing import Any
 # Contrarian admits when the control score is in the bottom quartile of
 # its range. Control gate is 0.70; contrarian gate admits scores <= 0.30.
 CONTRARIAN_MAX_SCORE = 0.30
+# Phase 11n-9-ii option-D (high-risk thin-book mode): contrarian can
+# admit coins with very thin books. Slippage risk is real but bounded
+# by the $50 total-exposure cap + $10 live-DD kill.
+CONTRARIAN_MIN_DEPTH_USD = 1_000.0
+CONTRARIAN_MAX_SPREAD_BP = 30.0
 
-# Mean-reversion thresholds.
+# Mean-reversion thresholds (kept at safer defaults).
 MR_FUNDING_Z_MAX = -1.0          # fz <= -1.0 (deep negative squeeze)
 MR_24H_RETURN_MAX = -0.08        # 24h return <= -8%
 MR_MIN_DEPTH_USD = 200_000.0     # liquidity floor
@@ -111,9 +116,15 @@ def evaluate_contrarian(coin: dict[str, Any], mio: Any) -> VariantDecision:
         )
     # Contrarian passes when control's composite is bottom-quartile.
     # Liquidity + spread floors still apply so we don't buy dust.
+    # Phase-ii option-D: contrarian has its own loose floors
+    # (CONTRARIAN_MIN_DEPTH_USD=$1k, CONTRARIAN_MAX_SPREAD_BP=30bp) —
+    # independent of mean_reversion's safer $200k/15bp.
     depth = float(coin.get("depth_usd", 0) or 0)
     spread = float(coin.get("spread_bp", 999) or 999)
-    liquid = depth >= MR_MIN_DEPTH_USD and spread <= MR_MAX_SPREAD_BP
+    liquid = (
+        depth >= CONTRARIAN_MIN_DEPTH_USD
+        and spread <= CONTRARIAN_MAX_SPREAD_BP
+    )
     passed = (s <= CONTRARIAN_MAX_SCORE) and liquid
     reason_bits = [f"composite={s:.3f}"]
     if s > CONTRARIAN_MAX_SCORE:
@@ -134,6 +145,8 @@ def evaluate_contrarian(coin: dict[str, Any], mio: Any) -> VariantDecision:
             "depth_usd": depth,
             "spread_bp": spread,
             "gate": CONTRARIAN_MAX_SCORE,
+            "min_depth_usd": CONTRARIAN_MIN_DEPTH_USD,
+            "max_spread_bp": CONTRARIAN_MAX_SPREAD_BP,
         },
     )
 
@@ -220,8 +233,12 @@ def evaluate_mean_reversion(coin: dict[str, Any], mio: Any) -> VariantDecision:
 # Score = WR × depth_strength × drawdown_strength. Higher = stronger admit.
 # ---------------------------------------------------------------------------
 
-DV_MIN_WR = 0.55
-DV_MIN_EXITS = 3
+# Phase 11n-9-ii follow-up (high-risk mode): loosened from 55%/3-exits
+# to 45%/2-exits so sparse research-agent data actually produces admits.
+# Trade-off: higher false-positive rate. Mitigated by $50 exposure cap +
+# $10 live-DD kill.
+DV_MIN_WR = 0.45
+DV_MIN_EXITS = 2
 DV_MIN_7D_RET = -0.30
 DV_MAX_7D_RET = -0.03
 DV_MAX_FUNDING_Z = 0.0

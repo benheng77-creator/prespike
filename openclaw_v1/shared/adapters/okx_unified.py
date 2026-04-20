@@ -279,9 +279,15 @@ class OKXUnified:
         usdt = bal.get("USDT") or {}
         return float(usdt.get("free") or 0)
 
-    async def get_spot_holdings(self) -> dict[str, float]:
-        """All non-USDT coin balances with positive amount. Key = base coin
-        (e.g. 'TIA'), value = total quantity. Used by reconciliation."""
+    async def get_spot_holdings(self, *, min_usd: float = 1.0) -> dict[str, float]:
+        """All non-USDT coin balances worth at least `min_usd`. Key = base
+        coin (e.g. 'TIA'), value = total quantity. Used by reconciliation.
+
+        Phase 11n-9-ii follow-up: `min_usd` filters out sub-$1 dust left
+        over from post-market-sell rounding. Without this floor, dust
+        amounts (e.g. 0.00008 ENA) hydrate as ghost positions at engine
+        boot and occupy MAX_POSITIONS slots, blocking new entries.
+        """
         bal = await asyncio.to_thread(self._client.fetch_balance)
         total = bal.get("total") or {}
         out: dict[str, float] = {}
@@ -292,8 +298,22 @@ class OKXUnified:
                 q = float(v or 0)
             except (TypeError, ValueError):
                 continue
-            if q > 0:
-                out[k] = q
+            if q <= 0:
+                continue
+            if min_usd > 0:
+                # Spot-check current price to filter dust. Failures
+                # default to including the coin (fail-safe for real
+                # holdings whose ticker probe transiently fails).
+                try:
+                    t = await asyncio.to_thread(
+                        self._client.fetch_ticker, f"{k}/USDT"
+                    )
+                    px = float(t.get("last") or 0)
+                    if px > 0 and q * px < min_usd:
+                        continue
+                except Exception:
+                    pass
+            out[k] = q
         return out
 
     async def get_spot_fills(self, symbol: str, *, limit: int = 200) -> list[dict[str, Any]]:
@@ -336,6 +356,100 @@ class OKXUnified:
     # ------------------------------------------------------------------
     # Order placement
     # ------------------------------------------------------------------
+
+    async def place_market_verified(
+        self,
+        *,
+        symbol: str,
+        side: str,                 # "buy" | "sell"
+        notional_usd: float,
+        reference_price: float,
+        leg: str,                  # "perp" | "spot"
+        idempotency_seed: str,
+        poll_attempts: int = 4,
+        poll_interval_s: float = 0.5,
+    ) -> OrderReceipt:
+        """Phase 11n-9-jj — market-order placement with fill verification.
+
+        Submits a real market order and polls fetch_order until the
+        order is either filled or timed out (~2s). Returns a receipt
+        whose `filled_qty` reflects the ACTUAL executed quantity, not
+        the requested. This prevents the silent phantom-position bug
+        where place_post_only returned ok=True with zero fills.
+
+        Slippage is real and not bounded — the caller's execution-
+        integrity check (±15bp price tolerance) already screens for
+        catastrophic reference-price drift BEFORE submission. For
+        typical tier-C coin + $5 notional, slippage is 1-5bp.
+        """
+        if side not in ("buy", "sell"):
+            raise ValueError(f"side must be buy|sell, got {side!r}")
+        instr = self._perp_for(symbol) if leg == "perp" else self._spot_for(symbol)
+        td_mode = "cash" if leg == "spot" else self._okx_cfg.get("td_mode", "cross")
+        cl_ord_id = self._mk_cl_ord_id(idempotency_seed)
+        qty = notional_usd / max(reference_price, 1e-9)
+        params = {"tdMode": td_mode, "clOrdId": cl_ord_id}
+        # OKX spot BUY market orders are quote-denominated (USDT), sells are base.
+        if side == "buy" and leg == "spot":
+            # ccxt-okx wants tgtCcy=quote_ccy for buy-side market orders to
+            # interpret `amount` as USDT notional. Without this, OKX errors
+            # 51008 or rejects the order.
+            params["tgtCcy"] = "quote_ccy"
+            submit_amt = notional_usd     # USDT
+        else:
+            submit_amt = qty              # base currency quantity
+        try:
+            order = await asyncio.to_thread(
+                self._client.create_order,
+                instr, "market", side, submit_amt, None, params,
+            )
+        except Exception as exc:
+            return OrderReceipt(
+                ok=False, order_id=None, cl_ord_id=cl_ord_id,
+                filled_qty=0.0, avg_px=0.0,
+                side=side, symbol=instr,
+                notional_usd=notional_usd, fee_usd=0.0,
+                raw={}, error=f"submit_failed: {str(exc)[:160]}",
+            )
+        order_id = str(order.get("id") or "")
+
+        # Poll for completion. Market orders usually fill in 200-800 ms.
+        filled_qty = float(order.get("filled") or 0)
+        avg_px = float(order.get("average") or 0) or reference_price
+        status = order.get("status", "open")
+        for attempt in range(poll_attempts):
+            if status in ("closed", "canceled") and filled_qty > 0:
+                break
+            await asyncio.sleep(poll_interval_s)
+            try:
+                fresh = await asyncio.to_thread(
+                    self._client.fetch_order, order_id, instr,
+                )
+                filled_qty = float(fresh.get("filled") or filled_qty)
+                avg_px = float(fresh.get("average") or avg_px)
+                status = fresh.get("status", status)
+                order = fresh
+            except Exception:
+                continue
+
+        fee_usd = self._extract_fee(order)
+        if filled_qty <= 0:
+            return OrderReceipt(
+                ok=False, order_id=order_id, cl_ord_id=cl_ord_id,
+                filled_qty=0.0, avg_px=avg_px,
+                side=side, symbol=instr,
+                notional_usd=notional_usd, fee_usd=fee_usd,
+                raw=order,
+                error=f"zero_fill_after_{poll_attempts * poll_interval_s:.1f}s_status={status}",
+            )
+        return OrderReceipt(
+            ok=True, order_id=order_id, cl_ord_id=cl_ord_id,
+            filled_qty=filled_qty, avg_px=avg_px,
+            side=side, symbol=instr,
+            notional_usd=filled_qty * avg_px,
+            fee_usd=fee_usd, raw=order,
+        )
+
 
     async def place_post_only(
         self,

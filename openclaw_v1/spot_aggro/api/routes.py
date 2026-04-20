@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-ii-2026-04-20"
+SERVER_BUILD = "phase-11n-9-jj-2026-04-20"
 
 
 @router.get("/build")
@@ -130,6 +130,7 @@ def spot_aggro_build() -> dict[str, Any]:
             "deep_value_variant": True,           # Phase 11n-9-ii (WR>=55% filter)
             "live_exposure_cap_50usd": True,      # Phase 11n-9-ii ($50 total exposure cap)
             "live_dd_kill_10usd": True,           # Phase 11n-9-ii (-$10 session DD auto-halt)
+            "market_verified_fills": True,        # Phase 11n-9-jj (poll fetch_order until filled; fixes phantom positions)
         },
     }
 
@@ -942,6 +943,55 @@ def spot_aggro_start(
         "ok": True, "engine": "spot_aggro",
         "forced": bool(force), "dry_run": _dry,
     }
+
+
+# Phase 11n-9-ii — emergency close-all. Used when transitioning from
+# inherited-positions state into a clean-slate live run. Admin-only.
+# Uses the engine's _close_position which honors dry_run; in LIVE mode
+# this sends real OKX sells.
+@router.post("/positions/close_all")
+def spot_aggro_positions_close_all(
+    reason: str = Query("operator_close_all", description="Audit reason"),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_admin(x_ops_token)
+    try:
+        from spot_aggro import _engine_instance
+        if _engine_instance is None:
+            return {"ok": False, "error": "engine_not_started",
+                    "closed": []}
+        # Snapshot symbols so we don't mutate while iterating.
+        syms = list(_engine_instance.state.positions.keys())
+        if not syms:
+            return {"ok": True, "closed": [], "note": "no open positions"}
+        # Schedule closures on the engine's asyncio loop so OKX calls
+        # happen in the correct thread. Best-effort fire-and-forget;
+        # we return the list of intents. Each close logs + persists.
+        import asyncio
+        import threading
+        results: dict[str, str] = {}
+
+        def _run_closures() -> None:
+            async def _do() -> None:
+                for sym in syms:
+                    try:
+                        await _engine_instance._close_position(sym, reason)
+                        results[sym] = "closed"
+                    except Exception as e:  # noqa: BLE001
+                        results[sym] = f"error: {str(e)[:80]}"
+            asyncio.run(_do())
+
+        t = threading.Thread(target=_run_closures, name="spot-close-all", daemon=True)
+        t.start()
+        t.join(timeout=30.0)
+        return {
+            "ok": True,
+            "requested": syms,
+            "results": results,
+            "reason": reason,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
 
 
 @router.post("/stop")

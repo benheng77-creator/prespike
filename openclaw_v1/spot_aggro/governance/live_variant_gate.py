@@ -29,10 +29,21 @@ from __future__ import annotations
 
 import logging
 import os
+import time as _time
 from dataclasses import asdict, dataclass
 from typing import Any
 
 log = logging.getLogger(__name__)
+
+# Phase 11n-9-ii — session anchor. Record the ms-epoch when this
+# module is first imported (= server boot). _live_session_pnl_usd
+# only counts trade_log exits with ts_ms >= this anchor so historical
+# PnL from prior sessions doesn't bleed into the live DD kill.
+_SESSION_ANCHOR_MS: int = int(_time.time() * 1000)
+
+
+def session_anchor_ms() -> int:
+    return _SESSION_ANCHOR_MS
 
 
 @dataclass
@@ -86,8 +97,9 @@ def _current_exposure_usd() -> float:
 
 
 def _live_session_pnl_usd() -> float:
-    """Sum of realized PnL on live-mode exits since server boot.
-    Signed: negative = loss."""
+    """Sum of realized PnL on live-mode exits since THIS process boot.
+    Anchored at module-import time so historical losses from prior
+    sessions never trigger the live DD kill. Signed: negative = loss."""
     try:
         from spot_aggro.ops.persistence.state import _connect, init_schema
         init_schema()
@@ -95,7 +107,8 @@ def _live_session_pnl_usd() -> float:
         try:
             r = con.execute(
                 "SELECT COALESCE(SUM(pnl_usd), 0) AS p"
-                " FROM trade_log WHERE action='exit'"
+                " FROM trade_log WHERE action='exit' AND ts_ms >= ?",
+                (_SESSION_ANCHOR_MS,),
             ).fetchone()
         finally:
             con.close()

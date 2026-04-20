@@ -858,6 +858,8 @@ class SpotAggroEngine:
             # OR-logic across the named variants + enforces $50 total
             # exposure cap + $10 live-session-DD kill. In paper mode
             # the gate is advisory only.
+            _lv_admitted = False
+            _lv_admitting_variant: str | None = None
             try:
                 from spot_aggro.governance import live_variant_gate as _lvg
                 if _lvg.live_variants_active() and not self.dry_run:
@@ -877,9 +879,11 @@ class SpotAggroEngine:
                         except Exception:
                             pass
                         continue
+                    _lv_admitted = True
+                    _lv_admitting_variant = _lv_verdict.admitting_variant
                     log.info(
                         "live variant admit: %s (%s) size=$%.2f",
-                        r["symbol"], _lv_verdict.admitting_variant, size,
+                        r["symbol"], _lv_admitting_variant, size,
                     )
             except Exception as _lvg_err:  # noqa: BLE001
                 log.warning(
@@ -918,16 +922,43 @@ class SpotAggroEngine:
                         _tw_err,
                     )
                 if not authz.passed:
-                    try:
-                        _emit_trade(
-                            "skip", symbol=r["symbol"], tier=tc.tier,
-                            module=tc.module, notional_usd=size,
-                            reason=f"pre_trade_gov_block:{authz.rejection_reason}",
-                            composite=r.get("composite"), spi=r.get("spi"),
+                    # Phase 11n-9-ii option-G: when live_variant_gate already
+                    # admitted (contrarian/deep_value), bypass Layer 8 pre-
+                    # trade reject. Contrarian's thesis directly contradicts
+                    # Layer 8's projected-WR gate — a coin with 38% WR is
+                    # EXACTLY what contrarian wants. Live_variant_gate has
+                    # already enforced $50 cap + $10 DD kill + kill-ladder.
+                    # Layer 8 still records the authz for audit trail; we
+                    # just don't act on its reject verdict.
+                    if _lv_admitted:
+                        try:
+                            _emit_trade(
+                                "bypass_L8", symbol=r["symbol"], tier=tc.tier,
+                                module=tc.module, notional_usd=size,
+                                reason=(
+                                    f"live_variant_gate_admit:{_lv_admitting_variant}"
+                                    f"|L8_override:{(authz.rejection_reason or 'unknown')[:40]}"
+                                )[:120],
+                                composite=r.get("composite"), spi=r.get("spi"),
+                            )
+                        except Exception:
+                            pass
+                        log.warning(
+                            "option-G L8 BYPASS: %s (variant=%s, L8_reason=%s) size=$%.2f",
+                            r["symbol"], _lv_admitting_variant,
+                            (authz.rejection_reason or "?")[:40], size,
                         )
-                    except Exception:
-                        pass
-                    continue
+                    else:
+                        try:
+                            _emit_trade(
+                                "skip", symbol=r["symbol"], tier=tc.tier,
+                                module=tc.module, notional_usd=size,
+                                reason=f"pre_trade_gov_block:{authz.rejection_reason}",
+                                composite=r.get("composite"), spi=r.get("spi"),
+                            )
+                        except Exception:
+                            pass
+                        continue
             except Exception:  # noqa: BLE001
                 # If the governor itself errors, fail CLOSED: skip the
                 # trade. Never default to letting trades through on a
@@ -980,10 +1011,14 @@ class SpotAggroEngine:
 
             # Place spot buy. Phase 11n-9-hh follow-up: in dry_run (paper)
             # mode we synthesize an OK fill receipt here instead of
-            # calling the real adapter. That way the heartbeat runs end-
-            # to-end — rankings, authz, shadow rows, position bookkeeping
-            # — with zero real capital at risk. The exit path also checks
-            # self.dry_run and skips the exchange sell call.
+            # calling the real adapter.
+            #
+            # Phase 11n-9-jj — when live_variant_gate has admitted, we
+            # route through place_market_verified instead of
+            # place_post_only. Post-only returned ok=True on orders
+            # that sat in the book unfilled, creating phantom positions.
+            # The verified path polls for actual fill before returning
+            # ok=True, so position state tracks OKX reality.
             if self.dry_run:
                 from shared.adapters.okx_unified import OrderReceipt as _OR
                 receipt = _OR(
@@ -998,6 +1033,13 @@ class SpotAggroEngine:
                     fee_usd=0.0,
                     raw={"paper": True},
                     error=None,
+                )
+            elif _lv_admitted:
+                # Live + variant-gate admit → verified market order.
+                receipt = await adapter.place_market_verified(
+                    symbol=r["symbol"], side="buy", notional_usd=size,
+                    reference_price=r["price"], leg="spot",
+                    idempotency_seed=f"sajj:{r['symbol']}:{int(time.time()//60)}",
                 )
             else:
                 receipt = await adapter.place_post_only(

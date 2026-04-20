@@ -64,7 +64,8 @@ def test_strategy_variants_public_surface():
         "VariantDecision", "VARIANT_NAMES",
     ):
         assert hasattr(sv, name), f"strategy_variants missing {name}"
-    assert set(sv.VARIANT_NAMES) == {"control", "contrarian", "mean_reversion"}
+    # Phase 11n-9-ii may add deep_value. Core 3 must always be present.
+    assert {"control", "contrarian", "mean_reversion"}.issubset(set(sv.VARIANT_NAMES))
 
 
 def test_variant_decision_shape():
@@ -74,9 +75,11 @@ def test_variant_decision_shape():
          "depth_usd": 500_000, "spread_bp": 5, "return_24h": 0.0},
         _FakeMio(),
     )
-    assert len(decisions) == 3
+    assert len(decisions) >= 3
     for d in decisions:
-        assert d.variant in ("control", "contrarian", "mean_reversion")
+        assert d.variant in (
+            "control", "contrarian", "mean_reversion", "deep_value",
+        )
         assert isinstance(d.passed, bool)
         assert isinstance(d.score, float)
         assert isinstance(d.reason, str)
@@ -114,9 +117,11 @@ def test_contrarian_accepts_low_score_liquid_coin():
 
 
 def test_contrarian_rejects_illiquid_even_if_low_score():
+    # Phase 11n-9-ii option-D loosened contrarian depth floor to $1k;
+    # test updated to use a dust-level depth that still fails.
     from spot_aggro.governance.strategy_variants import evaluate_contrarian
     coin = {"symbol": "Z-USDT", "spi": 0.05, "funding_z": 1.5,
-            "depth_usd": 50_000, "spread_bp": 5}  # below $200k liquidity floor
+            "depth_usd": 500, "spread_bp": 5}  # below $1k liquidity floor
     d = evaluate_contrarian(coin, _FakeMio())
     assert d.passed is False
     assert "illiquid" in d.reason
@@ -178,7 +183,7 @@ def test_record_authz_writes_three_variant_rows(_isolated_db):
               "spread_bp": 5, "return_24h": -0.10},
         mio=_FakeMio(),
     )
-    assert n == 3
+    assert n >= 3
     con = _connect()
     try:
         rows = con.execute(
@@ -188,7 +193,7 @@ def test_record_authz_writes_three_variant_rows(_isolated_db):
     finally:
         con.close()
     variants = {r["variant"] for r in rows}
-    assert variants == {"control", "contrarian", "mean_reversion"}
+    assert {"control", "contrarian", "mean_reversion"}.issubset(variants)
 
 
 # ---------------------------------------------------------------------------
@@ -238,9 +243,9 @@ def test_record_exit_mirrors_only_admitted_variants(_isolated_db):
 def test_evaluate_returns_three_standings(_isolated_db):
     from spot_aggro.governance.three_way_shadow import evaluate
     v = evaluate()
-    assert len(v.standings) == 3
+    assert len(v.standings) >= 3
     names = {s.variant for s in v.standings}
-    assert names == {"control", "contrarian", "mean_reversion"}
+    assert {"control", "contrarian", "mean_reversion"}.issubset(names)
     assert v.promotion_verdict in ("insufficient", "racing", "promote")
 
 
