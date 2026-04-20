@@ -1106,6 +1106,70 @@ def cdv_entry_provenance(
     }
 
 
+@router.get("/fractal_regime")
+def cdv_fractal_regime(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 4 — fractal regime confirmation state.
+
+    Returns the three scale readings (1m, 5m, 1h) + agreement verdict.
+    When SPOT_FRACTAL_REGIME_GATE=1, disagreement blocks admission;
+    when off, it's advisory.
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import fractal_regime as fr
+    except Exception as e:
+        return {"ok": False, "error": f"fractal_regime import: {str(e)[:200]}"}
+    v = fr.evaluate()
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "verdict": v.to_dict(),
+    }
+
+
+@router.get("/policy_bank")
+def cdv_policy_bank(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 7 — policy bank tier summary."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import policy_bank as pb
+    except Exception as e:
+        return {"ok": False, "error": f"policy_bank import: {str(e)[:200]}"}
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "summary": pb.summary(),
+        "events": pb.events_recent(limit=20),
+    }
+
+
+@router.post("/policy_bank/assign")
+def cdv_policy_bank_assign(
+    variant: str = Query(...),
+    tier: str = Query(...),
+    rationale: str = Query(...),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Operator-triggered tier assignment. Admin-only."""
+    _require_admin(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import policy_bank as pb
+    except Exception as e:
+        return {"ok": False, "error": f"policy_bank import: {str(e)[:200]}"}
+    return pb.assign(variant=variant, tier=tier,
+                     actor=(x_cdv_role or "operator"),
+                     rationale=rationale)
+
+
 @router.get("/counterfactual_replay")
 def cdv_counterfactual_replay(
     policy: str | None = Query(None),

@@ -354,6 +354,62 @@ def evaluate(
                 },
             )
 
+    # Opportunity Fabric Sprint 4 — fractal regime confirmation.
+    # When SPOT_FRACTAL_REGIME_GATE=1, require >=2 of 3 scales (1m/5m/1h)
+    # to agree on regime sign before admission. Block on disagreement.
+    # Failure in the module must NOT block admission — fail-open.
+    try:
+        from spot_aggro.governance.fractal_regime import (
+            evaluate as _fractal_eval, gate_enabled as _fractal_on,
+        )
+        if _fractal_on():
+            fv = _fractal_eval()
+            if not fv.admit_recommended:
+                return LiveVariantVerdict(
+                    ok=False,
+                    reason=(
+                        f"fractal_regime_disagreement "
+                        f"1m={fv.readings[0].sign} 5m={fv.readings[1].sign} "
+                        f"1h={fv.readings[2].sign}"
+                    ),
+                    evidence={
+                        "fractal_verdict": fv.to_dict(),
+                        "variant": admitting.variant,
+                    },
+                )
+    except Exception:
+        pass
+
+    # Opportunity Fabric Sprint 7 — policy-bank-routed exploration wallet.
+    # When a tier='exploratory' variant admits and the exploration wallet
+    # is disabled (24h DD tripped), block here with a specific rejection
+    # reason. Conservative/baseline variants bypass this check.
+    try:
+        from spot_aggro.governance.policy_bank import tier_for as _tier_for
+        from spot_aggro.governance.exploration_wallet import (
+            is_enabled as _ew_on, state as _ew_state,
+        )
+        variant_tier = _tier_for(admitting.variant).tier
+        if variant_tier == "exploratory" and _ew_on():
+            wst = _ew_state()
+            if wst.disabled:
+                return LiveVariantVerdict(
+                    ok=False,
+                    reason=(
+                        f"exploration_wallet_disabled "
+                        f"{admitting.variant}[{variant_tier}] "
+                        f"pnl_24h=${wst.pnl_24h_usd:.2f} reason={wst.last_kill_reason or '?'}"
+                    ),
+                    evidence={
+                        "variant": admitting.variant,
+                        "variant_tier": variant_tier,
+                        "wallet_disabled": True,
+                        "pnl_24h_usd": wst.pnl_24h_usd,
+                    },
+                )
+    except Exception:
+        pass
+
     # Phase 11n-9-oo — ensemble meta gate (U1-U4) applied on top
     # of variant admit. Can block even when a variant passed.
     try:

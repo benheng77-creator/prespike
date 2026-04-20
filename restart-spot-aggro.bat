@@ -72,6 +72,22 @@ set SPOT_EXEC_SLO_GATE=1
 set SPOT_EXEC_SLO_SLIPPAGE_BP=10
 set SPOT_EXEC_SLO_FILL_RATE=0.95
 
+REM Opportunity Fabric Sprint 4 — fractal regime confirmation gate.
+REM Require >=2 of 3 scales (1m/5m/1h) to agree on regime sign before
+REM admission. Disagreement blocks admission when gate is ON.
+set SPOT_FRACTAL_REGIME_GATE=1
+
+REM Opportunity Fabric Sprint 7 — policy bank tiering. Metadata layer
+REM assigning each variant to conservative/exploratory/baseline.
+REM Exploratory variants (contrarian, deep_value) route through the
+REM exploration wallet — if the wallet's 24h PnL breaches the DD kill,
+REM those variants are blocked at admission with
+REM reason=exploration_wallet_disabled. No env needed; default
+REM assignments in policy_bank.DEFAULT_TIERS are:
+REM   contrarian, deep_value -> exploratory
+REM   momentum               -> conservative
+REM   mean_reversion, control -> baseline (paper-only)
+
 REM Research thresholds stay advisory (11n-2): halt verdicts are tagged
 REM but never flip tier toggles unless you opt in.
 REM  set SPOT_RESEARCH_ENFORCE_HALT=1
