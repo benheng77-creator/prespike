@@ -580,6 +580,49 @@ def cdv_freeze_new_entries(
         return {"ok": False, "error": str(exc)[:200]}
 
 
+@router.get("/exchange_quality")
+def cdv_exchange_quality(
+    window_min: int = Query(1440, ge=5, le=4320),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Phase 11n-9-uu Option 1 — rolling data-quality audit for
+    OKX + Crypto.com. Measures uptime, stale-quote ratio, depth,
+    drift percentiles, and tradability score per symbol."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance.exchange_data_quality import generate_report
+        rpt = generate_report(window_min=window_min)
+        return {"ok": True, "strategy": CDV_STRATEGY_NAMESPACE,
+                "report": rpt.to_dict()}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/integration_trigger")
+def cdv_integration_trigger(
+    window_min: int = Query(1440, ge=5, le=4320),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Phase 11n-9-uu Option 2 — integration-trigger verdict.
+    none | watching | actionable based on CDC-value-evidence signals."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance.integration_trigger import (
+            compute_verdict, latest_signals,
+        )
+        v = compute_verdict(window_min=window_min)
+        return {
+            "ok": True,
+            "strategy": CDV_STRATEGY_NAMESPACE,
+            "verdict": v.to_dict(),
+            "recent_signals": latest_signals(limit=20),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
 @router.get("/system_activity")
 def cdv_system_activity(
     x_cdv_role: str | None = Header(default=None),

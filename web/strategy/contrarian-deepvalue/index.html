@@ -392,6 +392,46 @@
     </div>
   </section>
 
+  <!-- SECTION 8.4 — Exchange Intelligence (phase-uu: CDC audit + integration trigger) -->
+  <section class="section" id="sec-xintel">
+    <div class="section-header">
+      <h2 class="section-title">Exchange Intelligence</h2>
+      <span class="section-hint">Crypto.com reliability · integration trigger</span>
+    </div>
+    <div class="section-body">
+      <div id="xi-verdict" style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;margin-bottom:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px">
+        <span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em">Integration Verdict</span>
+        <span id="xi-verdict-val" class="pill muted">—</span>
+      </div>
+      <div id="xi-reason" style="font-size:12px;color:var(--ink-2);margin-bottom:14px">loading…</div>
+
+      <div class="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:14px">
+        <div class="kpi-tile"><div class="kpi-label">Signals 24h</div><div class="kpi-value" id="xi-signals">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Integratable</div><div class="kpi-value pos" id="xi-integratable">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Watch</div><div class="kpi-value warn" id="xi-watch">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Unfit</div><div class="kpi-value muted" id="xi-unfit">—</div></div>
+      </div>
+
+      <div class="kpi-label" style="margin-bottom:6px">Top symbols by tradability</div>
+      <table class="data" id="xi-table">
+        <thead><tr>
+          <th>Symbol</th>
+          <th class="num-r">Drift p90</th>
+          <th class="num-r">Drift p99</th>
+          <th class="num-r">Depth CDC/OKX</th>
+          <th class="num-r">Score</th>
+          <th>Verdict</th>
+        </tr></thead>
+        <tbody id="xi-tbody"><tr><td colspan="6" style="text-align:center;color:var(--ink-3);padding:14px">awaiting first audit cycle…</td></tr></tbody>
+      </table>
+
+      <div class="kpi-label" style="margin-top:14px;margin-bottom:6px">Recent integration signals</div>
+      <table class="data">
+        <tbody id="xi-signals-body"><tr><td style="color:var(--ink-3)">—</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- SECTION 8.5 — System Activity (what the system is doing right now) -->
   <section class="section" id="sec-activity">
     <div class="section-header">
@@ -645,6 +685,80 @@
       </tr>`).join('');
   }
 
+  async function fetchXIntel() {
+    const verdictEl = document.getElementById("xi-verdict-val");
+    const reasonEl = document.getElementById("xi-reason");
+    const tbody = document.getElementById("xi-tbody");
+    const sigBody = document.getElementById("xi-signals-body");
+    try {
+      const [qRes, tRes] = await Promise.all([
+        fetch(`${API_BASE}/strategy/contrarian_deepvalue/exchange_quality?window_min=1440`, {
+          cache: "no-store",
+          headers: { "X-CDV-Role": ROLE || "strategy:contrarian_deepvalue_viewer", "X-Ops-Token": OPS },
+        }).then(r => r.json()).catch(() => null),
+        fetch(`${API_BASE}/strategy/contrarian_deepvalue/integration_trigger?window_min=1440`, {
+          cache: "no-store",
+          headers: { "X-CDV-Role": ROLE || "strategy:contrarian_deepvalue_viewer", "X-Ops-Token": OPS },
+        }).then(r => r.json()).catch(() => null),
+      ]);
+
+      if (tRes && tRes.ok) {
+        const v = tRes.verdict || {};
+        const signal = v.cdc_value_signal || "none";
+        if (verdictEl) {
+          verdictEl.textContent = cap(signal);
+          const cls = { actionable: "neg", watching: "warn", none: "muted" }[signal] || "muted";
+          verdictEl.className = `pill ${cls}`;
+        }
+        if (reasonEl) reasonEl.textContent = v.reason || "—";
+        setText("xi-signals", fmtN(v.n_signals_24h));
+        // Recent signals table
+        if (sigBody) {
+          const rows = (tRes.recent_signals || []).slice(0, 5);
+          if (rows.length) {
+            sigBody.innerHTML = rows.map(s => `
+              <tr>
+                <td style="color:var(--ink-2);font-size:11px">${s.symbol}</td>
+                <td style="color:var(--ink-3);font-size:11px">${(s.kind || "").replace(/_/g, " ")}</td>
+                <td class="num-r" style="color:var(--ink-2);font-size:11px">${s.gap_bp ? Number(s.gap_bp).toFixed(1) + "bp" : "—"}</td>
+                <td style="color:var(--ink-3);font-size:11px">${(s.notes || "").slice(0, 80)}</td>
+              </tr>`).join("");
+          } else {
+            sigBody.innerHTML = `<tr><td style="color:var(--ink-3);padding:8px">no signals in window</td></tr>`;
+          }
+        }
+      }
+
+      if (qRes && qRes.ok) {
+        const r = qRes.report || {};
+        setText("xi-integratable", fmtN(r.overall_integratable_count));
+        setText("xi-watch", fmtN(r.overall_watch_count));
+        setText("xi-unfit", fmtN(r.overall_unfit_count));
+        // Build table of cross_exchange, sorted by score desc.
+        const ce = (r.cross_exchange || []).slice().sort((a, b) =>
+          (b.tradability_score || 0) - (a.tradability_score || 0)
+        ).slice(0, 10);
+        if (tbody) {
+          if (!ce.length) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--ink-3);padding:14px">no data yet — CDC feed still bootstrapping</td></tr>`;
+          } else {
+            tbody.innerHTML = ce.map(c => {
+              const vcls = { integratable: "pos", watch: "warn", unfit: "muted" }[c.verdict] || "muted";
+              return `<tr>
+                <td style="color:var(--ink-1);font-weight:500">${c.symbol}</td>
+                <td class="num-r" style="color:var(--ink-2)">${Number(c.drift_p90_bp).toFixed(1)}bp</td>
+                <td class="num-r" style="color:var(--ink-3)">${Number(c.drift_p99_bp).toFixed(1)}bp</td>
+                <td class="num-r" style="color:var(--ink-2)">${Number(c.depth_ratio_cdc_vs_okx).toFixed(1)}x</td>
+                <td class="num-r" style="color:var(--ink-1)">${Number(c.tradability_score).toFixed(2)}</td>
+                <td><span class="pill ${vcls}" style="font-size:10px;padding:2px 8px">${cap(c.verdict)}</span></td>
+              </tr>`;
+            }).join("");
+          }
+        }
+      }
+    } catch (e) { /* non-fatal */ }
+  }
+
   async function fetchActivity() {
     try {
       const resp = await fetch(`${API_BASE}/strategy/contrarian_deepvalue/system_activity`, {
@@ -753,8 +867,10 @@
   // Initial + 30s refresh.
   fetchDashboard();
   fetchActivity();
+  fetchXIntel();
   setInterval(fetchDashboard, 30_000);
   setInterval(fetchActivity, 15_000);   // faster: so operator sees daemons ticking
+  setInterval(fetchXIntel, 60_000);     // exchange intelligence updates every 60s
 })();
 </script>
 </body>
