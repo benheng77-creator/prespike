@@ -275,7 +275,26 @@ def _rule_m1() -> Mismatch | None:
 def _rule_m2() -> Mismatch | None:
     """M2: engine posture READY AND account-snapshot stale.
     Fires when: the engine still looks ready (cycles > 0 recently)
-    but equity_marks has not refreshed in > 300s."""
+    but equity_marks has not refreshed in > 300s.
+
+    Phase 11n-9-dd: suppressed when the engine is intentionally
+    stopped — the heartbeat writer will refresh equity_marks, but
+    during its startup grace window the freshness window may lag.
+    """
+    try:
+        from spot_aggro.governance.engine_state_source import (
+            current_engine_state,
+        )
+        es = current_engine_state() or {}
+        # Suppress only when the engine was explicitly stopped or
+        # halted by the operator. `idle` (test context, server boot
+        # before engine start) must NOT suppress — the heartbeat
+        # writer has not yet taken over, so real staleness still
+        # indicates a data-pipe failure.
+        if es.get("state") in ("stopped_by_operator", "halted_by_kill"):
+            return None
+    except Exception:
+        pass
     eq_ts = _latest_equity_ts_ms()
     if eq_ts is None:
         return Mismatch(
@@ -317,7 +336,26 @@ def _rule_m3() -> Mismatch | None:
 
 
 def _rule_m4() -> Mismatch | None:
-    """M4: card_truth all_ok AND equity_marks.latest older than 300s."""
+    """M4: card_truth all_ok AND equity_marks.latest older than 300s.
+
+    Phase 11n-9-dd: suppressed when the engine is intentionally
+    stopped — the heartbeat writer keeps equity_marks fresh, so any
+    remaining lag is a startup grace and not a contradiction.
+    """
+    try:
+        from spot_aggro.governance.engine_state_source import (
+            current_engine_state,
+        )
+        es = current_engine_state() or {}
+        # Suppress only when the engine was explicitly stopped or
+        # halted by the operator. `idle` (test context, server boot
+        # before engine start) must NOT suppress — the heartbeat
+        # writer has not yet taken over, so real staleness still
+        # indicates a data-pipe failure.
+        if es.get("state") in ("stopped_by_operator", "halted_by_kill"):
+            return None
+    except Exception:
+        pass
     eq_ts = _latest_equity_ts_ms()
     age_s = ((int(time.time() * 1000) - eq_ts) / 1000) if eq_ts else None
     # Read latest card_truth verdict

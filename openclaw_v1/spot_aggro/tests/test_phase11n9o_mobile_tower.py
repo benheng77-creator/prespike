@@ -163,10 +163,29 @@ def test_action_bar_more_button_and_popover():
 
 def test_stop_resume_refresh_have_mobile_secondary_class():
     # Target: buttons in header .acts flagged with mobile-secondary so
-    # CSS can hide them on mobile.
-    for label in ("STOP", "Resume"):
-        pattern = rf'class="btn mobile-secondary"[^>]*>\s*{label}'
-        assert re.search(pattern, HTML), f"{label!r} should be mobile-secondary"
+    # CSS can hide them on mobile. Phase 11n-9-cc added action-btn to
+    # the class list, so we can no longer expect an exact order; just
+    # require that the class attribute contains both btn and
+    # mobile-secondary and that it appears within the same <button>
+    # that owns the label text.
+    for stable_id, label in (("btn-stop", "STOP"), ("btn-resume", "Resume")):
+        # Grab the <button id="..."> tag and verify both classes present.
+        pattern = (
+            rf'<button\s+[^>]*id="{stable_id}"[^>]*>|'
+            rf'<button\s+[^>]*class="[^"]*mobile-secondary[^"]*"[^>]*'
+            rf'id="{stable_id}"'
+        )
+        m = re.search(
+            rf'<button\s+[^>]*id="{stable_id}"[^>]*>', HTML
+        )
+        assert m, f"button {stable_id!r} not found"
+        tag = m.group(0)
+        assert 'mobile-secondary' in tag, (
+            f"{stable_id!r} ({label}) missing mobile-secondary class: {tag!r}"
+        )
+        assert 'btn' in tag, (
+            f"{stable_id!r} ({label}) missing btn class: {tag!r}"
+        )
 
 
 # ---------------------------------------------------------------------------

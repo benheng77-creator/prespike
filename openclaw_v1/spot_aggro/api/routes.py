@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-cc-2026-04-20"
+SERVER_BUILD = "phase-11n-9-dd-2026-04-20"
 
 
 @router.get("/build")
@@ -107,6 +107,9 @@ def spot_aggro_build() -> dict[str, Any]:
             "swarm_prefilter": True,             # Phase 11n-9-bb (LLM cost gate)
             "llm_cost_telemetry": True,          # Phase 11n-9-bb (/gov/llm_cost_24h)
             "action_button_state_machine": True, # Phase 11n-9-cc (allowed/suggested/disabled buttons)
+            "engine_state_source": True,         # Phase 11n-9-dd (canonical engine-state)
+            "heartbeat_writer": True,            # Phase 11n-9-dd (equity_marks auto-heal 60s)
+            "card_truth_respects_halt": True,    # Phase 11n-9-dd (IDLE not FAIL on halt)
         },
     }
 
@@ -435,6 +438,38 @@ def spot_aggro_shadow_scorer_run(
 
 
 # Phase 11n-9-aa — Trade Readiness flag (mechanical release).
+# Phase 11n-9-dd — Engine-state source + heartbeat visibility.
+@router.get("/gov/engine_state")
+def spot_aggro_engine_state() -> dict[str, Any]:
+    """Canonical engine state + last heartbeat tick.
+
+    Lets the dashboard decide whether to show RUNNING / IDLE / HALTED /
+    CRASHED pills instead of mistakenly flipping to STALE/FAIL when the
+    operator has intentionally stopped the engine.
+    """
+    try:
+        from spot_aggro.governance.engine_state_source import (
+            current_engine_state,
+        )
+        state = current_engine_state()
+    except Exception as exc:  # noqa: BLE001
+        state = {"state": "idle", "error": str(exc)[:160]}
+    try:
+        from spot_aggro.ops.scheduler import heartbeat_writer
+        hb_ts = heartbeat_writer.last_tick_ts_ms()
+    except Exception:
+        hb_ts = None
+    return {
+        "ok": True,
+        "engine_state": state,
+        "heartbeat": {
+            "last_tick_ts_ms": hb_ts,
+            "interval_s": 60,
+        },
+        "ts_ms": int(time.time() * 1000),
+    }
+
+
 @router.get("/gov/trade_readiness")
 def spot_aggro_trade_readiness_state() -> dict[str, Any]:
     """Returns the current ready_to_trade flag + unmet conditions +

@@ -732,6 +732,26 @@ def _start_spot_aggro_trade_readiness() -> None:
     )
 
 
+# Phase 11n-9-dd: heartbeat writer keeps equity_marks fresh even while
+# the engine is intentionally stopped, so Trading Engine + Account
+# Snapshot cards no longer flip to STALE/FAIL when the operator chooses
+# to keep the engine off. Daemon-threaded, fail-open, idempotent start.
+@app.on_event("startup")
+def _start_spot_aggro_heartbeat_writer() -> None:
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.ops.scheduler import heartbeat_writer
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("spot_aggro heartbeat_writer NOT started (import): %s", exc)
+        return
+    try:
+        heartbeat_writer.start()
+        _log.info("spot_aggro heartbeat_writer started (60s cadence)")
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("spot_aggro heartbeat_writer start failed: %s", exc)
+
+
 # Phase 11n-8: Auto Orchestrator is 100% auto. Default ON. Set
 # SPOT_AUTO_ORCHESTRATOR=0 only if you need to disable it (tests do,
 # via monkeypatch). On boot we:

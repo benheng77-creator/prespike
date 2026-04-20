@@ -11,7 +11,7 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-cc-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-dd-2026-04-20"/>
 <!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
      dashboard to their phone home screen and the iOS/Android status
      bar matches the dark theme. -->
@@ -879,6 +879,15 @@ tr:last-child td{border-bottom:none}
 .c.card-stale{outline:1px solid var(--warn);outline-offset:-1px}
 .c.card-stale .h h3::after{content:" · STALE";color:var(--warn);font-size:9px;margin-left:4px}
 .c.card-stale .b::before{content:"⚠ card data stale — live refresh path not updating this body";display:block;background:#f59e0b22;border-left:3px solid var(--warn);color:var(--warn);padding:4px 6px;margin:-4px 0 6px 0;font-size:10px;letter-spacing:0.3px}
+/* ── Phase 11n-9-dd — IDLE override. When the engine is intentionally
+   stopped by the operator, engine-dependent cards show IDLE instead of
+   STALE/FAIL so the dashboard does not lie about failure state. ── */
+.c.card-idle{outline:1px solid var(--ink3);outline-offset:-1px}
+.c.card-idle.card-stale{outline-color:var(--ink3)}
+.c.card-idle .h h3::after{content:" · IDLE";color:var(--ink2);font-size:9px;margin-left:4px}
+.c.card-idle.card-stale .h h3::after{content:" · IDLE";color:var(--ink2)}
+.c.card-idle .b::before{content:"ℹ engine stopped by operator — card will resume updating when engine starts";display:block;background:#2f363d;border-left:3px solid var(--ink2);color:var(--ink2);padding:4px 6px;margin:-4px 0 6px 0;font-size:10px;letter-spacing:0.3px}
+.c.card-idle.card-stale .b::before{content:"ℹ engine stopped by operator — card will resume updating when engine starts";background:#2f363d;border-left-color:var(--ink2);color:var(--ink2)}
 .c.card-mismatch{outline:1px solid var(--neg);outline-offset:-1px}
 .c.card-mismatch .h h3::after{content:" · MISMATCH";color:var(--neg);font-size:9px;margin-left:4px}
 .c.card-mismatch .b::before{content:"⚠ summary numbers do not reconcile with visible body — rebinding required";display:block;background:#ef444422;border-left:3px solid var(--neg);color:var(--neg);padding:4px 6px;margin:-4px 0 6px 0;font-size:10px;letter-spacing:0.3px}
@@ -3284,6 +3293,11 @@ async function refresh() {
   // Phase 11n-9-cc — update action-button visual states every tick.
   try { _applyActionButtonStates(sa, kill); } catch (e) { console.warn("_applyActionButtonStates", e); }
 
+  // Phase 11n-9-dd — fetch canonical engine-state so the truth
+  // validator can downgrade STALE → IDLE for engine-dependent cards
+  // when the operator has intentionally stopped the engine.
+  try { _refreshEngineState(); } catch (e) { console.warn("_refreshEngineState", e); }
+
   // ── 1. Trading Engine Status ──
   // Phase 11h — end the "READY while engine is actually stopped"
   // contradiction. Previously `paused` was a dead-copy of `halted`, so a
@@ -4542,9 +4556,16 @@ function truthValidator() {
     const ev = window._truthEvidence || {};
 
     // Clear prior visual markers; we'll reapply below.
-    document.querySelectorAll(".c.card-stale, .c.card-mismatch").forEach(el => {
-      el.classList.remove("card-stale", "card-mismatch");
+    document.querySelectorAll(".c.card-stale, .c.card-mismatch, .c.card-idle").forEach(el => {
+      el.classList.remove("card-stale", "card-mismatch", "card-idle");
     });
+
+    // Phase 11n-9-dd — when the engine is intentionally stopped by the
+    // operator, suppress STALE findings for engine-dependent cards and
+    // mark them IDLE instead. `window._engineStateCache` is refreshed
+    // by _refreshEngineState() during each refresh() cycle.
+    const engState = (window._engineStateCache || {}).engine_state || {};
+    const engineIntentionallyStopped = !!engState.is_intentional_stop;
 
     for (const [cardId, e] of Object.entries(ev)) {
       const cardEl = document.getElementById(cardId);
@@ -4553,14 +4574,20 @@ function truthValidator() {
       const age = now - (e.computed_at || 0);
       const ttl = Number(e.stale_after_ms) || 60000;
       if (age > ttl) {
-        issues.push({
-          kind: "STALE",
-          severity: "warn",
-          card: cardId,
-          msg: `card ${cardId} stale for ${Math.round(age/1000)}s (ttl ${Math.round(ttl/1000)}s)`,
-          age_s: Math.round(age/1000),
-        });
-        if (cardEl) cardEl.classList.add("card-stale");
+        if (engineIntentionallyStopped) {
+          // Downgrade to IDLE — operator chose to stop the engine, so
+          // stale engine-dependent cards are expected, not failures.
+          if (cardEl) cardEl.classList.add("card-idle");
+        } else {
+          issues.push({
+            kind: "STALE",
+            severity: "warn",
+            card: cardId,
+            msg: `card ${cardId} stale for ${Math.round(age/1000)}s (ttl ${Math.round(ttl/1000)}s)`,
+            age_s: Math.round(age/1000),
+          });
+          if (cardEl) cardEl.classList.add("card-stale");
+        }
       }
 
       // --- MISMATCH check (Gap A) ---
@@ -4802,6 +4829,20 @@ async function doAction(verb) {
 //   STOPPED  sa.running === false
 //   PAUSED   sa.running === true AND sa.paused === true
 //   RUNNING  sa.running === true AND sa.paused !== true
+// Phase 11n-9-dd — canonical engine-state fetcher for the truth
+// validator. Caches the latest /spot_aggro/gov/engine_state payload on
+// window._engineStateCache so downstream CSS can flip STALE → IDLE when
+// the operator has intentionally stopped the engine. Fail-open: on
+// fetch error we leave the cache untouched (last good value wins).
+async function _refreshEngineState() {
+  try {
+    const r = await fetch("/spot_aggro/gov/engine_state", {cache: "no-store"});
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j && typeof j === "object") window._engineStateCache = j;
+  } catch (e) { /* non-fatal */ }
+}
+
 function _applyActionButtonStates(sa, kill) {
   const locked = !!(kill && (kill.locked || (kill.latest_event && !kill.latest_event.resolved)));
   let state = "UNKNOWN";

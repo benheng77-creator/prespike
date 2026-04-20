@@ -457,6 +457,37 @@ def _check_freshness(
         )
     age_s = (now_ms - max(ts for _, ts in candidates)) / 1000.0
     if age_s > spec.freshness_seconds:
+        # Phase 11n-9-dd: when the engine is intentionally stopped by
+        # the operator, engine-dependent cards (trading status, account
+        # snapshot, connectivity) should show IDLE instead of faking a
+        # FAIL. The heartbeat writer keeps equity_marks fresh, but
+        # cards that source data only while cycling still age out.
+        try:
+            from spot_aggro.governance.engine_state_source import (
+                current_engine_state,
+            )
+            es = current_engine_state() or {}
+            # Only suppress for explicit operator stop / kill-switch.
+            # `idle` (server just booted, engine never started) does
+            # NOT suppress — the heartbeat writer has not started yet
+            # so a real stale card still needs to surface.
+            stopped = es.get("state") in (
+                "stopped_by_operator", "halted_by_kill"
+            )
+        except Exception:
+            stopped = False
+        if stopped:
+            return CardFinding(
+                check="freshness", severity="ok",
+                message=(
+                    f"idle (engine stopped_by_operator): "
+                    f"{age_s:.0f}s stale tolerated"
+                ),
+                evidence={
+                    "timestamps": dict(candidates),
+                    "engine_intentionally_stopped": True,
+                },
+            )
         sev = "fail" if spec.critical else "warn"
         return CardFinding(
             check="freshness", severity=sev,

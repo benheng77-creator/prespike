@@ -64,7 +64,17 @@ def test_posture_hint_span_present():
 
 
 def test_build_tag_bumped():
-    assert 'content="phase-11n-9-cc-2026-04-20"' in HTML
+    # Phase 11n-9-cc shipped with this tag; later phases (dd, ee, …)
+    # bump forward. Any phase-11n-9-<suffix> with suffix >= "cc" is
+    # acceptable because each later phase is a strict superset of cc.
+    import re
+    m = re.search(r'content="phase-11n-9-([a-z]+)-2026-04-20"', HTML)
+    assert m is not None, "no phase-11n-9 build tag in HTML"
+    suffix = m.group(1)
+    # length-then-lex ordering so "aa" > "z" and "dd" > "cc"
+    assert (len(suffix), suffix) >= (2, "cc"), (
+        f"build tag must be >= phase-11n-9-cc, got {suffix}"
+    )
 
 
 def test_feature_flag_advertised():

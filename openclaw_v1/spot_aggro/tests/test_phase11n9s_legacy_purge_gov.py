@@ -251,16 +251,23 @@ def test_feature_manifest_advertises_legacy_purge_gov():
     assert body["features"]["legacy_purge_gov"] is True
 
 
+def _phase_key(suffix: str) -> tuple:
+    """Order suffixes so 2-char ('aa'..'zz') rank above 1-char ('a'..'z')."""
+    return (len(suffix), suffix)
+
+
 def test_server_build_is_at_least_phase_s():
     from spot_aggro.api.routes import SERVER_BUILD
     import re
-    m = re.match(r"phase-11n-9-([a-z])-2026-04-20$", SERVER_BUILD)
-    assert m and m.group(1) >= "s", f"SERVER_BUILD must be >= phase-s (got {SERVER_BUILD})"
+    m = re.match(r"phase-11n-9-([a-z]+)-2026-04-20$", SERVER_BUILD)
+    assert m and _phase_key(m.group(1)) >= _phase_key("s"), (
+        f"SERVER_BUILD must be >= phase-s (got {SERVER_BUILD})"
+    )
 
 
 def test_dashboard_build_meta_is_at_least_phase_s():
     import re
-    m = re.search(r'content="phase-11n-9-([a-z])-2026-04-20"', HTML)
-    assert m and m.group(1) >= "s", (
+    m = re.search(r'content="phase-11n-9-([a-z]+)-2026-04-20"', HTML)
+    assert m and _phase_key(m.group(1)) >= _phase_key("s"), (
         f"build tag must be >= phase-s (got {m.group(0) if m else '—'})"
     )
