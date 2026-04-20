@@ -151,44 +151,118 @@ def cdv_dashboard(
     }
 
 
-def _build_trade_timer(now_ms: int) -> dict[str, Any]:
-    """Phase 11n-9-vv — timer card for "time since last CDV trade".
+def _ensure_cdv_timer_anchor_schema(con) -> None:
+    """Single-row table storing the monotonic 'time since last trade'
+    anchor for the CDV panel. Survives restarts — the clock never resets
+    unless a real CDV trade opens OR an operator explicitly resets it."""
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS spot_cdv_timer_anchor("
+        " id INTEGER PRIMARY KEY CHECK (id = 1),"
+        " anchor_ts_ms INTEGER NOT NULL,"
+        " anchor_reason TEXT NOT NULL,"
+        " last_updated_ts_ms INTEGER NOT NULL"
+        ")"
+    )
 
-    Returns opened/closed timestamps for contrarian+deep_value variants.
-    Front-end ticks its own clock each second off last_entry_open_ts_ms,
-    so the panel shows a live HH:MM:SS delta even between 30s refreshes.
+
+def _build_trade_timer(now_ms: int) -> dict[str, Any]:
+    """Phase 11n-9-ww — monotonic timer card for "time since last CDV trade".
+
+    Anchor is persisted in spot_cdv_timer_anchor (one row, id=1):
+      - Seeded ONCE at first dashboard call (anchor_reason='first_boot').
+      - Advanced when a new CDV trade opens (anchor_reason='trade_opened:<variant>').
+      - NEVER moves otherwise — not on engine cycle ticks, not on server
+        restarts, not on refreshes. Operator sees a strict monotonic count.
+
+    Front-end ticks off the returned anchor_ts_ms every second; server
+    hands back the same anchor until a real trade changes it.
     """
     import sqlite3
     from spot_aggro.governance.variant_trip_wire import _db_path
-    try:
-        con = sqlite3.connect(_db_path(), timeout=5.0)
-        con.row_factory = sqlite3.Row
+
+    last_open = last_closed = total = first = None
+    anchor_ts: int | None = None
+    anchor_reason = "first_boot"
+
+    def _safe_one(con, sql: str) -> sqlite3.Row | None:
         try:
-            # Latest open OR closed entry across CDV variants.
-            last_open = con.execute(
+            return con.execute(sql).fetchone()
+        except Exception:
+            return None
+
+    try:
+        con = sqlite3.connect(_db_path(), timeout=5.0, isolation_level=None)
+        con.row_factory = sqlite3.Row
+        _ensure_cdv_timer_anchor_schema(con)
+        try:
+            # CDV entry stats — each query guarded separately so a missing
+            # spot_live_variant_entries table (fresh DB) does not poison
+            # the anchor logic below.
+            last_open = _safe_one(con,
                 "SELECT variant, opened_ts_ms FROM spot_live_variant_entries"
                 " WHERE variant IN ('contrarian','deep_value')"
                 " ORDER BY opened_ts_ms DESC LIMIT 1"
-            ).fetchone()
-            last_closed = con.execute(
+            )
+            last_closed = _safe_one(con,
                 "SELECT variant, closed_ts_ms, realized_pnl_usd"
                 " FROM spot_live_variant_entries"
                 " WHERE variant IN ('contrarian','deep_value')"
                 "  AND status='closed' AND closed_ts_ms IS NOT NULL"
                 " ORDER BY closed_ts_ms DESC LIMIT 1"
-            ).fetchone()
-            total = con.execute(
+            )
+            total = _safe_one(con,
                 "SELECT COUNT(*) AS n FROM spot_live_variant_entries"
                 " WHERE variant IN ('contrarian','deep_value')"
-            ).fetchone()
-            first = con.execute(
+            )
+            first = _safe_one(con,
                 "SELECT MIN(opened_ts_ms) AS ts FROM spot_live_variant_entries"
                 " WHERE variant IN ('contrarian','deep_value')"
-            ).fetchone()
+            )
+            row = _safe_one(con,
+                "SELECT anchor_ts_ms, anchor_reason FROM spot_cdv_timer_anchor WHERE id = 1"
+            )
+
+            last_open_ts_val = int(last_open["opened_ts_ms"]) if last_open and last_open["opened_ts_ms"] else None
+
+            if row is None:
+                if last_open_ts_val:
+                    anchor_ts = last_open_ts_val
+                    anchor_reason = f"trade_opened:{last_open['variant']}"
+                else:
+                    anchor_ts = now_ms
+                    anchor_reason = "first_boot"
+                try:
+                    con.execute(
+                        "INSERT OR REPLACE INTO spot_cdv_timer_anchor("
+                        " id, anchor_ts_ms, anchor_reason, last_updated_ts_ms)"
+                        " VALUES(1, ?, ?, ?)",
+                        (anchor_ts, anchor_reason, now_ms),
+                    )
+                except Exception:
+                    pass
+            else:
+                anchor_ts = int(row["anchor_ts_ms"])
+                anchor_reason = row["anchor_reason"] or "first_boot"
+                # Advance anchor only if a newer CDV trade opened.
+                if last_open_ts_val and last_open_ts_val > anchor_ts:
+                    anchor_ts = last_open_ts_val
+                    anchor_reason = f"trade_opened:{last_open['variant']}"
+                    try:
+                        con.execute(
+                            "UPDATE spot_cdv_timer_anchor"
+                            " SET anchor_ts_ms = ?, anchor_reason = ?,"
+                            "     last_updated_ts_ms = ?"
+                            " WHERE id = 1",
+                            (anchor_ts, anchor_reason, now_ms),
+                        )
+                    except Exception:
+                        pass
         finally:
             con.close()
     except Exception:
-        last_open = last_closed = total = first = None
+        if anchor_ts is None:
+            anchor_ts = now_ms
+            anchor_reason = "fallback_now"
 
     last_open_ts = int(last_open["opened_ts_ms"]) if last_open and last_open["opened_ts_ms"] else None
     last_closed_ts = int(last_closed["closed_ts_ms"]) if last_closed and last_closed["closed_ts_ms"] else None
@@ -198,31 +272,19 @@ def _build_trade_timer(now_ms: int) -> dict[str, Any]:
     n_total = int(total["n"]) if total else 0
     first_ts = int(first["ts"]) if first and first["ts"] else None
 
-    # Reference timestamp the panel uses for the live-ticking "time since"
-    # counter. Prefer last open trade; fall back to engine last_cycle so
-    # the operator sees something ticking even before the first fill.
-    started_at_ts: int | None = None
-    try:
-        from spot_aggro.governance.engine_state_source import current_engine_state
-        engine_state = current_engine_state() or {}
-        c = engine_state.get("last_cycle_ts_ms")
-        if isinstance(c, (int, float)) and c > 0:
-            started_at_ts = int(c)
-    except Exception:
-        pass
-
-    ticking_from_ts = last_open_ts or started_at_ts or now_ms
-    ticking_from_label = (
-        "last trade opened" if last_open_ts
-        else "engine cycling (no trade yet)" if started_at_ts
-        else "now"
-    )
+    if anchor_reason.startswith("trade_opened"):
+        ticking_from_label = f"last trade opened ({anchor_reason.split(':',1)[1]})"
+    elif anchor_reason == "first_boot":
+        ticking_from_label = "monitoring started (no trade yet)"
+    else:
+        ticking_from_label = anchor_reason
 
     return {
         "now_ts_ms": now_ms,
-        "ticking_from_ts_ms": ticking_from_ts,
+        "ticking_from_ts_ms": anchor_ts,
         "ticking_from_label": ticking_from_label,
-        "elapsed_ms_server": now_ms - ticking_from_ts,
+        "anchor_reason": anchor_reason,
+        "elapsed_ms_server": now_ms - anchor_ts,
         "last_open_ts_ms": last_open_ts,
         "last_open_variant": last_open_variant,
         "last_closed_ts_ms": last_closed_ts,
@@ -230,8 +292,39 @@ def _build_trade_timer(now_ms: int) -> dict[str, Any]:
         "last_closed_pnl_usd": last_closed_pnl,
         "first_open_ts_ms": first_ts,
         "n_total_entries": n_total,
-        "engine_started_ts_ms": started_at_ts,
     }
+
+
+@router.post("/trade_timer/reset")
+def cdv_trade_timer_reset(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Phase 11n-9-ww — operator-triggered anchor reset.
+
+    Admin-only. Resets the "time since last trade" anchor to now.
+    Used when operator intentionally wants to restart the no-trade clock
+    (e.g. after config change). The automatic code path never does this.
+    """
+    _require_admin(x_cdv_role, x_ops_token)
+    import sqlite3
+    from spot_aggro.governance.variant_trip_wire import _db_path
+    now_ms = int(time.time() * 1000)
+    try:
+        con = sqlite3.connect(_db_path(), timeout=5.0, isolation_level=None)
+        try:
+            _ensure_cdv_timer_anchor_schema(con)
+            con.execute(
+                "INSERT OR REPLACE INTO spot_cdv_timer_anchor("
+                " id, anchor_ts_ms, anchor_reason, last_updated_ts_ms)"
+                " VALUES(1, ?, ?, ?)",
+                (now_ms, "operator_reset", now_ms),
+            )
+        finally:
+            con.close()
+    except Exception as e:
+        return {"ok": False, "error": f"reset failed: {str(e)[:200]}"}
+    return {"ok": True, "anchor_ts_ms": now_ms, "anchor_reason": "operator_reset"}
 
 
 # ---------------------------------------------------------------------------
