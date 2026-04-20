@@ -78,7 +78,8 @@ def test_variant_decision_shape():
     assert len(decisions) >= 3
     for d in decisions:
         assert d.variant in (
-            "control", "contrarian", "mean_reversion", "deep_value",
+            "control", "contrarian", "mean_reversion",
+            "deep_value", "momentum",
         )
         assert isinstance(d.passed, bool)
         assert isinstance(d.score, float)

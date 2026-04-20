@@ -27,8 +27,10 @@ Never writes. Pure decision function.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+import sqlite3
 import time as _time
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -74,6 +76,105 @@ def _max_exposure_usd() -> float:
         return float(os.environ.get("SPOT_LIVE_MAX_EXPOSURE_USD", "50.0"))
     except (TypeError, ValueError):
         return 50.0
+
+
+def _per_variant_cap_usd() -> float:
+    """Phase 11n-9-nn — per-variant cap for structured A/B.
+    Default $25. If 0 or unset, falls back to total cap (no per-variant split)."""
+    try:
+        return float(os.environ.get("SPOT_LIVE_PER_VARIANT_CAP_USD", "0"))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _variant_exposure_usd(variant: str) -> float:
+    """Sum of open-position notional whose entry was tagged `variant`
+    via live_variant_gate. Reads spot_live_variant_entries ledger.
+    Falls back to 0 on any error."""
+    try:
+        from spot_aggro.ops.persistence.state import _connect as _pc
+        con = _pc()
+        try:
+            r = con.execute(
+                "SELECT COALESCE(SUM(notional_usd),0) AS s"
+                " FROM spot_live_variant_entries"
+                " WHERE variant=? AND status='open'",
+                (variant,),
+            ).fetchone()
+            return float(r["s"] or 0.0)
+        finally:
+            con.close()
+    except Exception:
+        return 0.0
+
+
+def record_variant_entry(
+    *, variant: str, symbol: str, notional_usd: float,
+    authz_id: str | None = None,
+) -> None:
+    """Log a new variant-admitted entry into the A/B ledger.
+    Writes to spot_live_variant_entries (created lazily). Fail-open."""
+    try:
+        from spot_aggro.ops.persistence.state import _connect as _pc
+        con = _pc()
+        try:
+            con.execute(
+                "CREATE TABLE IF NOT EXISTS spot_live_variant_entries("
+                " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                " ts_ms INTEGER NOT NULL,"
+                " variant TEXT NOT NULL,"
+                " symbol TEXT NOT NULL,"
+                " notional_usd REAL NOT NULL,"
+                " authz_id TEXT,"
+                " status TEXT NOT NULL DEFAULT 'open',"
+                " closed_ts_ms INTEGER,"
+                " realized_pnl_usd REAL"
+                ")"
+            )
+            con.execute(
+                "CREATE INDEX IF NOT EXISTS idx_lve_var_status"
+                " ON spot_live_variant_entries(variant, status)"
+            )
+            con.execute(
+                "INSERT INTO spot_live_variant_entries("
+                " ts_ms, variant, symbol, notional_usd, authz_id, status)"
+                " VALUES(?,?,?,?,?, 'open')",
+                (int(_time.time()*1000), variant, symbol,
+                 float(notional_usd), authz_id),
+            )
+        finally:
+            con.close()
+    except Exception:
+        pass
+
+
+def record_variant_exit(
+    *, symbol: str, realized_pnl_usd: float,
+) -> None:
+    """Close the most recent open entry for this symbol. Fail-open."""
+    try:
+        from spot_aggro.ops.persistence.state import _connect as _pc
+        con = _pc()
+        try:
+            # Find the most recent open row for the symbol (across all variants).
+            r = con.execute(
+                "SELECT id FROM spot_live_variant_entries"
+                " WHERE symbol=? AND status='open'"
+                " ORDER BY ts_ms DESC LIMIT 1",
+                (symbol,),
+            ).fetchone()
+            if not r:
+                return
+            con.execute(
+                "UPDATE spot_live_variant_entries"
+                " SET status='closed', closed_ts_ms=?, realized_pnl_usd=?"
+                " WHERE id=?",
+                (int(_time.time()*1000), float(realized_pnl_usd), r["id"]),
+            )
+        finally:
+            con.close()
+    except Exception:
+        pass
 
 
 def _max_dd_usd() -> float:
@@ -162,6 +263,10 @@ def evaluate(
             },
         )
 
+    # Phase 11n-9-nn — per-variant exposure cap for structured A/B.
+    # Checked AFTER variant selection below, to give a specific
+    # rejection reason if a variant's cap is hit.
+
     # Live DD kill.
     max_dd = _max_dd_usd()
     session_pnl = _live_session_pnl_usd()
@@ -206,6 +311,25 @@ def evaluate(
                               for v in enabled if v in decisions_by_name},
             },
         )
+
+    # Phase 11n-9-nn — per-variant cap enforcement.
+    per_cap = _per_variant_cap_usd()
+    if per_cap > 0:
+        var_exp = _variant_exposure_usd(admitting.variant)
+        if var_exp + candidate_size_usd > per_cap:
+            return LiveVariantVerdict(
+                ok=False,
+                reason=(
+                    f"per_variant_cap_breach {admitting.variant} "
+                    f"${var_exp:.2f}+${candidate_size_usd:.2f} > ${per_cap:.2f}"
+                ),
+                evidence={
+                    "variant": admitting.variant,
+                    "variant_exposure_usd": var_exp,
+                    "per_variant_cap_usd": per_cap,
+                    "candidate_size_usd": candidate_size_usd,
+                },
+            )
 
     return LiveVariantVerdict(
         ok=True,

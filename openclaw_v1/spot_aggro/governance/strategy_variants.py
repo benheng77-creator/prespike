@@ -321,8 +321,99 @@ def evaluate_deep_value(coin: dict[str, Any], mio: Any) -> VariantDecision:
 # Registry
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Variant: momentum — Phase 11n-9-nn — counter-hypothesis to contrarian
+#
+# Contrarian at n=100 confirmed structurally negative (avg_win 0.40%,
+# R/R 0.42x, E[r] = -0.66%/trade). That means the bottom-quartile
+# composite coins CONTINUE DOWN. Symmetrically, coins pushing UP keep
+# pushing up — which is the momentum thesis.
+#
+# Filters (ALL must pass):
+#   - return_24h >= +3%      (upward momentum confirmed)
+#   - funding_z > 0          (longs paying shorts — longside squeeze NOT anti-squeeze)
+#   - volume_ratio >= 1.5    (volume confirming move; optional — uses
+#                             30d sigma as proxy if volume_ratio absent)
+#   - depth_usd >= $200k     (real liquidity)
+#   - spread_bp <= 15        (tight fills)
+#   - composite >= 0.25      (floor; lets the existing scorer agree at minimum)
+#
+# Expected R/R ~1.5-2.0x. TP kept at 2.5% (from phase-mm). SL tightened
+# to -0.8% (momentum coins drop fast when wrong; tighter SL = better R/R).
+# ---------------------------------------------------------------------------
+
+MOM_MIN_24H_RET = 0.03
+MOM_MIN_FUNDING_Z = 0.0
+MOM_MIN_VOLUME_RATIO = 1.5
+MOM_MIN_DEPTH_USD = 200_000.0
+MOM_MAX_SPREAD_BP = 15.0
+MOM_MIN_COMPOSITE = 0.25
+
+
+def evaluate_momentum(coin: dict[str, Any], mio: Any) -> VariantDecision:
+    ret_24h = _safe_float(coin.get("return_24h"), default=0.0)
+    fz = _safe_float(coin.get("funding_z"), default=-999.0)
+    depth = _safe_float(coin.get("depth_usd"), default=0.0)
+    spread = _safe_float(coin.get("spread_bp"), default=999.0)
+    # Volume ratio: prefer explicit, fallback to sigma-based proxy.
+    vol_ratio = coin.get("volume_ratio")
+    if vol_ratio is None:
+        sigma = _safe_float(coin.get("sigma_30d"), default=0.0)
+        # Rough proxy: higher sigma relative to baseline -> higher volume.
+        vol_ratio = min(max(sigma / 0.0002, 0.0), 3.0) if sigma > 0 else 1.0
+    else:
+        vol_ratio = _safe_float(vol_ratio, default=1.0)
+    # Composite score floor: must not be a disaster pick.
+    try:
+        from spot_aggro.scoring import compute_composite_score
+        composite = float(compute_composite_score(coin, mio) or 0.0)
+    except Exception:
+        composite = 0.0
+
+    checks = {
+        "upside_confirmed": ret_24h >= MOM_MIN_24H_RET,
+        "longside_funding": fz > MOM_MIN_FUNDING_Z,
+        "volume_confirmation": vol_ratio >= MOM_MIN_VOLUME_RATIO,
+        "liquid": depth >= MOM_MIN_DEPTH_USD,
+        "tight_spread": spread <= MOM_MAX_SPREAD_BP,
+        "composite_not_terrible": composite >= MOM_MIN_COMPOSITE,
+    }
+    passed = all(checks.values())
+    failed = [k for k, v in checks.items() if not v]
+    # Score: how strong is the momentum signal?
+    ret_strength = min(max(ret_24h / 0.10, 0.0), 1.0)         # +10% -> 1.0
+    fz_strength = min(max(fz / 2.0, 0.0), 1.0)                # fz=2 -> 1.0
+    vol_strength = min(max((vol_ratio - 1.0) / 2.0, 0.0), 1.0)
+    score = round(
+        ret_strength * 0.5 + fz_strength * 0.25 + vol_strength * 0.25, 4
+    )
+
+    if passed:
+        reason = (
+            f"momentum ADMIT ret24h={ret_24h * 100:+.1f}% fz={fz:+.2f} "
+            f"vol_ratio={vol_ratio:.2f} depth=${depth:,.0f}"
+        )
+    else:
+        reason = f"momentum reject: failed={','.join(failed)}"
+    return VariantDecision(
+        variant="momentum",
+        score=score,
+        passed=passed,
+        reason=reason,
+        evidence={
+            "return_24h": ret_24h,
+            "funding_z": fz,
+            "volume_ratio": vol_ratio,
+            "depth_usd": depth,
+            "spread_bp": spread,
+            "composite": composite,
+            "checks": checks,
+        },
+    )
+
+
 VARIANT_NAMES: tuple[str, ...] = (
-    "control", "contrarian", "mean_reversion", "deep_value",
+    "control", "contrarian", "mean_reversion", "deep_value", "momentum",
 )
 
 
@@ -335,6 +426,7 @@ def evaluate_all(coin: dict[str, Any], mio: Any) -> list[VariantDecision]:
         ("contrarian", evaluate_contrarian),
         ("mean_reversion", evaluate_mean_reversion),
         ("deep_value", evaluate_deep_value),
+        ("momentum", evaluate_momentum),
     ):
         try:
             out.append(fn(coin, mio))

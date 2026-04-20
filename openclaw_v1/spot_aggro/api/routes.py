@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-mm-2026-04-20"
+SERVER_BUILD = "phase-11n-9-nn-2026-04-20"
 
 
 @router.get("/build")
@@ -137,6 +137,9 @@ def spot_aggro_build() -> dict[str, Any]:
             "daily_auto_report_24h": True,        # Phase 11n-9-ll (auto-generated daily governance report)
             "target_band_1_5_to_2": True,         # Phase 11n-9-mm (1.5% floor / 2.0% stretch dual-band target)
             "tier_tp_sl_recalibrated_mm": True,   # Phase 11n-9-mm (Tier-C tp_mult 0.7->1.3, SL 0.8->1.4, hold 0.75h->4h; Tier-B tp 0.9->1.2, hold 2h->6h)
+            "momentum_variant": True,             # Phase 11n-9-nn (counter-hypothesis: +3% 24h + funding>0 + vol>1.5x)
+            "structured_ab_per_variant_cap": True, # Phase 11n-9-nn ($25 per-variant cap via SPOT_LIVE_PER_VARIANT_CAP_USD)
+            "dev_ping_whatsapp": True,            # Phase 11n-9-nn (CallMeBot ping on task completion)
         },
     }
 

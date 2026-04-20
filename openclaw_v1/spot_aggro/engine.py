@@ -885,6 +885,16 @@ class SpotAggroEngine:
                         "live variant admit: %s (%s) size=$%.2f",
                         r["symbol"], _lv_admitting_variant, size,
                     )
+                    # Phase 11n-9-nn — record into A/B ledger for
+                    # per-variant exposure + attribution.
+                    try:
+                        _lvg.record_variant_entry(
+                            variant=_lv_admitting_variant,
+                            symbol=r["symbol"],
+                            notional_usd=size,
+                        )
+                    except Exception:
+                        pass
             except Exception as _lvg_err:  # noqa: BLE001
                 log.warning(
                     "live_variant_gate error (fail-closed skip): %s",
@@ -1385,6 +1395,14 @@ class SpotAggroEngine:
                     "exit VERIFIED %s: filled_qty=%.6f avg_px=%.6f notional=$%.4f pnl=$%+.4f",
                     symbol, filled_qty, filled_avg_px, filled_notional, pnl,
                 )
+                # Phase 11n-9-nn — A/B ledger close.
+                try:
+                    from spot_aggro.governance import live_variant_gate as _lvg_exit
+                    _lvg_exit.record_variant_exit(
+                        symbol=symbol, realized_pnl_usd=float(pnl),
+                    )
+                except Exception:
+                    pass
             except Exception as exc:
                 log.warning("spot sell failed for %s: %s — skipping PnL book", symbol, exc)
                 return

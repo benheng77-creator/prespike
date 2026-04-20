@@ -39,7 +39,8 @@ def _iso_db(tmp_path, monkeypatch):
 def test_deep_value_in_variant_names():
     from spot_aggro.governance.strategy_variants import VARIANT_NAMES
     assert "deep_value" in VARIANT_NAMES
-    assert len(VARIANT_NAMES) == 4
+    # Phase-nn added 'momentum' (5 total). Phase-ii cares that deep_value is present.
+    assert len(VARIANT_NAMES) >= 4
 
 
 # 2a. Rejects when WR data missing

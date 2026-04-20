@@ -254,6 +254,7 @@ CONTROL_VERSION = "v2.1-phase11n-9-gg"
 CONTRARIAN_VERSION = "v1.0-phase11n-9-ee"
 MEAN_REV_VERSION = "v1.0-phase11n-9-ee"
 DEEP_VALUE_VERSION = "v1.0-phase11n-9-ii"
+MOMENTUM_VERSION = "v1.0-phase11n-9-nn"
 
 
 def bootstrap_self_register() -> list[ModelRecord]:
@@ -294,6 +295,11 @@ def bootstrap_self_register() -> list[ModelRecord]:
             "deep_value", DEEP_VALUE_VERSION,
             code_hash_variants, feature_schema,
             notes="WR>=45% + undervalued 7d-drawdown + liquid",
+        ))
+        out.append(register_model(
+            "momentum", MOMENTUM_VERSION,
+            code_hash_variants, feature_schema,
+            notes="counter-hypothesis to contrarian: +3% 24h + funding>0 + vol>1.5x + liquid",
         ))
         return out
     except Exception:
