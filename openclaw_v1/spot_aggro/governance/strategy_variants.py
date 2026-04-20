@@ -274,7 +274,13 @@ def evaluate_deep_value(coin: dict[str, Any], mio: Any) -> VariantDecision:
     sym = coin.get("symbol", "")
     fz = _safe_float(coin.get("funding_z"), default=999.0)
     ret_7d = _safe_float(coin.get("ret_7d"), default=0.0)
-    depth = _safe_float(coin.get("depth_usd"), default=0.0)
+    okx_depth = _safe_float(coin.get("depth_usd"), default=0.0)
+    # Phase 11n-9-rr step-A — cross-exchange depth awareness for DV too.
+    try:
+        from spot_aggro.governance.ensemble_meta import _best_effective_depth_usd
+        depth = _best_effective_depth_usd(sym, okx_depth)
+    except Exception:
+        depth = okx_depth
     spread = _safe_float(coin.get("spread_bp"), default=999.0)
 
     wr, n_exits = _historical_wr(sym)
@@ -357,7 +363,10 @@ def evaluate_deep_value(coin: dict[str, Any], mio: Any) -> VariantDecision:
 MOM_MIN_24H_RET = 0.01            # was 0.03
 MOM_MIN_FUNDING_Z = -0.5          # was 0.0
 MOM_MIN_VOLUME_RATIO = 1.0        # was 1.5
-MOM_MIN_DEPTH_USD = 200_000.0     # kept — thin-book momentum loses money
+# Phase 11n-9-rr step-B — depth floor dropped 200k → 50k. OKX stale-book
+# depths routinely show $2-20k on exact coins where CDC shows $100k+.
+# Meta-gate + slippage model still enforces quality downstream.
+MOM_MIN_DEPTH_USD = 50_000.0      # was 200_000.0
 MOM_MAX_SPREAD_BP = 15.0
 MOM_MIN_COMPOSITE = 0.25
 MOM_CHECKS_REQUIRED = 3           # new: 3-of-4 core checks must pass
@@ -368,7 +377,15 @@ def evaluate_momentum(coin: dict[str, Any], mio: Any) -> VariantDecision:
     ret_24h = _safe_float(coin.get("return_24h"), default=0.0)
     ret_4h = _safe_float(coin.get("return_4h"), default=0.0)
     fz = _safe_float(coin.get("funding_z"), default=-999.0)
-    depth = _safe_float(coin.get("depth_usd"), default=0.0)
+    okx_depth = _safe_float(coin.get("depth_usd"), default=0.0)
+    # Phase 11n-9-rr step-A — use MAX(OKX, CDC) depth so thin-OKX
+    # coins with deep CDC books (ENA 160x, ARB 100x, FIL 14x) can
+    # pass the liquidity floor.
+    try:
+        from spot_aggro.governance.ensemble_meta import _best_effective_depth_usd
+        depth = _best_effective_depth_usd(coin.get("symbol"), okx_depth)
+    except Exception:
+        depth = okx_depth
     spread = _safe_float(coin.get("spread_bp"), default=999.0)
     # Volume ratio: prefer explicit, fallback to sigma-based proxy.
     vol_ratio = coin.get("volume_ratio")

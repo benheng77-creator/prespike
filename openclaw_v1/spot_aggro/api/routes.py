@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-qq-2026-04-20"
+SERVER_BUILD = "phase-11n-9-rr-2026-04-20"
 
 
 @router.get("/build")
@@ -150,6 +150,8 @@ def spot_aggro_build() -> dict[str, Any]:
             "ranker_return_24h_4h": True,         # Phase 11n-9-pp — 1h candles fetch for momentum
             "exchange_comparison_feed": True,     # Phase 11n-9-qq — Crypto.com public market data (read-only) alongside OKX
             "cryptocom_readonly_adapter": True,   # Phase 11n-9-qq — no auth, no orders, no balances
+            "momentum_depth_floor_50k": True,     # Phase 11n-9-rr step-B — MOM_MIN_DEPTH_USD 200k->50k
+            "best_of_both_exchange_depth": True,  # Phase 11n-9-rr step-A — meta-gate + variants use MAX(okx, cdc) depth
         },
     }
 
