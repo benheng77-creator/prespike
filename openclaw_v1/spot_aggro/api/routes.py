@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-oo-2026-04-20"
+SERVER_BUILD = "phase-11n-9-pp-2026-04-20"
 
 
 @router.get("/build")
@@ -145,6 +145,9 @@ def spot_aggro_build() -> dict[str, Any]:
             "regime_per_variant_weighting": True, # Phase 11n-9-oo U3 (Calm/Trending/Volatile)
             "slippage_budget_admit_check": True,  # Phase 11n-9-oo U4
             "ensemble_disagreement_trigger": True,# Phase 11n-9-oo U5
+            "momentum_3of4_bullish_or": True,     # Phase 11n-9-pp Q — 3-of-4 core + bullish-OR gate
+            "deep_value_thinbook_wr55": True,     # Phase 11n-9-pp R — $2k depth + 55% WR compensating
+            "ranker_return_24h_4h": True,         # Phase 11n-9-pp — 1h candles fetch for momentum
         },
     }
 

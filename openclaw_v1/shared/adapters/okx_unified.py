@@ -238,6 +238,27 @@ class OKXUnified:
         except Exception:
             return 0.0
 
+    async def get_price_return_24h_4h(self, symbol: str) -> tuple[float, float]:
+        """24h + 4h returns as fractions in one API call. Uses 1h candles;
+        24 bars → 24h return from first-vs-last close, 4h from bar -5 vs last.
+        Returns (ret_24h, ret_4h), both 0.0 on failure.
+        """
+        try:
+            spot = self._spot_for(symbol)
+            candles = await asyncio.to_thread(
+                self._client.fetch_ohlcv, spot, "1h", None, 25,
+            )
+            if not candles or len(candles) < 5:
+                return 0.0, 0.0
+            close_now = float(candles[-1][4])
+            close_24h = float(candles[0][4])
+            close_4h = float(candles[-5][4])
+            ret_24h = (close_now - close_24h) / close_24h if close_24h > 0 else 0.0
+            ret_4h = (close_now - close_4h) / close_4h if close_4h > 0 else 0.0
+            return ret_24h, ret_4h
+        except Exception:
+            return 0.0, 0.0
+
     async def get_recent_low(self, symbol: str) -> float:
         """24h low price from spot ticker. Used for liq cluster estimate."""
         try:

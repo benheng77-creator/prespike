@@ -75,26 +75,31 @@ def test_momentum_admits_on_all_signals(_iso_db):
 
 # 3 — momentum rejects shallow 24h
 def test_momentum_rejects_shallow_move():
+    # Phase 11n-9-pp: floor is 1% (was 3%). Use 0.5% to genuinely miss.
     from spot_aggro.governance.strategy_variants import evaluate_momentum
     coin = {
-        "return_24h": 0.01,        # +1% — below 3% floor
-        "funding_z": 1.0,
-        "volume_ratio": 2.0,
-        "depth_usd": 1_000_000,
+        "return_24h": 0.005,       # +0.5% — below 1% floor
+        "return_4h": 0.001,        # below 0.3% floor too
+        "funding_z": -1.0,         # negative, fails bullish OR
+        "volume_ratio": 0.8,       # below 1.0 floor
+        "depth_usd": 10_000,       # below 200k floor
         "spread_bp": 5,
     }
     d = evaluate_momentum(coin, _FakeMio())
     assert d.passed is False
-    assert "upside_confirmed" in d.reason
+    # Missing 3 core checks + no bullish OR signal.
+    assert "upside_confirmed" in d.reason or "no_bullish_signal" in d.reason
 
 
-def test_momentum_rejects_negative_funding():
+def test_momentum_rejects_deeply_negative_funding():
+    # Phase-pp: fz floor is -0.5. Use -2.0 to reject.
     from spot_aggro.governance.strategy_variants import evaluate_momentum
     coin = {
         "return_24h": 0.05,
-        "funding_z": -0.5,         # wrong side
-        "volume_ratio": 2.0,
-        "depth_usd": 1_000_000,
+        "return_4h": 0.01,
+        "funding_z": -2.0,          # deeply negative
+        "volume_ratio": 0.8,        # miss to force 3-of-4 fail
+        "depth_usd": 50_000,        # miss liquid
         "spread_bp": 5,
     }
     d = evaluate_momentum(coin, _FakeMio())

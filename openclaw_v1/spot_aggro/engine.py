@@ -464,6 +464,12 @@ class SpotAggroEngine:
                 # Fetch real data for SPI components (replaces placeholders)
                 oi_change = await adapter.get_open_interest_change(sym)
                 ret_7d = await adapter.get_price_return_7d(sym)
+                # Phase 11n-9-pp — momentum variant needs short-horizon
+                # returns. Single OHLCV call gives both 24h and 4h.
+                try:
+                    ret_24h, ret_4h = await adapter.get_price_return_24h_4h(sym)
+                except Exception:
+                    ret_24h, ret_4h = 0.0, 0.0
                 low_24h = await adapter.get_recent_low(sym)
                 liq_est = low_24h if low_24h > 0 else price * 0.97
 
@@ -484,6 +490,9 @@ class SpotAggroEngine:
                     "spread_bp": float(tick.get("spread_bp") or 0),
                     "mu_30d": mu, "sigma_30d": sig,
                     "oi_change": oi_change, "ret_7d": ret_7d,
+                    # Phase 11n-9-pp — short-horizon returns for momentum.
+                    "return_24h": ret_24h,
+                    "return_4h": ret_4h,
                 })
             except Exception as exc:
                 log.warning("rank %s failed: %s", sym, exc)

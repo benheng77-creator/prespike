@@ -233,17 +233,22 @@ def evaluate_mean_reversion(coin: dict[str, Any], mio: Any) -> VariantDecision:
 # Score = WR × depth_strength × drawdown_strength. Higher = stronger admit.
 # ---------------------------------------------------------------------------
 
-# Phase 11n-9-ii follow-up (high-risk mode): loosened from 55%/3-exits
-# to 45%/2-exits so sparse research-agent data actually produces admits.
-# Trade-off: higher false-positive rate. Mitigated by $50 exposure cap +
-# $10 live-DD kill.
-DV_MIN_WR = 0.45
+# Phase 11n-9-pp — expert recalibration for thin-book calm regime.
+# Rationale: depth floor $500k excluded 95% of tier-C coins where real
+# trading happens at our scale. Loosening to $2k matches contrarian's
+# thin-book mode, but we RAISE WR floor from 45% to 55% so we're only
+# trading thinner books with STRONGER historical edge. Paired-safety
+# design: relax structure only when quality evidence compensates.
+# Additionally tighten 7d drawdown window to [-15%, -1%] so we avoid
+# positions that could be in terminal breakdown (-15%+ 7d is no longer
+# "oversold bounce" but "continuation of dying asset").
+DV_MIN_WR = 0.55                  # was 0.45 — raised to compensate thin-book
 DV_MIN_EXITS = 2
-DV_MIN_7D_RET = -0.30
-DV_MAX_7D_RET = -0.03
+DV_MIN_7D_RET = -0.15             # was -0.30 — avoid terminal drawdowns
+DV_MAX_7D_RET = -0.01             # was -0.03 — catch shallower dips in calm regime
 DV_MAX_FUNDING_Z = 0.0
-DV_MIN_DEPTH_USD = 500_000.0
-DV_MAX_SPREAD_BP = 10.0
+DV_MIN_DEPTH_USD = 2_000.0        # was 500_000.0 — thin-book mode
+DV_MAX_SPREAD_BP = 30.0           # was 10.0 — match contrarian's tolerance
 
 
 def _historical_wr(symbol: str) -> tuple[float | None, int]:
@@ -342,16 +347,26 @@ def evaluate_deep_value(coin: dict[str, Any], mio: Any) -> VariantDecision:
 # to -0.8% (momentum coins drop fast when wrong; tighter SL = better R/R).
 # ---------------------------------------------------------------------------
 
-MOM_MIN_24H_RET = 0.03
-MOM_MIN_FUNDING_Z = 0.0
-MOM_MIN_VOLUME_RATIO = 1.5
-MOM_MIN_DEPTH_USD = 200_000.0
+# Phase 11n-9-pp — loosened momentum thresholds + 3-of-4 bullish-OR gate.
+# Rationale: calm regime means no single coin meets ALL 4 original filters
+# (ret+fz+vol+liquid). Softened to require 3 of 4 core signals PLUS a
+# bullish-OR check where AT LEAST ONE of (24h>=1%, 4h>=0.3%, fz>=-0.5)
+# fires. Preserves the "upward-bias" intent without demanding perfect
+# alignment. Meta-gate still enforces variant_score >= 0.50 + net
+# expectancy floor so weak setups stay blocked downstream.
+MOM_MIN_24H_RET = 0.01            # was 0.03
+MOM_MIN_FUNDING_Z = -0.5          # was 0.0
+MOM_MIN_VOLUME_RATIO = 1.0        # was 1.5
+MOM_MIN_DEPTH_USD = 200_000.0     # kept — thin-book momentum loses money
 MOM_MAX_SPREAD_BP = 15.0
 MOM_MIN_COMPOSITE = 0.25
+MOM_CHECKS_REQUIRED = 3           # new: 3-of-4 core checks must pass
+MOM_BULLISH_OR_FIRES = True       # new: OR-gate across 24h / 4h / fz
 
 
 def evaluate_momentum(coin: dict[str, Any], mio: Any) -> VariantDecision:
     ret_24h = _safe_float(coin.get("return_24h"), default=0.0)
+    ret_4h = _safe_float(coin.get("return_4h"), default=0.0)
     fz = _safe_float(coin.get("funding_z"), default=-999.0)
     depth = _safe_float(coin.get("depth_usd"), default=0.0)
     spread = _safe_float(coin.get("spread_bp"), default=999.0)
@@ -359,7 +374,6 @@ def evaluate_momentum(coin: dict[str, Any], mio: Any) -> VariantDecision:
     vol_ratio = coin.get("volume_ratio")
     if vol_ratio is None:
         sigma = _safe_float(coin.get("sigma_30d"), default=0.0)
-        # Rough proxy: higher sigma relative to baseline -> higher volume.
         vol_ratio = min(max(sigma / 0.0002, 0.0), 3.0) if sigma > 0 else 1.0
     else:
         vol_ratio = _safe_float(vol_ratio, default=1.0)
@@ -370,31 +384,60 @@ def evaluate_momentum(coin: dict[str, Any], mio: Any) -> VariantDecision:
     except Exception:
         composite = 0.0
 
-    checks = {
+    # Phase 11n-9-pp — 4 core checks, require 3-of-4 (more permissive):
+    core_checks = {
         "upside_confirmed": ret_24h >= MOM_MIN_24H_RET,
-        "longside_funding": fz > MOM_MIN_FUNDING_Z,
+        "longside_funding": fz >= MOM_MIN_FUNDING_Z,
         "volume_confirmation": vol_ratio >= MOM_MIN_VOLUME_RATIO,
         "liquid": depth >= MOM_MIN_DEPTH_USD,
+    }
+    # Hard checks that must ALWAYS pass (spread + composite floor).
+    hard_checks = {
         "tight_spread": spread <= MOM_MAX_SPREAD_BP,
         "composite_not_terrible": composite >= MOM_MIN_COMPOSITE,
     }
-    passed = all(checks.values())
-    failed = [k for k, v in checks.items() if not v]
-    # Score: how strong is the momentum signal?
-    ret_strength = min(max(ret_24h / 0.10, 0.0), 1.0)         # +10% -> 1.0
-    fz_strength = min(max(fz / 2.0, 0.0), 1.0)                # fz=2 -> 1.0
-    vol_strength = min(max((vol_ratio - 1.0) / 2.0, 0.0), 1.0)
+    # Bullish-OR gate: AT LEAST ONE directional signal must fire.
+    bullish_or_check = {
+        "bullish_any_of_3": (
+            ret_24h >= 0.01 or ret_4h >= 0.003 or fz >= -0.5
+        ),
+    }
+    n_core_passed = sum(1 for v in core_checks.values() if v)
+    passed = (
+        n_core_passed >= MOM_CHECKS_REQUIRED
+        and all(hard_checks.values())
+        and all(bullish_or_check.values())
+    )
+
+    failed = []
+    failed += [k for k, v in core_checks.items() if not v]
+    failed += [k for k, v in hard_checks.items() if not v]
+    if not bullish_or_check["bullish_any_of_3"]:
+        failed.append("no_bullish_signal")
+
+    # Score: same weighted combination but boosted when more core checks fire.
+    ret_strength = min(max(ret_24h / 0.10, 0.0), 1.0)
+    fz_strength = min(max((fz + 0.5) / 2.5, 0.0), 1.0)
+    vol_strength = min(max((vol_ratio - 0.5) / 2.0, 0.0), 1.0)
+    liq_strength = min(max(depth / 2_000_000.0, 0.0), 1.0)
     score = round(
-        ret_strength * 0.5 + fz_strength * 0.25 + vol_strength * 0.25, 4
+        ret_strength * 0.35
+        + fz_strength * 0.25
+        + vol_strength * 0.20
+        + liq_strength * 0.20,
+        4,
     )
 
     if passed:
         reason = (
-            f"momentum ADMIT ret24h={ret_24h * 100:+.1f}% fz={fz:+.2f} "
-            f"vol_ratio={vol_ratio:.2f} depth=${depth:,.0f}"
+            f"momentum ADMIT ({n_core_passed}/4 core) ret24h={ret_24h * 100:+.1f}% "
+            f"fz={fz:+.2f} vol={vol_ratio:.2f} depth=${depth:,.0f}"
         )
     else:
-        reason = f"momentum reject: failed={','.join(failed)}"
+        if n_core_passed < MOM_CHECKS_REQUIRED:
+            reason = f"momentum reject: {n_core_passed}/4 core < {MOM_CHECKS_REQUIRED} (failed={','.join(failed)})"
+        else:
+            reason = f"momentum reject: failed={','.join(failed)}"
     return VariantDecision(
         variant="momentum",
         score=score,
@@ -402,12 +445,16 @@ def evaluate_momentum(coin: dict[str, Any], mio: Any) -> VariantDecision:
         reason=reason,
         evidence={
             "return_24h": ret_24h,
+            "return_4h": ret_4h,
             "funding_z": fz,
             "volume_ratio": vol_ratio,
             "depth_usd": depth,
             "spread_bp": spread,
             "composite": composite,
-            "checks": checks,
+            "core_checks": core_checks,
+            "hard_checks": hard_checks,
+            "bullish_or": bullish_or_check,
+            "n_core_passed": n_core_passed,
         },
     )
 
