@@ -62,10 +62,11 @@ def test_volatility_size_multiplier_one_when_low_sigma():
 # U4 — slippage
 def test_estimated_slippage_bp_depth_impact():
     from spot_aggro.governance.ensemble_meta import estimated_slippage_bp
-    # Thin book: $5k order into $10k depth -> 50% consumption -> 20bp depth
-    #   + half_spread 10/2 = 5bp -> 25bp total
+    # Calibrated model (phase-oo): $5k order into $10k depth
+    #   -> 50% depth consumption * 10bp cap = 5bp depth
+    #   + half_spread 10/2 = 5bp -> 10bp total
     s = estimated_slippage_bp({"depth_usd": 10_000, "spread_bp": 10}, 5_000)
-    assert 20 <= s <= 50
+    assert 8 <= s <= 20
 
 
 def test_net_expectancy_negative_blocks():

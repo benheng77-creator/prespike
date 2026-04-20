@@ -116,23 +116,28 @@ def volatility_size_multiplier(coin: dict[str, Any]) -> float:
 def estimated_slippage_bp(coin: dict[str, Any], notional_usd: float) -> float:
     """Heuristic slippage estimate based on depth + spread.
 
-    - Spreads contribute half-spread to slippage.
-    - Orders consuming >10% of depth add depth-impact term.
-    - Floor 1bp, ceiling 100bp.
+    Calibrated against real phase-kk/oo OKX fills on Tier-C coins:
+    realized slippage was 1-3bp per round-trip even on thin books.
+    Institutional 40bp-full-depth formula was over-estimating 10x for
+    our $5 notional. Rebalanced to 10bp full-depth impact ceiling.
+
+    - Spreads contribute half-spread.
+    - Orders consuming >10% of depth add a capped depth-impact term.
+    - Floor 1bp, ceiling 30bp.
     """
     try:
-        spread_bp = float(coin.get("spread_bp") or 10.0)
+        spread_bp = float(coin.get("spread_bp") or 5.0)
         depth_usd = float(coin.get("depth_usd") or 1000.0)
     except (TypeError, ValueError):
-        return 20.0
+        return 5.0
     half_spread = spread_bp / 2.0
     if depth_usd > 0:
         depth_consumption = min(notional_usd / depth_usd, 1.0)
-        depth_impact_bp = depth_consumption * 40.0  # up to 40bp on full-depth order
+        depth_impact_bp = depth_consumption * 10.0  # up to 10bp on full-depth order
     else:
-        depth_impact_bp = 40.0
+        depth_impact_bp = 10.0
     est = half_spread + depth_impact_bp
-    return max(1.0, min(est, 100.0))
+    return max(1.0, min(est, 30.0))
 
 
 def net_expectancy_bp(
@@ -149,9 +154,12 @@ def net_expectancy_bp(
 # U1 — meta-learner confidence gate
 # ---------------------------------------------------------------------------
 
-META_MIN_SCORE = 0.60         # variant_score floor
+# Phase 11n-9-oo calibration: initial thresholds were institutional-
+# grade. For $5 trades on tier-C coins with small samples, these are
+# too tight — every candidate gets blocked. Relaxed to match our scale.
+META_MIN_SCORE = 0.50         # variant_score floor (was 0.60)
 META_MIN_REGIME_WEIGHT = 0.50 # regime-weight floor (blocks bad regime trades)
-META_MIN_NET_BP = 10.0        # net expectancy must exceed 10bp
+META_MIN_NET_BP = 3.0         # net expectancy must exceed 3bp (was 10bp)
 
 
 @dataclass
