@@ -54,6 +54,9 @@ class LiveVariantVerdict:
     admitting_variant: str | None = None
     reason: str = ""
     evidence: dict[str, Any] | None = None
+    # Phase 11n-9-oo — meta-gate output propagated for sizing.
+    size_multiplier: float = 1.0
+    regime: str = "unknown"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -331,6 +334,43 @@ def evaluate(
                 },
             )
 
+    # Phase 11n-9-oo — ensemble meta gate (U1-U4) applied on top
+    # of variant admit. Can block even when a variant passed.
+    try:
+        from spot_aggro.governance import ensemble_meta as _em
+        meta = _em.meta_gate(
+            variant=admitting.variant,
+            variant_score=float(admitting.score or 0),
+            coin=coin,
+            notional_usd=candidate_size_usd,
+        )
+        # U5 — ensemble disagreement telemetry (logged via evidence;
+        # freeze trigger is handled by contradiction_freeze daemon).
+        var_scores = {d.variant: float(d.score or 0) for d in decisions}
+        disagreement = _em.ensemble_disagreement(var_scores)
+    except Exception as _em_err:  # noqa: BLE001
+        # Fail-closed on meta-gate error.
+        return LiveVariantVerdict(
+            ok=False, admitting_variant=admitting.variant,
+            reason=f"meta_gate_error: {str(_em_err)[:100]}",
+            evidence={},
+        )
+
+    if not meta.ok:
+        return LiveVariantVerdict(
+            ok=False,
+            admitting_variant=admitting.variant,
+            reason=f"meta_gate_block: {meta.reason[:140]}",
+            evidence={
+                "variant": admitting.variant,
+                "score": admitting.score,
+                "meta_gate": meta.to_dict(),
+                "ensemble_disagreement": disagreement,
+            },
+            size_multiplier=meta.size_multiplier,
+            regime=meta.regime,
+        )
+
     return LiveVariantVerdict(
         ok=True,
         admitting_variant=admitting.variant,
@@ -341,5 +381,9 @@ def evaluate(
             "current_exposure_usd": cur_exp,
             "session_pnl_usd": session_pnl,
             "candidate_size_usd": candidate_size_usd,
+            "meta_gate": meta.to_dict(),
+            "ensemble_disagreement": disagreement,
         },
+        size_multiplier=meta.size_multiplier,
+        regime=meta.regime,
     )

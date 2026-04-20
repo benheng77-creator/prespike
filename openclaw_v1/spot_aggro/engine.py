@@ -881,12 +881,30 @@ class SpotAggroEngine:
                         continue
                     _lv_admitted = True
                     _lv_admitting_variant = _lv_verdict.admitting_variant
-                    log.info(
-                        "live variant admit: %s (%s) size=$%.2f",
-                        r["symbol"], _lv_admitting_variant, size,
+                    # Phase 11n-9-oo — apply meta-gate size multiplier.
+                    size_mult = float(
+                        getattr(_lv_verdict, "size_multiplier", 1.0) or 1.0
                     )
-                    # Phase 11n-9-nn — record into A/B ledger for
-                    # per-variant exposure + attribution.
+                    if size_mult != 1.0:
+                        old_size = size
+                        size = round(size * size_mult, 2)
+                        log.info(
+                            "meta size adjust %s: $%.2f -> $%.2f (mult=%.2f regime=%s)",
+                            r["symbol"], old_size, size, size_mult,
+                            getattr(_lv_verdict, "regime", "?"),
+                        )
+                    # Skip tiny orders below $2 notional (OKX min ~$1; fees dominate).
+                    if size < 2.0:
+                        log.info(
+                            "meta size too small %s: $%.2f < $2 floor (skip)",
+                            r["symbol"], size,
+                        )
+                        continue
+                    log.info(
+                        "live variant admit: %s (%s) size=$%.2f regime=%s",
+                        r["symbol"], _lv_admitting_variant, size,
+                        getattr(_lv_verdict, "regime", "?"),
+                    )
                     try:
                         _lvg.record_variant_entry(
                             variant=_lv_admitting_variant,

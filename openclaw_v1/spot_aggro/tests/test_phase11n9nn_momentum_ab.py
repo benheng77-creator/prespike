@@ -143,13 +143,16 @@ def test_per_variant_cap_allows_when_under(_iso_db, monkeypatch):
     monkeypatch.setattr(lvg, "_kill_ladder_blocks", lambda: False)
     monkeypatch.setattr(lvg, "_variant_exposure_usd",
                         lambda v: 10.0 if v == "momentum" else 0.0)
+    # Use stronger momentum signal so score clears meta-gate 0.60 floor.
+    # Phase-oo meta-gate requires variant_score >= 0.60 + regime_weight >= 0.50
+    # + net_expectancy > 10bp. Big 24h return + high funding_z + high volume.
     coin = {
-        "return_24h": 0.05, "funding_z": 1.5, "volume_ratio": 2.0,
-        "depth_usd": 1_000_000, "spread_bp": 5,
-        "spi": 0.5, "sigma_30d": 0.0002,
+        "return_24h": 0.12, "funding_z": 2.5, "volume_ratio": 3.0,
+        "depth_usd": 2_000_000, "spread_bp": 3,
+        "spi": 0.5, "sigma_30d": 0.00010,  # calm regime for stable weight
     }
     v = lvg.evaluate(coin, _FakeMio(), candidate_size_usd=5.0)
-    assert v.ok is True
+    assert v.ok is True, f"expected admit, got: {v.reason[:200]}"
     assert v.admitting_variant == "momentum"
 
 
