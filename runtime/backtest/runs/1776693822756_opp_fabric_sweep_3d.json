@@ -1,0 +1,214 @@
+{
+  "ts_ms": 1776693822756,
+  "universe": [
+    "BTC-USDT",
+    "ETH-USDT",
+    "SOL-USDT",
+    "SUI-USDT",
+    "INJ-USDT",
+    "SEI-USDT",
+    "DOGE-USDT",
+    "WIF-USDT",
+    "PEPE-USDT",
+    "ARB-USDT",
+    "DOT-USDT",
+    "ADA-USDT"
+  ],
+  "total_bars_scanned": 42000,
+  "results": [
+    {
+      "label": "exp1_contrarian_tp003",
+      "tp_pct": 0.003,
+      "sl_pct": -0.01,
+      "hold_min": 45,
+      "n_trades": 416,
+      "n_wins": 0,
+      "n_losses": 191,
+      "win_rate": 0.0,
+      "total_pnl_usd": -6.62,
+      "mean_pnl_usd": -0.0159,
+      "mean_ret_bp": -1.88,
+      "mean_hold_min": 23.1,
+      "exit_reasons": {
+        "TIME_STOP": 139,
+        "TP": 225,
+        "SL": 52
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 37082,
+        "max_concurrent_cap": 615,
+        "fractal_regime_disagreement": 259,
+        "exploration_wallet_disabled": 1455,
+        "liquidity_inference_reject": 1
+      },
+      "wallet_disable_events": 21
+    },
+    {
+      "label": "exp1_contrarian_tp005",
+      "tp_pct": 0.005,
+      "sl_pct": -0.01,
+      "hold_min": 45,
+      "n_trades": 412,
+      "n_wins": 146,
+      "n_losses": 266,
+      "win_rate": 0.3544,
+      "total_pnl_usd": -6.66,
+      "mean_pnl_usd": -0.0162,
+      "mean_ret_bp": -2.37,
+      "mean_hold_min": 32.2,
+      "exit_reasons": {
+        "TIME_STOP": 219,
+        "TP": 133,
+        "SL": 60
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 36755,
+        "max_concurrent_cap": 978,
+        "fractal_regime_disagreement": 259,
+        "exploration_wallet_disabled": 1423,
+        "liquidity_inference_reject": 1
+      },
+      "wallet_disable_events": 21
+    },
+    {
+      "label": "exp1_contrarian_tp007",
+      "tp_pct": 0.007,
+      "sl_pct": -0.01,
+      "hold_min": 45,
+      "n_trades": 408,
+      "n_wins": 108,
+      "n_losses": 300,
+      "win_rate": 0.2647,
+      "total_pnl_usd": -6.77,
+      "mean_pnl_usd": -0.0166,
+      "mean_ret_bp": -3.23,
+      "mean_hold_min": 37.1,
+      "exit_reasons": {
+        "TIME_STOP": 292,
+        "SL": 57,
+        "TP": 59
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 36624,
+        "max_concurrent_cap": 1111,
+        "fractal_regime_disagreement": 259,
+        "exploration_wallet_disabled": 1426
+      },
+      "wallet_disable_events": 21
+    },
+    {
+      "label": "exp1_contrarian_tp010",
+      "tp_pct": 0.01,
+      "sl_pct": -0.01,
+      "hold_min": 45,
+      "n_trades": 375,
+      "n_wins": 82,
+      "n_losses": 293,
+      "win_rate": 0.2187,
+      "total_pnl_usd": -6.86,
+      "mean_pnl_usd": -0.0183,
+      "mean_ret_bp": -6.6,
+      "mean_hold_min": 39.8,
+      "exit_reasons": {
+        "TIME_STOP": 317,
+        "SL": 51,
+        "TP": 7
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 36627,
+        "max_concurrent_cap": 1107,
+        "fractal_regime_disagreement": 259,
+        "exploration_wallet_disabled": 1460
+      },
+      "wallet_disable_events": 21
+    },
+    {
+      "label": "exp2_tight_contrarian",
+      "tp_pct": 0.015,
+      "sl_pct": -0.01,
+      "hold_min": 45,
+      "n_trades": 0,
+      "n_wins": 0,
+      "n_losses": 0,
+      "win_rate": 0.0,
+      "total_pnl_usd": 0,
+      "mean_pnl_usd": 0.0,
+      "mean_ret_bp": 0.0,
+      "mean_hold_min": 0.0,
+      "exit_reasons": {},
+      "rejections_by_gate": {
+        "no_variant_admits": 39828
+      },
+      "wallet_disable_events": 0
+    },
+    {
+      "label": "exp2_tight_contrarian_tp005",
+      "tp_pct": 0.005,
+      "sl_pct": -0.01,
+      "hold_min": 45,
+      "n_trades": 0,
+      "n_wins": 0,
+      "n_losses": 0,
+      "win_rate": 0.0,
+      "total_pnl_usd": 0,
+      "mean_pnl_usd": 0.0,
+      "mean_ret_bp": 0.0,
+      "mean_hold_min": 0.0,
+      "exit_reasons": {},
+      "rejections_by_gate": {
+        "no_variant_admits": 39828
+      },
+      "wallet_disable_events": 0
+    },
+    {
+      "label": "exp3_breakout",
+      "tp_pct": 0.02,
+      "sl_pct": -0.012,
+      "hold_min": 60,
+      "n_trades": 256,
+      "n_wins": 58,
+      "n_losses": 197,
+      "win_rate": 0.2266,
+      "total_pnl_usd": -7.07,
+      "mean_pnl_usd": -0.0276,
+      "mean_ret_bp": -25.27,
+      "mean_hold_min": 52.9,
+      "exit_reasons": {
+        "TIME_STOP": 197,
+        "SL": 54,
+        "TP": 5
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 39056,
+        "max_concurrent_cap": 515,
+        "liquidity_inference_reject": 1
+      },
+      "wallet_disable_events": 0
+    },
+    {
+      "label": "exp3_breakout_tp007",
+      "tp_pct": 0.007,
+      "sl_pct": -0.012,
+      "hold_min": 60,
+      "n_trades": 267,
+      "n_wins": 82,
+      "n_losses": 185,
+      "win_rate": 0.3071,
+      "total_pnl_usd": -7.12,
+      "mean_pnl_usd": -0.0267,
+      "mean_ret_bp": -23.43,
+      "mean_hold_min": 47.2,
+      "exit_reasons": {
+        "TIME_STOP": 157,
+        "TP": 54,
+        "SL": 56
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 39152,
+        "max_concurrent_cap": 408,
+        "liquidity_inference_reject": 1
+      },
+      "wallet_disable_events": 0
+    }
+  ]
+}
