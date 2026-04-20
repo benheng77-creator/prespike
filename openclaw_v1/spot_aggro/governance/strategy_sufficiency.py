@@ -53,24 +53,41 @@ def _connect() -> sqlite3.Connection:
     return con
 
 
-# Default per-trade target: 2% net return.
-DEFAULT_TARGET_PCT = 0.02
+# Phase 11n-9-mm — dual-band target model.
+# FLOOR (1.5%) is the minimum real edge threshold.
+# STRETCH (2.0%) is the excellence bar.
+# Verdicts:
+#   'keep'       — clearing FLOOR and approaching STRETCH
+#   'tune'       — below FLOOR but avg_win > 1.0% (tunable via TP/SL/filter)
+#   'replace'    — avg_win <= 1.0% (structural ceiling hit)
+#   'excellent'  — clearing STRETCH
+#   'insufficient_sample' — n < MIN_SAMPLE_FOR_VERDICT
+TARGET_FLOOR_PCT = 0.015
+TARGET_STRETCH_PCT = 0.02
+DEFAULT_TARGET_PCT = TARGET_FLOOR_PCT  # sufficiency measured against floor
+REPLACE_AVG_WIN_FLOOR = 0.010           # below this → structural replace
 MIN_SAMPLE_FOR_VERDICT = 20
 
-# Sufficiency band: verdict flips 'sufficient' when BOTH:
-#   (a) >=40% of trades clear the target
-#   (b) Wilson-95 lower bound on that rate > 20%
-SUFFICIENT_HIT_RATE = 0.40
-SUFFICIENT_WILSON_LOW = 0.20
+# Sufficiency band for the FLOOR target:
+#   (a) >= 35% of trades clear FLOOR
+#   (b) Wilson-95 lower bound on that rate > 15%
+SUFFICIENT_HIT_RATE = 0.35
+SUFFICIENT_WILSON_LOW = 0.15
+# Excellence band (STRETCH target):
+EXCELLENT_HIT_RATE = 0.45
+EXCELLENT_WILSON_LOW = 0.25
 
 
 @dataclass
 class SufficiencyVerdict:
-    target_pct_per_trade: float = DEFAULT_TARGET_PCT
+    target_pct_per_trade: float = DEFAULT_TARGET_PCT          # = FLOOR
+    target_floor_pct: float = TARGET_FLOOR_PCT
+    target_stretch_pct: float = TARGET_STRETCH_PCT
     n_observed: int = 0
     n_wins: int = 0
     n_losses: int = 0
-    pct_hitting_target: float = 0.0
+    pct_hitting_target: float = 0.0                           # rate clearing FLOOR
+    pct_hitting_stretch: float = 0.0                          # rate clearing STRETCH
     wilson_low: float = 0.0
     wilson_up: float = 0.0
     median_net_pct: float = 0.0
@@ -78,7 +95,8 @@ class SufficiencyVerdict:
     avg_win_pct: float = 0.0
     avg_loss_pct: float = 0.0
     rr_ratio: float = 0.0
-    required_wr_for_target: float = 0.0
+    required_wr_for_target: float = 0.0                       # WR for FLOOR
+    required_wr_for_stretch: float = 0.0
     sufficient: bool = False
     reason: str = ""
     recommendation: str = "insufficient_sample"
@@ -156,9 +174,15 @@ def evaluate(
     if v.avg_loss_pct < 0:
         v.rr_ratio = round(v.avg_win_pct / abs(v.avg_loss_pct), 4)
 
-    hits = sum(1 for x in nets if x >= target_pct)
-    v.pct_hitting_target = round(hits / n, 4)
-    v.wilson_low, v.wilson_up = _wilson_95(hits, n)
+    # target_pct is the FLOOR; stretch is STRETCH.
+    v.target_floor_pct = target_pct
+    v.target_stretch_pct = TARGET_STRETCH_PCT
+
+    hits_floor = sum(1 for x in nets if x >= target_pct)
+    hits_stretch = sum(1 for x in nets if x >= TARGET_STRETCH_PCT)
+    v.pct_hitting_target = round(hits_floor / n, 4)
+    v.pct_hitting_stretch = round(hits_stretch / n, 4)
+    v.wilson_low, v.wilson_up = _wilson_95(hits_floor, n)
     v.wilson_low = round(v.wilson_low, 4)
     v.wilson_up = round(v.wilson_up, 4)
 
@@ -166,12 +190,14 @@ def evaluate(
     v.median_net_pct = round(median(nets_sorted), 6)
     v.p75_net_pct = round(nets_sorted[int(n * 0.75)] if n >= 4 else nets_sorted[-1], 6)
 
-    # Required WR so that expectancy = target.
+    # Required WR at current avg_win/avg_loss for each target.
     # expectancy = wr*avg_win + (1-wr)*avg_loss  >=  target
     # => wr >= (target - avg_loss) / (avg_win - avg_loss)
     if v.avg_win_pct > v.avg_loss_pct:
-        wr_req = (target_pct - v.avg_loss_pct) / (v.avg_win_pct - v.avg_loss_pct)
-        v.required_wr_for_target = round(max(0.0, min(1.0, wr_req)), 4)
+        wr_floor = (target_pct - v.avg_loss_pct) / (v.avg_win_pct - v.avg_loss_pct)
+        wr_stretch = (TARGET_STRETCH_PCT - v.avg_loss_pct) / (v.avg_win_pct - v.avg_loss_pct)
+        v.required_wr_for_target = round(max(0.0, min(1.0, wr_floor)), 4)
+        v.required_wr_for_stretch = round(max(0.0, min(1.0, wr_stretch)), 4)
 
     if n < MIN_SAMPLE_FOR_VERDICT:
         v.recommendation = "insufficient_sample"
@@ -181,32 +207,47 @@ def evaluate(
         )
         return v
 
-    # Decision logic.
-    if v.pct_hitting_target >= SUFFICIENT_HIT_RATE and v.wilson_low > SUFFICIENT_WILSON_LOW:
+    # Decision logic — BAND MODE (phase-mm).
+    # Tier 1: excellent — clearing STRETCH target.
+    if (v.pct_hitting_stretch >= EXCELLENT_HIT_RATE
+            and v.wilson_low > EXCELLENT_WILSON_LOW):
+        v.sufficient = True
+        v.recommendation = "excellent"
+        v.reason = (
+            f"EXCELLENT: {v.pct_hitting_stretch * 100:.0f}% of last {n} trades hit "
+            f">={TARGET_STRETCH_PCT * 100:.1f}% stretch target; Wilson-low "
+            f"{v.wilson_low * 100:.0f}%. Strong edge — scale carefully."
+        )
+        return v
+    # Tier 2: keep — clearing FLOOR target.
+    if (v.pct_hitting_target >= SUFFICIENT_HIT_RATE
+            and v.wilson_low > SUFFICIENT_WILSON_LOW):
         v.sufficient = True
         v.recommendation = "keep"
         v.reason = (
-            f"{v.pct_hitting_target * 100:.0f}% of last {n} trades hit >={target_pct * 100:.1f}%; "
-            f"Wilson-low {v.wilson_low * 100:.0f}% > {SUFFICIENT_WILSON_LOW * 100:.0f}% bar."
+            f"KEEP: {v.pct_hitting_target * 100:.0f}% of last {n} trades hit "
+            f">={target_pct * 100:.1f}% floor target; Wilson-low {v.wilson_low * 100:.0f}%. "
+            f"Floor cleared; stretch {v.pct_hitting_stretch * 100:.0f}%."
         )
-    elif v.pct_hitting_target >= 0.20:
-        v.recommendation = "tune"
-        v.reason = (
-            f"{v.pct_hitting_target * 100:.0f}% hit rate is below {SUFFICIENT_HIT_RATE * 100:.0f}% bar. "
-            f"Required WR {v.required_wr_for_target * 100:.0f}% vs observed "
-            f"{v.n_wins / n * 100:.0f}%. Tune TP/SL, filters, or sizing."
-        )
-    elif v.avg_win_pct < target_pct:
+        return v
+    # Tier 3: replace — structural ceiling hit.
+    if v.avg_win_pct <= REPLACE_AVG_WIN_FLOOR:
         v.recommendation = "replace"
         v.reason = (
-            f"avg_win={v.avg_win_pct * 100:.2f}% < target {target_pct * 100:.1f}%. "
-            f"Structural: wins don't hit target even at 100% WR. "
-            f"Needs wider TP / different signal / different regime."
+            f"REPLACE: avg_win {v.avg_win_pct * 100:.2f}% <= "
+            f"{REPLACE_AVG_WIN_FLOOR * 100:.1f}% structural floor. "
+            f"Current TP/SL/scorer combo cannot clear even floor. "
+            f"Widen TP to 2.5-3.5%, extend holds, or replace scorer."
         )
-    else:
-        v.recommendation = "tune"
-        v.reason = (
-            f"hit-rate {v.pct_hitting_target * 100:.0f}% very low but avg_win "
-            f"{v.avg_win_pct * 100:.2f}% reaches target. Filter for high-conviction setups only."
-        )
+        return v
+    # Tier 4: tune — below floor but above structural floor.
+    v.recommendation = "tune"
+    v.reason = (
+        f"TUNE: avg_win {v.avg_win_pct * 100:.2f}% above structural floor "
+        f"{REPLACE_AVG_WIN_FLOOR * 100:.1f}% but floor hit-rate only "
+        f"{v.pct_hitting_target * 100:.0f}% (need {SUFFICIENT_HIT_RATE * 100:.0f}%). "
+        f"Required WR {v.required_wr_for_target * 100:.0f}% vs observed "
+        f"{v.n_wins / n * 100:.0f}%. Tighten filter to high-conviction only "
+        f"OR widen TP slightly to push wins above {target_pct * 100:.1f}%."
+    )
     return v

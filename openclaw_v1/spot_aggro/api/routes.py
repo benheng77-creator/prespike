@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-ll-2026-04-20"
+SERVER_BUILD = "phase-11n-9-mm-2026-04-20"
 
 
 @router.get("/build")
@@ -133,8 +133,10 @@ def spot_aggro_build() -> dict[str, Any]:
             "market_verified_fills": True,        # Phase 11n-9-jj (poll fetch_order until filled; fixes phantom positions)
             "verified_exit_from_balance": True,   # Phase 11n-9-kk (sell from live OKX balance, not engine-tracked qty)
             "governance_board": True,             # Phase 11n-9-ll (strategy sufficiency, edge contribution, formula review, daily report)
-            "target_2pct_per_trade": True,        # Phase 11n-9-ll (>=2% per-trade target)
+            "target_2pct_per_trade": True,        # Phase 11n-9-ll (>=2% per-trade target) [legacy flag, kept for compat]
             "daily_auto_report_24h": True,        # Phase 11n-9-ll (auto-generated daily governance report)
+            "target_band_1_5_to_2": True,         # Phase 11n-9-mm (1.5% floor / 2.0% stretch dual-band target)
+            "tier_tp_sl_recalibrated_mm": True,   # Phase 11n-9-mm (Tier-C tp_mult 0.7->1.3, SL 0.8->1.4, hold 0.75h->4h; Tier-B tp 0.9->1.2, hold 2h->6h)
         },
     }
 

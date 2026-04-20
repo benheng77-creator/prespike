@@ -50,16 +50,22 @@ TIER_PARAMS: dict[str, TierConfig] = {
         trail_activate=0.60, trail_pct=0.60, max_hold_h=4.0,
         invalidation=0.20, module="M1_squeeze_A", cooldown_s=120,
     ),
+    # Phase 11n-9-mm — TP/SL recalibrated for 1.5-2% per-trade band target.
+    # Previous tp_mult values (0.70-1.30) capped realized wins at ~0.4-1%
+    # which made the 1.5% floor structurally unreachable. New multipliers
+    # target ~2.5-3.0% TP at typical SPI, supporting wins in 1.5-2% band
+    # after slippage + fees. SL widens proportionally to preserve R/R ~1.8x.
+    # max_hold lengthened — mean-reversion bounces don't complete in 45 min.
     "B": TierConfig(
         tier="B", consensus_depth=3, consensus_min=0.25, conflict_max=0.85,
-        veto_enabled=False, max_size_frac=0.12, tp_mult=0.90, sl_mult=0.90,
-        trail_activate=0.50, trail_pct=0.50, max_hold_h=2.0,
+        veto_enabled=False, max_size_frac=0.12, tp_mult=1.20, sl_mult=1.20,
+        trail_activate=0.50, trail_pct=0.55, max_hold_h=6.0,
         invalidation=0.30, module="M1_flow_B", cooldown_s=45,
     ),
     "C": TierConfig(
         tier="C", consensus_depth=1, consensus_min=0.20, conflict_max=1.00,
-        veto_enabled=False, max_size_frac=0.08, tp_mult=0.70, sl_mult=0.80,
-        trail_activate=0.40, trail_pct=0.40, max_hold_h=0.75,
+        veto_enabled=False, max_size_frac=0.08, tp_mult=1.30, sl_mult=1.40,
+        trail_activate=0.50, trail_pct=0.50, max_hold_h=4.0,
         invalidation=0.20, module="M1_scalp_C", cooldown_s=30,
     ),
 }

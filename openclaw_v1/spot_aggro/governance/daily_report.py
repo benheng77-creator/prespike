@@ -250,28 +250,33 @@ def generate() -> DailyReport:
         decision.append("continue observe")
     r.governance_decision = {"actions": decision, "kill_ladder": ladder}
 
-    # Section 9 — Strategy Progress Toward >=2%/trade Target
+    # Section 9 — Strategy Progress Toward 1.5-2% per-trade BAND.
     try:
         from spot_aggro.governance.strategy_sufficiency import evaluate as suff_eval
         suff = suff_eval()
-        if suff.recommendation == "insufficient_sample":
-            path = "insufficient_data"
-        elif suff.recommendation == "keep":
-            path = "realistic"
-        elif suff.recommendation == "tune":
-            path = "weak"
-        else:
-            path = "failing"
+        path_map = {
+            "excellent": "excellent",
+            "keep": "realistic",
+            "tune": "weak",
+            "replace": "failing",
+            "insufficient_sample": "insufficient_data",
+        }
+        path = path_map.get(suff.recommendation, "unknown")
         r.strategy_progress = {
             "path_to_target": path,
-            "target_pct_per_trade": suff.target_pct_per_trade,
-            "hit_rate": suff.pct_hitting_target,
+            "target_floor_pct": suff.target_floor_pct,
+            "target_stretch_pct": suff.target_stretch_pct,
+            "hit_rate_floor": suff.pct_hitting_target,
+            "hit_rate_stretch": suff.pct_hitting_stretch,
             "wilson_low": suff.wilson_low,
             "n_observed": suff.n_observed,
-            "required_wr": suff.required_wr_for_target,
+            "required_wr_floor": suff.required_wr_for_target,
+            "required_wr_stretch": suff.required_wr_for_stretch,
             "observed_wr": round(
                 suff.n_wins / suff.n_observed, 4
             ) if suff.n_observed else 0.0,
+            "avg_win_pct": suff.avg_win_pct,
+            "avg_loss_pct": suff.avg_loss_pct,
             "recommendation": suff.recommendation,
             "reason": suff.reason,
         }
@@ -362,8 +367,8 @@ kill_ladder={gd.get('kill_ladder')}
 ## 8. Daily Verdict
 system: **{r.verdict.upper()}**
 
-## 9. Strategy Progress Toward >=2%/trade Target
-path: **{sp.get('path_to_target', '?').upper()}** | hit_rate {sp.get('hit_rate', 0) * 100:.0f}% | wilson_low {sp.get('wilson_low', 0) * 100:.0f}% | n={sp.get('n_observed')} | required_wr {sp.get('required_wr', 0) * 100:.0f}% | observed_wr {sp.get('observed_wr', 0) * 100:.0f}% | rec: **{sp.get('recommendation', '?').upper()}**
+## 9. Strategy Progress Toward 1.5-2% Band
+path: **{sp.get('path_to_target', '?').upper()}** | floor_hit {sp.get('hit_rate_floor', sp.get('hit_rate', 0)) * 100:.0f}% | stretch_hit {sp.get('hit_rate_stretch', 0) * 100:.0f}% | wilson_low {sp.get('wilson_low', 0) * 100:.0f}% | n={sp.get('n_observed')} | req_wr_floor {sp.get('required_wr_floor', sp.get('required_wr', 0)) * 100:.0f}% | observed_wr {sp.get('observed_wr', 0) * 100:.0f}% | avg_win {sp.get('avg_win_pct', 0) * 100:.2f}% | avg_loss {sp.get('avg_loss_pct', 0) * 100:.2f}% | rec: **{sp.get('recommendation', '?').upper()}**
 reason: {sp.get('reason', '')}
 """
 

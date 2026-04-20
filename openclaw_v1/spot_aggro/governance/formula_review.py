@@ -59,7 +59,7 @@ def _init_schema() -> None:
 class FormulaReviewVerdict:
     ts_ms: int = field(default_factory=lambda: int(time.time() * 1000))
     verdict: str = "insufficient_data"
-    # verdict in: 'keep'|'tune'|'replace'|'insufficient_data'
+    # verdict in: 'excellent'|'keep'|'tune'|'replace'|'insufficient_data'
     headline: str = ""
     rationale: str = ""
     top_upgrade: str = ""
@@ -94,58 +94,67 @@ def run() -> FormulaReviewVerdict:
         tw = None
         v.rationale += f"three_way_shadow error: {str(e)[:80]}; "
 
-    # Decision logic.
+    # Decision logic (phase-mm band mode).
     if suff is not None:
         if suff.recommendation == "insufficient_sample":
             v.verdict = "insufficient_data"
             v.headline = (
                 f"Sample too small (n={suff.n_observed}); cannot judge "
-                f"strategy vs {suff.target_pct_per_trade * 100:.1f}% "
-                f"per-trade target yet."
+                f"strategy vs {suff.target_floor_pct * 100:.1f}-"
+                f"{suff.target_stretch_pct * 100:.1f}% band yet."
             )
             v.top_upgrade = "collect_more_fills"
         elif suff.recommendation == "replace":
             v.verdict = "replace"
             v.headline = (
-                f"STRUCTURALLY WEAK: avg_win={suff.avg_win_pct * 100:.2f}% "
-                f"< target {suff.target_pct_per_trade * 100:.1f}%. "
-                f"Even 100% WR won't hit target."
+                f"STRUCTURAL CEILING: avg_win {suff.avg_win_pct * 100:.2f}% "
+                f"<= 1.0% floor. Cannot clear even {suff.target_floor_pct * 100:.1f}%."
             )
             v.top_upgrade = (
-                "replace_scorer_or_widen_TP: current scorer produces "
-                "wins too small; needs either wider take-profits "
-                "(2.5-4% instead of 0.7-1.3%) or a different signal "
-                "regime (trend follow instead of mean-revert scalp)"
+                "widen_tp_and_extend_holds: Tier-C TP 0.7-1.3% "
+                "→ 2.5-3.5%; SL -0.5% → -1.0-1.2%; max_hold 18h "
+                "→ 48h. Matches 1.5-2% band math."
             )
         elif suff.recommendation == "tune":
             v.verdict = "tune"
             v.headline = (
-                f"TUNABLE: {suff.pct_hitting_target * 100:.0f}% of last "
-                f"{suff.n_observed} trades hit >=2%; needs "
-                f"WR={suff.required_wr_for_target * 100:.0f}% "
-                f"vs actual {suff.n_wins / max(suff.n_observed, 1) * 100:.0f}%."
+                f"TUNABLE: {suff.pct_hitting_target * 100:.0f}% clear "
+                f"{suff.target_floor_pct * 100:.1f}% floor on n="
+                f"{suff.n_observed}; need "
+                f"WR={suff.required_wr_for_target * 100:.0f}% vs "
+                f"actual {suff.n_wins / max(suff.n_observed, 1) * 100:.0f}%."
             )
-            # Pick upgrade based on which factor to push on.
             if edge and edge.top_negative:
                 v.top_upgrade = (
-                    f"remove/invert '{edge.top_negative}' from composite — "
-                    f"anti-correlated with realized PnL"
+                    f"remove/invert '{edge.top_negative}' from composite "
+                    f"(anti-correlated with PnL)"
                 )
             elif edge and edge.top_positive:
                 v.top_upgrade = (
-                    f"weight '{edge.top_positive}' higher in composite — "
-                    f"strongest real predictor of wins"
+                    f"weight '{edge.top_positive}' higher in composite "
+                    f"(strongest real predictor)"
                 )
             else:
-                v.top_upgrade = "tighten filters; cut bottom-decile by composite"
+                v.top_upgrade = (
+                    "tighten filter to high-conviction only; cut "
+                    "bottom-decile by composite OR widen TP +0.5%"
+                )
         elif suff.recommendation == "keep":
             v.verdict = "keep"
             v.headline = (
-                f"ON TRACK: {suff.pct_hitting_target * 100:.0f}% hit rate on "
-                f"n={suff.n_observed}, Wilson-low "
-                f"{suff.wilson_low * 100:.0f}%. Keep running."
+                f"KEEP: {suff.pct_hitting_target * 100:.0f}% clear floor "
+                f"on n={suff.n_observed}, Wilson-low {suff.wilson_low * 100:.0f}%; "
+                f"stretch {suff.pct_hitting_stretch * 100:.0f}%."
             )
             v.top_upgrade = "observe_more_before_change"
+        elif suff.recommendation == "excellent":
+            v.verdict = "excellent"
+            v.headline = (
+                f"EXCELLENT: {suff.pct_hitting_stretch * 100:.0f}% clear "
+                f"{suff.target_stretch_pct * 100:.1f}% stretch on n="
+                f"{suff.n_observed}, Wilson-low {suff.wilson_low * 100:.0f}%."
+            )
+            v.top_upgrade = "scale_size_carefully: consider +25% per-trade cap"
 
     v.payload = {
         "sufficiency": suff.to_dict() if suff is not None else None,
