@@ -98,8 +98,12 @@ class VariantStanding:
     pnl_24h_usd: float
     mean_exit_pct: float
     trip_wire_active: bool           # True if variant has been DD-killed
-    promotion_verdict: str           # 'racing' | 'promote' | 'permanent_disable' | 'insufficient'
+    promotion_verdict: str           # 'racing' | 'promote' | 'promote_full' | 'promote_statistical' | 'permanent_disable' | 'insufficient'
     promotion_reason: str
+    # Sprint 3 activation: execution SLO metrics (advisory when gate off)
+    slippage_bp_mean: float | None = None
+    fill_rate_mean: float | None = None
+    slo_all_pass: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -257,6 +261,25 @@ def _standing_for(variant: str) -> VariantStanding:
         verdict = "racing"
         reason = f"n={n}/{N_EXITS_FOR_PROMOTION} exits (in progress)"
 
+    # Sprint 3 activation: if exec SLO gate is on, upgrade promote verdict.
+    # When off, this is purely advisory — verdict stays unchanged, but
+    # execution metrics are attached to the standing for panel visibility.
+    slip_mean = None
+    fill_mean = None
+    slo_all_pass = None
+    try:
+        from spot_aggro.governance.execution_slo import upgrade_verdict, metrics_for
+        m = metrics_for(variant)
+        slip_mean = m.slippage_bp_mean
+        fill_mean = m.fill_rate_mean
+        slo_all_pass = m.slo_all_pass
+        if n >= N_EXITS_FOR_PROMOTION:
+            up = upgrade_verdict(verdict, reason, variant)
+            verdict = up.upgraded_verdict
+            reason = up.upgraded_reason
+    except Exception:
+        pass
+
     return VariantStanding(
         variant=variant,
         n_exits=n, wins=wins, losses=losses,
@@ -269,6 +292,9 @@ def _standing_for(variant: str) -> VariantStanding:
         trip_wire_active=trip_active,
         promotion_verdict=verdict,
         promotion_reason=reason,
+        slippage_bp_mean=slip_mean,
+        fill_rate_mean=fill_mean,
+        slo_all_pass=slo_all_pass,
     )
 
 
@@ -303,23 +329,44 @@ def evaluate(variants: tuple[str, ...] = ("contrarian", "deep_value")
             st.promotion_verdict = "disabled"
             st.promotion_reason = "trip-wire just fired (dd_kill)"
             rpt.n_disabled += 1
-        elif st.promotion_verdict == "promote":
+        elif st.promotion_verdict in ("promote", "promote_full"):
             rpt.n_promoted += 1
-            # Only record once.
+            # Only record once. Sprint 3: 'promote_full' means SLO green.
             _init_schema()
             try:
                 con = _connect()
                 try:
                     ex = con.execute(
                         "SELECT COUNT(*) AS n FROM spot_variant_trip_wire_events"
-                        " WHERE variant = ? AND kind = 'promote'",
+                        " WHERE variant = ? AND kind IN ('promote','promote_full')",
                         (v,),
                     ).fetchone()
                 finally:
                     con.close()
                 if int(ex["n"] or 0) == 0:
                     _record_event(
-                        variant=v, kind="promote",
+                        variant=v, kind=st.promotion_verdict,
+                        rationale=st.promotion_reason,
+                        metrics=st.to_dict(),
+                    )
+            except Exception:
+                pass
+        elif st.promotion_verdict == "promote_statistical":
+            # Stats clear but SLO needs operator review — log, don't auto-promote.
+            _init_schema()
+            try:
+                con = _connect()
+                try:
+                    ex = con.execute(
+                        "SELECT COUNT(*) AS n FROM spot_variant_trip_wire_events"
+                        " WHERE variant = ? AND kind = 'promote_statistical'",
+                        (v,),
+                    ).fetchone()
+                finally:
+                    con.close()
+                if int(ex["n"] or 0) == 0:
+                    _record_event(
+                        variant=v, kind="promote_statistical",
                         rationale=st.promotion_reason,
                         metrics=st.to_dict(),
                     )

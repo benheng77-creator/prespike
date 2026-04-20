@@ -1078,6 +1078,207 @@ def cdv_system_activity(
     }
 
 
+@router.get("/entries/{entry_id}/provenance")
+def cdv_entry_provenance(
+    entry_id: int,
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 2 — full provenance chain for a trade.
+
+    Returns entry metadata + the provenance fingerprint + verification
+    result. Use for post-mortems ("why did this trade fire?").
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import provenance as prov_mod
+    except Exception as e:
+        return {"ok": False, "error": f"provenance import failed: {str(e)[:200]}"}
+    raw = prov_mod.fetch_raw(entry_id)
+    if raw is None:
+        return {"ok": False, "error": f"no entry {entry_id}"}
+    verify = prov_mod.verify(entry_id)
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "entry": raw,
+        "verify": verify,
+    }
+
+
+@router.get("/fractal_regime")
+def cdv_fractal_regime(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 4 — fractal regime confirmation state.
+
+    Returns the three scale readings (1m, 5m, 1h) + agreement verdict.
+    When SPOT_FRACTAL_REGIME_GATE=1, disagreement blocks admission;
+    when off, it's advisory.
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import fractal_regime as fr
+    except Exception as e:
+        return {"ok": False, "error": f"fractal_regime import: {str(e)[:200]}"}
+    v = fr.evaluate()
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "verdict": v.to_dict(),
+    }
+
+
+@router.get("/policy_bank")
+def cdv_policy_bank(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 7 — policy bank tier summary."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import policy_bank as pb
+    except Exception as e:
+        return {"ok": False, "error": f"policy_bank import: {str(e)[:200]}"}
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "summary": pb.summary(),
+        "events": pb.events_recent(limit=20),
+    }
+
+
+@router.post("/policy_bank/assign")
+def cdv_policy_bank_assign(
+    variant: str = Query(...),
+    tier: str = Query(...),
+    rationale: str = Query(...),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Operator-triggered tier assignment. Admin-only."""
+    _require_admin(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import policy_bank as pb
+    except Exception as e:
+        return {"ok": False, "error": f"policy_bank import: {str(e)[:200]}"}
+    return pb.assign(variant=variant, tier=tier,
+                     actor=(x_cdv_role or "operator"),
+                     rationale=rationale)
+
+
+@router.get("/counterfactual_replay")
+def cdv_counterfactual_replay(
+    policy: str | None = Query(None),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 6 — aggregate causal-delta stats.
+
+    Returns per-policy summaries of how the live trades would have
+    performed under each counterfactual policy:
+      - conservative: tp=1.5%, sl=-1.0%
+      - exploratory:  tp=2.0%, sl=-1.5%
+      - aggressive:   tp=3.0%, sl=-2.0%
+
+    Positive mean_delta_bp = live path beat the counterfactual.
+    Negative = the counterfactual would have outperformed.
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import counterfactual_replay as cfr
+    except Exception as e:
+        return {"ok": False, "error": f"cfr import failed: {str(e)[:200]}"}
+    policies = [policy] if policy else ("conservative", "exploratory", "aggressive")
+    stats = {p: cfr.aggregate_stats(p) for p in policies}
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "stats": stats,
+    }
+
+
+@router.post("/counterfactual_replay/run")
+def cdv_counterfactual_replay_run(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Operator-triggered immediate replay pass. Idempotent (UNIQUE
+    constraint on (entry_id, policy) means re-runs are cheap)."""
+    _require_admin(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import counterfactual_replay as cfr
+    except Exception as e:
+        return {"ok": False, "error": f"cfr import failed: {str(e)[:200]}"}
+    r = cfr.replay_all_closed()
+    return {"ok": True, "strategy": CDV_STRATEGY_NAMESPACE, **r}
+
+
+@router.get("/provenance/recent")
+def cdv_provenance_recent(
+    limit: int = Query(20, ge=1, le=200),
+    variant: str | None = Query(None),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """List most recent trades with their provenance summary."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    import json as _json
+    con = _connect()
+    try:
+        if variant:
+            rows = con.execute(
+                "SELECT id, variant, symbol, opened_ts_ms, closed_ts_ms,"
+                "       realized_pnl_usd, provenance_json"
+                " FROM spot_live_variant_entries"
+                " WHERE variant = ?"
+                " ORDER BY COALESCE(opened_ts_ms, ts_ms) DESC LIMIT ?",
+                (variant, int(limit)),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                "SELECT id, variant, symbol, opened_ts_ms, closed_ts_ms,"
+                "       realized_pnl_usd, provenance_json"
+                " FROM spot_live_variant_entries"
+                " ORDER BY COALESCE(opened_ts_ms, ts_ms) DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+    finally:
+        con.close()
+    out = []
+    for r in rows:
+        prov = None
+        if r["provenance_json"]:
+            try:
+                prov = _json.loads(r["provenance_json"])
+            except Exception:
+                prov = None
+        out.append({
+            "entry_id": int(r["id"]),
+            "variant": r["variant"],
+            "symbol": r["symbol"],
+            "opened_ts_ms": r["opened_ts_ms"],
+            "closed_ts_ms": r["closed_ts_ms"],
+            "realized_pnl_usd": r["realized_pnl_usd"],
+            "fingerprint": (prov or {}).get("_fingerprint"),
+            "scorer_version": (prov or {}).get("scorer_version"),
+            "tier": (prov or {}).get("tier"),
+            "regime_at_admit": (prov or {}).get("regime"),
+            "has_provenance": prov is not None,
+        })
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "count": len(out),
+        "entries": out,
+    }
+
+
 @router.get("/auto_heal")
 def cdv_auto_heal(
     limit: int = Query(30, ge=1, le=200),
