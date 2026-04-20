@@ -233,22 +233,20 @@ def evaluate_mean_reversion(coin: dict[str, Any], mio: Any) -> VariantDecision:
 # Score = WR × depth_strength × drawdown_strength. Higher = stronger admit.
 # ---------------------------------------------------------------------------
 
-# Phase 11n-9-pp — expert recalibration for thin-book calm regime.
-# Rationale: depth floor $500k excluded 95% of tier-C coins where real
-# trading happens at our scale. Loosening to $2k matches contrarian's
-# thin-book mode, but we RAISE WR floor from 45% to 55% so we're only
-# trading thinner books with STRONGER historical edge. Paired-safety
-# design: relax structure only when quality evidence compensates.
-# Additionally tighten 7d drawdown window to [-15%, -1%] so we avoid
-# positions that could be in terminal breakdown (-15%+ 7d is no longer
-# "oversold bounce" but "continuation of dying asset").
-DV_MIN_WR = 0.55                  # was 0.45 — raised to compensate thin-book
+# Phase 11n-9-vv Path B — targeted loosening because current rejects
+# show coins with 46% WR failing 55% bar + shallower drawdowns outside
+# the [-15%, -1%] window. Filter was rejecting basically fine coins.
+# Safety preserved through meta-gate (score floor 0.50, net expectancy
+# >= 3bp) and the paired depth/WR discipline.
+DV_MIN_WR = 0.45                  # was 0.55 — match phase-ii original
 DV_MIN_EXITS = 2
-DV_MIN_7D_RET = -0.15             # was -0.30 — avoid terminal drawdowns
-DV_MAX_7D_RET = -0.01             # was -0.03 — catch shallower dips in calm regime
-DV_MAX_FUNDING_Z = 0.0
-DV_MIN_DEPTH_USD = 2_000.0        # was 500_000.0 — thin-book mode
-DV_MAX_SPREAD_BP = 30.0           # was 10.0 — match contrarian's tolerance
+DV_MIN_7D_RET = -0.20             # was -0.15 — allow deeper dips
+DV_MAX_7D_RET = -0.005            # was -0.01 — catch shallower dips
+DV_MIN_DEPTH_USD = 2_000.0        # unchanged — thin-book compensated by meta-gate
+DV_MAX_SPREAD_BP = 30.0           # unchanged
+# DV_MAX_FUNDING_Z removed — no_squeeze_against check was double-counting
+# contrarian's thesis; deep_value should admit regardless of funding sign
+# as long as 7d drawdown + WR conditions hold.
 
 
 def _historical_wr(symbol: str) -> tuple[float | None, int]:
@@ -272,7 +270,7 @@ def _historical_wr(symbol: str) -> tuple[float | None, int]:
 
 def evaluate_deep_value(coin: dict[str, Any], mio: Any) -> VariantDecision:
     sym = coin.get("symbol", "")
-    fz = _safe_float(coin.get("funding_z"), default=999.0)
+    fz = _safe_float(coin.get("funding_z"), default=0.0)
     ret_7d = _safe_float(coin.get("ret_7d"), default=0.0)
     okx_depth = _safe_float(coin.get("depth_usd"), default=0.0)
     # Phase 11n-9-rr step-A — cross-exchange depth awareness for DV too.
@@ -285,10 +283,12 @@ def evaluate_deep_value(coin: dict[str, Any], mio: Any) -> VariantDecision:
 
     wr, n_exits = _historical_wr(sym)
 
+    # Phase 11n-9-vv: no_squeeze_against removed — was double-counting
+    # contrarian's anti-momentum thesis inside deep_value. Deep value
+    # cares about historical WR + drawdown magnitude, not funding sign.
     checks = {
         "wr_proven": wr is not None and wr >= DV_MIN_WR,
         "oversold_but_alive": DV_MIN_7D_RET <= ret_7d <= DV_MAX_7D_RET,
-        "no_squeeze_against": fz <= DV_MAX_FUNDING_Z,
         "liquid": depth >= DV_MIN_DEPTH_USD,
         "tight_spread": spread <= DV_MAX_SPREAD_BP,
     }

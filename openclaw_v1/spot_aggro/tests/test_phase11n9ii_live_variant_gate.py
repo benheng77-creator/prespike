@@ -59,7 +59,7 @@ def test_deep_value_rejects_shallow_drawdown(monkeypatch):
     monkeypatch.setattr(sv, "_historical_wr",
                         lambda sym: (0.60, 10))
     coin = {"symbol": "X-USDT", "funding_z": -1.0,
-            "ret_7d": -0.01,  # only -1%, too shallow
+            "ret_7d": -0.001,  # only -0.1%, too shallow under phase-vv (-0.5% floor)
             "depth_usd": 1_000_000, "spread_bp": 5}
     d = sv.evaluate_deep_value(coin, _FakeMio())
     assert d.passed is False

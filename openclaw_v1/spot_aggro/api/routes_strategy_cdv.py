@@ -580,6 +580,27 @@ def cdv_freeze_new_entries(
         return {"ok": False, "error": str(exc)[:200]}
 
 
+@router.get("/horse_race")
+def cdv_horse_race(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Phase 11n-9-vv — horse race standings + trip-wire state.
+    Per-variant: n_exits, WR, Wilson CI, 24h PnL, cumulative PnL,
+    promotion_verdict, trip_wire_active. Only CDV variants returned."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance.variant_trip_wire import evaluate
+        rpt = evaluate(variants=tuple(sorted(CDV_VARIANTS)))
+        return {
+            "ok": True,
+            "strategy": CDV_STRATEGY_NAMESPACE,
+            "report": rpt.to_dict(),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
 @router.get("/exchange_quality")
 def cdv_exchange_quality(
     window_min: int = Query(1440, ge=5, le=4320),

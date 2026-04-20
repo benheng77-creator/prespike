@@ -66,7 +66,17 @@ def _enabled_variants() -> tuple[str, ...]:
     raw = os.environ.get("SPOT_LIVE_VARIANTS", "").strip()
     if not raw:
         return ()
-    return tuple(v.strip() for v in raw.split(",") if v.strip())
+    parsed = tuple(v.strip() for v in raw.split(",") if v.strip())
+    # Phase 11n-9-vv — strip any variant tripped by per-variant DD kill
+    # or permanent_disable. Failure in the trip-wire module must not
+    # prevent live trading — fall back to raw env list if unavailable.
+    try:
+        from spot_aggro.governance.variant_trip_wire import (
+            enabled_variants_filter,
+        )
+        return enabled_variants_filter(parsed)
+    except Exception:
+        return parsed
 
 
 def live_variants_active() -> bool:

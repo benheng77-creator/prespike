@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-uu-2026-04-20"
+SERVER_BUILD = "phase-11n-9-vv-2026-04-20"
 
 
 @router.get("/build")
@@ -157,6 +157,10 @@ def spot_aggro_build() -> dict[str, Any]:
             "cdv_system_activity_card": True,     # Phase 11n-9-tt — live daemon liveness on CDV panel
             "exchange_data_quality_audit": True,  # Phase 11n-9-uu Option 1 — rolling CDC/OKX quality metrics
             "integration_trigger_rule": True,     # Phase 11n-9-uu Option 2 — evidence-gated Phase 2 trigger
+            "deep_value_loosened_path_b": True,   # Phase 11n-9-vv Path B — WR 55%→45%, 7d window widened, drop no_squeeze_against
+            "variant_trip_wire": True,            # Phase 11n-9-vv Path C — per-variant $3 DD kill
+            "horse_race_40_exit_promo": True,     # Phase 11n-9-vv Path C — Wilson-gated promote/permanent_disable
+            "contrarian_live_horse_race": True,   # Phase 11n-9-vv Path C — contrarian re-enabled with safety rails
         },
     }
 

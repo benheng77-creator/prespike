@@ -919,6 +919,47 @@ def _start_spot_aggro_three_way_shadow() -> None:
     )
 
 
+# Phase 11n-9-vv: variant trip-wire daemon. Every 5 min evaluates
+# per-variant 24h PnL + 40-exit promotion status. Auto-disables any
+# variant whose 24h net PnL <= -SPOT_VARIANT_DD_KILL_USD. Records
+# promote / permanent_disable verdicts when 40 exits reached.
+@app.on_event("startup")
+def _start_spot_aggro_variant_trip_wire() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.variant_trip_wire import evaluate as _vtw_eval
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("variant_trip_wire NOT started (import): %s", exc)
+        return
+    _INTERVAL_S = 300
+    _FIRST_DELAY_S = 40
+
+    def _tick() -> None:
+        try:
+            r = _vtw_eval()
+            if r.n_disabled or r.n_promoted:
+                _log.warning(
+                    "[spot_aggro.variant_trip_wire] disabled=%d promoted=%d",
+                    r.n_disabled, r.n_promoted,
+                )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("variant_trip_wire tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro variant_trip_wire scheduled (first in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
 # Phase 11n-9-qq: Crypto.com read-only comparison-feed daemon. Fetches
 # ticker + top-of-book depth for admitted tier-C symbols every 60s
 # from BOTH OKX and Crypto.com public REST. Writes
