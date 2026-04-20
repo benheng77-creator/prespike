@@ -266,4 +266,5 @@ def test_dashboard_gg_build_and_card():
     assert 'id="c-model-gov"' in HTML
     assert "Model Governance" in HTML
     assert "_refreshModelGov" in HTML
-    assert '"c-model-gov"' in HTML   # registered in _TAB_CARDS
+    # Card must be registered in _TAB_CARDS.research.
+    assert '"c-model-gov"' in HTML

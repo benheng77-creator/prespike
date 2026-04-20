@@ -951,6 +951,23 @@ class SpotAggroEngine:
                 entry_regime=r.get("_entry_regime", "UNKNOWN"),
                 authz_id=_live_authz_id,
             )
+            # Phase 11n-9-hh — hash-chained immutable ledger. One entry
+            # row per successful open. Never blocks live path.
+            try:
+                from spot_aggro.governance.immutable_ledger import append as _il_append
+                _il_append(
+                    "entry", symbol=r["symbol"], tier=tc.tier,
+                    notional_usd=size,
+                    correlation_id=_live_authz_id,
+                    payload={
+                        "module": tc.module,
+                        "composite": r.get("composite"),
+                        "spi": r.get("spi"),
+                        "entry_price": r["price"],
+                    },
+                )
+            except Exception:
+                pass
             self.state.positions[r["symbol"]] = pos
             deployed += size
             self.state.trades_today += 1
@@ -1252,6 +1269,21 @@ class SpotAggroEngine:
                     notional_usd=float(pos.size_usd),
                     payload={"reason": reason, "module": pos.module},
                 )
+        except Exception:
+            pass
+        # Phase 11n-9-hh — append exit to hash-chained immutable ledger.
+        try:
+            from spot_aggro.governance.immutable_ledger import append as _il_append
+            _il_append(
+                "exit", symbol=symbol, tier=pos.tier,
+                notional_usd=float(pos.size_usd),
+                pnl_usd=float(pnl), fee_usd=float(fee_est),
+                correlation_id=str(getattr(pos, "authz_id", "") or ""),
+                payload={
+                    "module": pos.module, "reason": reason,
+                    "hold_seconds": int(time.time() - pos.entry_time),
+                },
+            )
         except Exception:
             pass
         notify.pair_exit(symbol=symbol, module=pos.module, reason=reason, pnl_usd=pnl)

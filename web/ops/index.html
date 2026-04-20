@@ -11,7 +11,7 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-gg-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-hh-2026-04-20"/>
 <!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
      dashboard to their phone home screen and the iOS/Android status
      bar matches the dark theme. -->
@@ -2562,6 +2562,45 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- Phase 11n-9-hh — Resilience & Compliance (Layer 3). Canary health
+     probes, hash-chain verdict, recovery playbook summary, AML-export
+     hook. Read-only card; ledger verify + AML export are one-click. -->
+<div class="c" id="c-resilience"
+     data-lane="governance"
+     data-source-id="/spot_aggro/gov/canary_health"
+     data-scope-id="spot_aggro:resilience"
+     data-window-basis="live probe"
+     data-refresh-basis="30s"
+     data-summary-source="canary_checks"
+     data-confidence-source="all_probes_pass">
+  <div class="h"><h3>Resilience &amp; Compliance</h3><span class="sub">Layer 3 · canary + chain + AML</span></div>
+  <div class="helper">5-probe canary, hash-chain audit, recovery summary, MAS-grade export</div>
+  <div class="truth-meta">
+    <span class="lane-governance">governance</span>
+    <span>source: /spot_aggro/gov/canary_health</span>
+    <span>scope: resilience + compliance</span>
+    <span>window: live probe</span>
+    <span>refresh: 30s</span>
+  </div>
+  <div class="b">
+    <div id="rs-canary" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:8px;background:var(--alt);border-radius:4px">
+      <span style="color:var(--ink2);font-size:11px">CANARY</span>
+      <span id="rs-canary-status" style="font-weight:700;font-size:12px;color:var(--ink1)">—</span>
+    </div>
+    <div id="rs-canary-detail" style="font-size:10px;color:var(--ink3);margin-bottom:8px">loading…</div>
+    <div id="rs-chain" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:8px;background:var(--alt);border-radius:4px">
+      <span style="color:var(--ink2);font-size:11px">LEDGER CHAIN</span>
+      <span id="rs-chain-status" style="font-weight:700;font-size:12px;color:var(--ink1)">—</span>
+    </div>
+    <div id="rs-chain-detail" style="font-size:10px;color:var(--ink3);margin-bottom:8px">—</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn" id="rs-verify-btn" style="font-size:10px;padding:3px 8px">Verify Chain</button>
+      <button class="btn" id="rs-export-btn" style="font-size:10px;padding:3px 8px;background:#1877f222;color:#1877f2">AML Export</button>
+      <button class="btn" id="rs-playbook-btn" style="font-size:10px;padding:3px 8px;background:#10b98122;color:#10b981">Recovery</button>
+    </div>
+  </div>
+</div>
+
 <!-- Phase 11n-9-gg — Model registry + retrain queue. Shows every
      registered scoring model with version + code hash + data
      snapshot. Retrain tickets auto-open on T3 contradiction freeze. -->
@@ -2980,7 +3019,7 @@ const _TAB_CARDS = {
   alerts:       ["c-alerts", "c-issues", "c-infra"],
   research:     ["c-research", "c-mio", "c-universe",
                  "c-swarm", "c-llm", "c-horse-race", "c-kill-ladder",
-                 "c-model-gov"],
+                 "c-model-gov", "c-resilience"],
   system:       ["c-runtime", "c-schedule", "c-settings",
                  "c-exchange"],
   formula:      [],  // rendered by its own tab-formula grid
@@ -3427,6 +3466,9 @@ async function refresh() {
 
   // Phase 11n-9-gg — paint the model-governance card.
   try { _refreshModelGov(); } catch (e) { console.warn("_refreshModelGov", e); }
+
+  // Phase 11n-9-hh — paint resilience card + wire its action buttons.
+  try { _refreshResilience(); _wireResilienceButtons(); } catch (e) { console.warn("_refreshResilience", e); }
 
   // ── 1. Trading Engine Status ──
   // Phase 11h — end the "READY while engine is actually stopped"
@@ -4971,6 +5013,75 @@ async function _refreshEngineState() {
     const j = await r.json();
     if (j && typeof j === "object") window._engineStateCache = j;
   } catch (e) { /* non-fatal */ }
+}
+
+// Phase 11n-9-hh — Resilience renderer: canary probes + chain verdict.
+async function _refreshResilience() {
+  try {
+    const r = await fetch("/spot_aggro/gov/canary_health", {cache: "no-store"}).then(x => x.json()).catch(() => null);
+    const ce = document.getElementById("rs-canary-status");
+    const cd = document.getElementById("rs-canary-detail");
+    if (ce && r) {
+      // `ok` = endpoint worked; `healthy` = all probes green.
+      const healthy = !!r.healthy;
+      ce.textContent = healthy ? "ALL PROBES OK" : `FAILED: ${(r.failed || []).join(", ")}`;
+      ce.style.color = healthy ? "#10b981" : "#ef4444";
+    }
+    if (cd && r) {
+      cd.innerHTML = (r.checks || []).map(c => {
+        const dot = c.ok ? '<span style="color:#10b981">●</span>' : '<span style="color:#ef4444">●</span>';
+        return `${dot} ${c.name}: ${c.detail}`;
+      }).join("<br>");
+    }
+  } catch (e) { /* non-fatal */ }
+}
+
+function _wireResilienceButtons() {
+  const vb = document.getElementById("rs-verify-btn");
+  if (vb && !vb._wired) {
+    vb._wired = true;
+    vb.addEventListener("click", async () => {
+      const r = await fetch("/spot_aggro/gov/immutable_ledger/verify", {cache: "no-store"}).then(x => x.json());
+      const ce = document.getElementById("rs-chain-status");
+      const cd = document.getElementById("rs-chain-detail");
+      const v = r && r.verdict;
+      if (ce) {
+        ce.textContent = v && v.ok ? `OK (${v.total_rows} rows)` : "BROKEN";
+        ce.style.color = v && v.ok ? "#10b981" : "#ef4444";
+      }
+      if (cd) cd.textContent = v ? v.reason : (r && r.error) || "—";
+    });
+  }
+  const eb = document.getElementById("rs-export-btn");
+  if (eb && !eb._wired) {
+    eb._wired = true;
+    eb.addEventListener("click", async () => {
+      const token = localStorage.getItem("spot_ops_token") || "";
+      const r = await fetch("/spot_aggro/gov/aml_audit_export", {
+        headers: {"X-Ops-Token": token},
+      }).then(x => x.json());
+      const blob = new Blob([JSON.stringify(r, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `aml_audit_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+  const pb = document.getElementById("rs-playbook-btn");
+  if (pb && !pb._wired) {
+    pb._wired = true;
+    pb.addEventListener("click", async () => {
+      const r = await fetch("/spot_aggro/gov/recovery_playbook?window_min=60", {cache: "no-store"}).then(x => x.json());
+      alert(
+        `Recovery playbook (last 60m):\n\n` +
+        `authz calls:  ${r.n_authz_last_window}\n` +
+        `exits:        ${r.n_exits_last_window}\n` +
+        `trade_log:    ${r.n_trades_last_window}`
+      );
+    });
+  }
 }
 
 // Phase 11n-9-gg — Model-governance renderer. Paints model registry

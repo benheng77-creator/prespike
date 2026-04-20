@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-gg-2026-04-20"
+SERVER_BUILD = "phase-11n-9-hh-2026-04-20"
 
 
 @router.get("/build")
@@ -120,6 +120,12 @@ def spot_aggro_build() -> dict[str, Any]:
             "shadow_model_version_stamp": True,  # Phase 11n-9-gg (version on every shadow authz)
             "promotion_min_age_30d": True,       # Phase 11n-9-gg (anti-flash-promotion)
             "retrain_queue_on_freeze": True,     # Phase 11n-9-gg (auto-open tickets on T3 freeze)
+            "immutable_ledger_hashchain": True,   # Phase 11n-9-hh (tamper-evident trade log)
+            "canary_health_check": True,          # Phase 11n-9-hh (5-probe resilience check)
+            "degraded_mode_auto_fallback": True,  # Phase 11n-9-hh (limit-only on canary fail)
+            "recovery_playbook": True,            # Phase 11n-9-hh (post-restart forensic summary)
+            "aml_audit_export": True,             # Phase 11n-9-hh (MAS-grade JSON bundle)
+            "human_in_loop_L3_L4": True,          # Phase 11n-9-hh (two-person rule — shipped ff)
         },
     }
 
@@ -478,6 +484,64 @@ def spot_aggro_engine_state() -> dict[str, Any]:
         },
         "ts_ms": int(time.time() * 1000),
     }
+
+
+# Phase 11n-9-hh — Layer 3 Resilience & Compliance.
+@router.get("/gov/canary_health")
+def spot_aggro_canary_health() -> dict[str, Any]:
+    """Five-probe resilience check. degraded_mode auto-activates on fail.
+    Note: `ok` means "endpoint succeeded"; `healthy` means all probes passed.
+    """
+    try:
+        from spot_aggro.governance.resilience import canary_health
+        body = canary_health()
+        # Promote the inner `ok` to `healthy` so the endpoint-level `ok`
+        # always reflects endpoint success, not probe pass-state.
+        healthy = bool(body.pop("ok", False))
+        return {"ok": True, "healthy": healthy, **body}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/gov/immutable_ledger/verify")
+def spot_aggro_ledger_verify() -> dict[str, Any]:
+    """Run verify_chain() over the entire ledger. Returns chain verdict."""
+    try:
+        from spot_aggro.governance.immutable_ledger import (
+            verify_chain, head_hash,
+        )
+        v = verify_chain()
+        return {"ok": True, "verdict": v.to_dict(), "head": head_hash()}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/gov/recovery_playbook")
+def spot_aggro_recovery_playbook(
+    window_min: int = Query(60, ge=1, le=1440),
+) -> dict[str, Any]:
+    """Post-restart forensic summary. Read-only; no replay."""
+    try:
+        from spot_aggro.governance.resilience import recovery_playbook
+        return recovery_playbook(window_min=window_min)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/gov/aml_audit_export")
+def spot_aggro_aml_audit_export(
+    start_ts_ms: int | None = Query(None),
+    end_ts_ms: int | None = Query(None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """AML/MAS-grade audit bundle. Admin-only because it includes full
+    ledger rows + kill-ladder history. Returns canonical JSON doc."""
+    _require_admin(x_ops_token)
+    try:
+        from spot_aggro.governance.resilience import export_aml_audit
+        return export_aml_audit(start_ts_ms=start_ts_ms, end_ts_ms=end_ts_ms)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
 
 
 # Phase 11n-9-gg — Layer 2 Model Governance: registry + retrain queue.
