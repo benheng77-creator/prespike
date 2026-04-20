@@ -272,8 +272,14 @@ def test_promotion_rule_insufficient_below_min_exits(_isolated_db):
 # ---------------------------------------------------------------------------
 
 def test_build_tag_and_flags_phase_ee():
+    import re
     from spot_aggro.api.routes import spot_aggro_build, SERVER_BUILD
-    assert SERVER_BUILD == "phase-11n-9-ee-2026-04-20"
+    m = re.match(r"phase-11n-9-([a-z]+)-2026-04-20$", SERVER_BUILD)
+    assert m, f"missing build tag: {SERVER_BUILD!r}"
+    suffix = m.group(1)
+    assert (len(suffix), suffix) >= (2, "ee"), (
+        f"SERVER_BUILD must be >= phase-ee (got {suffix})"
+    )
     body = spot_aggro_build()
     feats = body.get("features") or {}
     assert feats.get("strategy_variants_three_way") is True
@@ -299,7 +305,13 @@ def test_three_way_shadow_endpoint_shape():
 # ---------------------------------------------------------------------------
 
 def test_build_meta_phase_ee():
-    assert 'content="phase-11n-9-ee-2026-04-20"' in HTML
+    import re
+    m = re.search(r'content="phase-11n-9-([a-z]+)-2026-04-20"', HTML)
+    assert m, "no phase-11n-9 build tag in HTML"
+    suffix = m.group(1)
+    assert (len(suffix), suffix) >= (2, "ee"), (
+        f"build tag must be >= phase-ee, got {suffix}"
+    )
 
 
 def test_horse_race_card_present():

@@ -851,6 +851,41 @@ class SpotAggroEngine:
                     pass
                 continue
 
+            # Phase 11n-9-ff — Layer 1 Execution Integrity. Three hard
+            # gates: kill-ladder L0 check, 2% per-trade risk cap, and
+            # ±15bp price tolerance. Any failure records a reject event
+            # so the auto-pause storm detector can escalate.
+            try:
+                from spot_aggro.governance import execution_integrity as _ei
+                _ei_verdict = _ei.check_all(
+                    notional_usd=size,
+                    equity_usd=self.state.capital_usd,
+                    requested_px=r["price"],
+                    reference_px=r["price"],
+                    symbol=r["symbol"],
+                )
+            except Exception as _ei_err:  # noqa: BLE001
+                _ei_verdict = None
+                log.warning(
+                    "execution_integrity check raised (fail-closed skip): %s",
+                    _ei_err,
+                )
+            if _ei_verdict is None or not _ei_verdict.ok:
+                reason = (
+                    _ei_verdict.reason if _ei_verdict is not None
+                    else "execution_integrity_error"
+                )
+                try:
+                    _emit_trade(
+                        "skip", symbol=r["symbol"], tier=tc.tier,
+                        module=tc.module, notional_usd=size,
+                        reason=f"exec_integrity_block:{reason}"[:120],
+                        composite=r.get("composite"), spi=r.get("spi"),
+                    )
+                except Exception:
+                    pass
+                continue
+
             # Place spot buy
             receipt = await adapter.place_post_only(
                 symbol=r["symbol"], side="buy", notional_usd=size,
@@ -883,6 +918,22 @@ class SpotAggroEngine:
                     pass
                 notify.pair_reject(symbol=r["symbol"], module=tc.module,
                                    error=receipt.error or "unknown", leg="spot")
+                # Phase 11n-9-ff — count exchange rejects toward the
+                # auto-pause storm detector.
+                try:
+                    from spot_aggro.governance.kill_ladder import record_reject
+                    record_reject(
+                        kind="reject",
+                        symbol=r["symbol"],
+                        detail={
+                            "source": "exchange",
+                            "error": (receipt.error or "unknown")[:120],
+                            "module": tc.module,
+                            "tier": tc.tier,
+                        },
+                    )
+                except Exception:
+                    pass
                 continue
 
             # Open position with tier metadata

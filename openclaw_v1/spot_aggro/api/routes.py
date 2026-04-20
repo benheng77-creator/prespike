@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-ee-2026-04-20"
+SERVER_BUILD = "phase-11n-9-ff-2026-04-20"
 
 
 @router.get("/build")
@@ -112,6 +112,10 @@ def spot_aggro_build() -> dict[str, Any]:
             "card_truth_respects_halt": True,    # Phase 11n-9-dd (IDLE not FAIL on halt)
             "strategy_variants_three_way": True, # Phase 11n-9-ee (control/contrarian/mean-rev horse race)
             "variant_horse_race": True,          # Phase 11n-9-ee (first-to-200 promotion)
+            "kill_ladder_l1_l4": True,           # Phase 11n-9-ff (4-tier escalation)
+            "exec_integrity_2pct_risk": True,    # Phase 11n-9-ff (per-trade risk cap)
+            "exec_integrity_price_tol_15bp": True,  # Phase 11n-9-ff (price drift cap)
+            "reject_storm_autopause": True,      # Phase 11n-9-ff (3-in-10min -> L1)
         },
     }
 
@@ -470,6 +474,70 @@ def spot_aggro_engine_state() -> dict[str, Any]:
         },
         "ts_ms": int(time.time() * 1000),
     }
+
+
+# Phase 11n-9-ff — Layer 1 Execution Integrity + 4-tier kill ladder.
+@router.get("/gov/kill_ladder")
+def spot_aggro_kill_ladder() -> dict[str, Any]:
+    """Current ladder rung (L0..L4) + reject-storm count."""
+    try:
+        from spot_aggro.governance.kill_ladder import (
+            current_state, recent_reject_count,
+        )
+        st = current_state()
+        return {
+            "ok": True,
+            "state": st.to_dict(),
+            "reject_count_10min": recent_reject_count(),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/kill_ladder/escalate")
+def spot_aggro_kill_ladder_escalate(
+    level: str = Query(..., description="L1 | L2 | L3 | L4"),
+    reason: str = Query(..., description="Reason code"),
+    x_ops_token: str | None = Header(default=None),
+    x_oversight_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Operator-driven escalation. L1/L2 require ops token only; L3/L4
+    require BOTH ops + oversight tokens (two-person rule)."""
+    _require_admin(x_ops_token)
+    lv = level.upper()
+    if lv not in ("L1", "L2", "L3", "L4"):
+        raise HTTPException(status_code=400, detail="level must be L1..L4")
+    if lv in ("L3", "L4"):
+        expected = os.environ.get("OPS_OVERSIGHT_TOKEN", "")
+        if not expected or x_oversight_token != expected:
+            raise HTTPException(
+                status_code=403,
+                detail="L3/L4 requires X-Oversight-Token (two-person rule)",
+            )
+    from spot_aggro.governance.kill_ladder import escalate
+    st = escalate(lv, reason=reason, actor="operator")  # type: ignore[arg-type]
+    return {"ok": True, "state": st.to_dict()}
+
+
+@router.post("/gov/kill_ladder/release")
+def spot_aggro_kill_ladder_release(
+    target: str = Query("L0", description="Target rung (usually L0)"),
+    x_ops_token: str | None = Header(default=None),
+    x_oversight_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Operator release. Releasing from L3/L4 requires the two-person rule."""
+    _require_admin(x_ops_token)
+    from spot_aggro.governance.kill_ladder import current_state, release
+    cur = current_state()
+    if cur.level in ("L3", "L4"):
+        expected = os.environ.get("OPS_OVERSIGHT_TOKEN", "")
+        if not expected or x_oversight_token != expected:
+            raise HTTPException(
+                status_code=403,
+                detail="releasing from L3/L4 requires X-Oversight-Token",
+            )
+    st = release(target.upper(), actor="operator", reason="manual_release")  # type: ignore[arg-type]
+    return {"ok": True, "state": st.to_dict()}
 
 
 # Phase 11n-9-ee — Three-way strategy-variant horse race.

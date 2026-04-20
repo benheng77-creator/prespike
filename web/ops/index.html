@@ -11,7 +11,7 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-ee-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-ff-2026-04-20"/>
 <!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
      dashboard to their phone home screen and the iOS/Android status
      bar matches the dark theme. -->
@@ -2562,6 +2562,47 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- Phase 11n-9-ff — 4-tier kill ladder. Shows current rung
+     (L0..L4), reject-storm counter, and escalation controls. Two-
+     person rule enforced for L3/L4. -->
+<div class="c" id="c-kill-ladder"
+     data-lane="governance"
+     data-source-id="/spot_aggro/gov/kill_ladder"
+     data-scope-id="spot_aggro:kill_ladder"
+     data-window-basis="live rung state"
+     data-refresh-basis="60s daemon"
+     data-summary-source="persisted_ladder_state"
+     data-confidence-source="current_level_and_reject_count">
+  <div class="h"><h3>Kill Ladder</h3><span class="sub">Layer 1 · 4-tier escalation</span></div>
+  <div class="helper">L0 ok · L1 soft · L2 session · L3 emergency · L4 isolation</div>
+  <div class="truth-meta">
+    <span class="lane-governance">governance</span>
+    <span>source: /spot_aggro/gov/kill_ladder</span>
+    <span>scope: spot_aggro kill ladder</span>
+    <span>window: live rung state</span>
+    <span>refresh: 60s daemon</span>
+  </div>
+  <div class="b">
+    <div id="kl-verdict" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin-bottom:8px;background:var(--alt);border-radius:4px">
+      <span style="color:var(--ink2);font-size:11px">CURRENT LEVEL</span>
+      <span id="kl-level" style="font-weight:700;font-size:16px;color:var(--ink1);letter-spacing:.08em">—</span>
+    </div>
+    <div id="kl-reason" style="color:var(--ink2);font-size:11px;margin-bottom:8px">loading…</div>
+    <div style="display:flex;gap:8px;font-size:11px;color:var(--ink2);margin-bottom:8px">
+      <span>REJECTS (10m):</span>
+      <span id="kl-rejects" style="color:var(--ink1);font-weight:600">—</span>
+      <span style="color:var(--ink3)">threshold 3 → auto L1</span>
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="btn" data-kl-escalate="L1" style="font-size:10px;padding:3px 8px">→L1</button>
+      <button class="btn" data-kl-escalate="L2" style="font-size:10px;padding:3px 8px;background:#f59e0b22;color:#f59e0b">→L2</button>
+      <button class="btn" data-kl-escalate="L3" style="font-size:10px;padding:3px 8px;background:#ef444422;color:#ef4444">→L3</button>
+      <button class="btn" data-kl-escalate="L4" style="font-size:10px;padding:3px 8px;background:#ef444444;color:#ef4444;border:1px solid #ef4444">→L4</button>
+      <button class="btn" data-kl-release="L0" style="font-size:10px;padding:3px 8px;background:#10b98122;color:#10b981;margin-left:auto">release L0</button>
+    </div>
+  </div>
+</div>
+
 <!-- Phase 11n-9-ee — Three-way shadow horse race. Governance card,
      zero capital. Shows standings of control / contrarian / mean_reversion
      with a first-to-200-positive-Wilson promotion tracker. Read-only. -->
@@ -2903,7 +2944,7 @@ const _TAB_CARDS = {
                  "c-forensic", "c-forensic-v2", "c-botledger"],
   alerts:       ["c-alerts", "c-issues", "c-infra"],
   research:     ["c-research", "c-mio", "c-universe",
-                 "c-swarm", "c-llm", "c-horse-race"],
+                 "c-swarm", "c-llm", "c-horse-race", "c-kill-ladder"],
   system:       ["c-runtime", "c-schedule", "c-settings",
                  "c-exchange"],
   formula:      [],  // rendered by its own tab-formula grid
@@ -3344,6 +3385,9 @@ async function refresh() {
 
   // Phase 11n-9-ee — paint the three-way shadow horse race card.
   try { _refreshHorseRace(); } catch (e) { console.warn("_refreshHorseRace", e); }
+
+  // Phase 11n-9-ff — paint the 4-tier kill ladder card + wire buttons.
+  try { _refreshKillLadder(); _wireKillLadderButtons(); } catch (e) { console.warn("_refreshKillLadder", e); }
 
   // ── 1. Trading Engine Status ──
   // Phase 11h — end the "READY while engine is actually stopped"
@@ -4888,6 +4932,67 @@ async function _refreshEngineState() {
     const j = await r.json();
     if (j && typeof j === "object") window._engineStateCache = j;
   } catch (e) { /* non-fatal */ }
+}
+
+// Phase 11n-9-ff — Kill-ladder renderer. Paints current rung, reject
+// count, and wires escalate/release buttons.
+async function _refreshKillLadder() {
+  try {
+    const r = await fetch("/spot_aggro/gov/kill_ladder", {cache: "no-store"});
+    if (!r.ok) return;
+    const j = await r.json();
+    const st = (j && j.state) || {};
+    const lvl = st.level || "L0";
+    const reason = st.reason || "";
+    const rejects = j.reject_count_10min || 0;
+    const lvlEl = document.getElementById("kl-level");
+    const rEl = document.getElementById("kl-reason");
+    const rejEl = document.getElementById("kl-rejects");
+    const colors = {
+      L0: "#10b981", L1: "#f59e0b", L2: "#f59e0b",
+      L3: "#ef4444", L4: "#ef4444",
+    };
+    if (lvlEl) { lvlEl.textContent = lvl; lvlEl.style.color = colors[lvl] || "#c9d1d9"; }
+    if (rEl)   rEl.textContent = reason || "ladder L0 — entries allowed";
+    if (rejEl) rejEl.textContent = String(rejects);
+  } catch (e) { /* non-fatal */ }
+}
+
+function _wireKillLadderButtons() {
+  document.querySelectorAll("[data-kl-escalate]").forEach(btn => {
+    if (btn._wired) return; btn._wired = true;
+    btn.addEventListener("click", async () => {
+      const lv = btn.getAttribute("data-kl-escalate");
+      const reason = prompt(`Reason for escalation to ${lv}?`, "manual");
+      if (!reason) return;
+      const token = localStorage.getItem("spot_ops_token") || "";
+      const hdrs = {"X-Ops-Token": token};
+      if (lv === "L3" || lv === "L4") {
+        const ov = prompt(`L3/L4 requires X-Oversight-Token (two-person rule):`, "");
+        if (!ov) return;
+        hdrs["X-Oversight-Token"] = ov;
+      }
+      await fetch(`/spot_aggro/gov/kill_ladder/escalate?level=${lv}&reason=${encodeURIComponent(reason)}`, {
+        method: "POST", headers: hdrs,
+      });
+      _refreshKillLadder();
+    });
+  });
+  document.querySelectorAll("[data-kl-release]").forEach(btn => {
+    if (btn._wired) return; btn._wired = true;
+    btn.addEventListener("click", async () => {
+      const target = btn.getAttribute("data-kl-release") || "L0";
+      const token = localStorage.getItem("spot_ops_token") || "";
+      const hdrs = {"X-Ops-Token": token};
+      // Caller might need oversight token if releasing from L3/L4.
+      const ov = prompt("X-Oversight-Token (required if currently at L3/L4, else blank):", "");
+      if (ov) hdrs["X-Oversight-Token"] = ov;
+      await fetch(`/spot_aggro/gov/kill_ladder/release?target=${target}`, {
+        method: "POST", headers: hdrs,
+      });
+      _refreshKillLadder();
+    });
+  });
 }
 
 // Phase 11n-9-ee — Three-way shadow horse race renderer. Paints the

@@ -732,6 +732,45 @@ def _start_spot_aggro_trade_readiness() -> None:
     )
 
 
+# Phase 11n-9-ff: Kill-ladder auto-pause daemon. Every 60s evaluates
+# the reject-storm detector and auto-releases L1 after cooldown.
+# L2/L3/L4 never auto-release — operator-only.
+@app.on_event("startup")
+def _start_spot_aggro_kill_ladder_daemon() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.kill_ladder import (
+            evaluate_auto_pause as _klp,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("kill_ladder daemon NOT started (import): %s", exc)
+        return
+    _INTERVAL_S = 60
+    _FIRST_DELAY_S = 20
+
+    def _tick() -> None:
+        try:
+            st = _klp()
+            if st.level != "L0":
+                _log.warning(
+                    "[spot_aggro.kill_ladder] level=%s reason=%s",
+                    st.level, st.reason,
+                )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("kill_ladder tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info("spot_aggro kill_ladder daemon scheduled (every %ds)", _INTERVAL_S)
+
+
 # Phase 11n-9-ee: Three-way shadow verdict daemon.
 # Computes control vs contrarian vs mean_reversion standings every 5
 # minutes and persists the verdict to shadow_variant_verdicts. First
