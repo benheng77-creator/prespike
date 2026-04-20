@@ -1,0 +1,1310 @@
+{
+  "ts_ms": 1776693373077,
+  "variant": "all",
+  "universe": [
+    "BTC-USDT",
+    "ETH-USDT",
+    "SOL-USDT",
+    "SUI-USDT",
+    "INJ-USDT",
+    "SEI-USDT",
+    "DOGE-USDT",
+    "WIF-USDT",
+    "PEPE-USDT",
+    "ARB-USDT",
+    "DOT-USDT",
+    "ADA-USDT"
+  ],
+  "bar": "1m",
+  "total_bars_scanned": 42000,
+  "total_trades": 1209,
+  "total_pnl_usd": -23.71,
+  "by_variant": {
+    "contrarian": {
+      "variant": "contrarian",
+      "n_trades": 419,
+      "n_wins": 98,
+      "n_losses": 321,
+      "win_rate": 0.2339,
+      "mean_pnl_usd": -0.0164,
+      "sum_pnl_usd": -6.89,
+      "mean_hold_min": 41.2,
+      "exit_reasons": {
+        "TIME_STOP": 374,
+        "SL": 44,
+        "TP": 1
+      }
+    },
+    "momentum": {
+      "variant": "momentum",
+      "n_trades": 790,
+      "n_wins": 207,
+      "n_losses": 581,
+      "win_rate": 0.262,
+      "mean_pnl_usd": -0.0213,
+      "sum_pnl_usd": -16.81,
+      "mean_hold_min": 55.6,
+      "exit_reasons": {
+        "TIME_STOP": 674,
+        "SL": 109,
+        "TP": 7
+      }
+    }
+  },
+  "by_symbol": {
+    "BTC-USDT": {
+      "symbol": "BTC-USDT",
+      "n_bars": 3500,
+      "n_trades": 57,
+      "total_pnl_usd": -0.9628247602953819,
+      "by_variant": {
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 39,
+          "n_wins": 5,
+          "n_losses": 34,
+          "win_rate": 0.1282,
+          "mean_pnl_usd": -0.0155,
+          "sum_pnl_usd": -0.61,
+          "mean_hold_min": 42.4,
+          "exit_reasons": {
+            "TIME_STOP": 38,
+            "SL": 1
+          }
+        },
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 18,
+          "n_wins": 3,
+          "n_losses": 15,
+          "win_rate": 0.1667,
+          "mean_pnl_usd": -0.0198,
+          "sum_pnl_usd": -0.36,
+          "mean_hold_min": 57.6,
+          "exit_reasons": {
+            "TIME_STOP": 18
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 3151,
+        "max_concurrent_cap": 111
+      },
+      "wallet_disable_events": 0,
+      "cross_exchange_divergence_count": 0
+    },
+    "ETH-USDT": {
+      "symbol": "ETH-USDT",
+      "n_bars": 3500,
+      "n_trades": 98,
+      "total_pnl_usd": -1.586461722790062,
+      "by_variant": {
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 73,
+          "n_wins": 15,
+          "n_losses": 58,
+          "win_rate": 0.2055,
+          "mean_pnl_usd": -0.0129,
+          "sum_pnl_usd": -0.94,
+          "mean_hold_min": 41.2,
+          "exit_reasons": {
+            "SL": 4,
+            "TIME_STOP": 69
+          }
+        },
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 25,
+          "n_wins": 7,
+          "n_losses": 18,
+          "win_rate": 0.28,
+          "mean_pnl_usd": -0.0257,
+          "sum_pnl_usd": -0.64,
+          "mean_hold_min": 56.7,
+          "exit_reasons": {
+            "TIME_STOP": 23,
+            "SL": 2
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2883,
+        "max_concurrent_cap": 333,
+        "fractal_regime_disagreement": 5
+      },
+      "wallet_disable_events": 0,
+      "cross_exchange_divergence_count": 0
+    },
+    "SOL-USDT": {
+      "symbol": "SOL-USDT",
+      "n_bars": 3500,
+      "n_trades": 103,
+      "total_pnl_usd": -1.7643493641871493,
+      "by_variant": {
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 68,
+          "n_wins": 18,
+          "n_losses": 50,
+          "win_rate": 0.2647,
+          "mean_pnl_usd": -0.0176,
+          "sum_pnl_usd": -1.2,
+          "mean_hold_min": 40.9,
+          "exit_reasons": {
+            "SL": 8,
+            "TIME_STOP": 60
+          }
+        },
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 35,
+          "n_wins": 7,
+          "n_losses": 28,
+          "win_rate": 0.2,
+          "mean_pnl_usd": -0.0162,
+          "sum_pnl_usd": -0.57,
+          "mean_hold_min": 58.8,
+          "exit_reasons": {
+            "TIME_STOP": 35
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2738,
+        "max_concurrent_cap": 473,
+        "fractal_regime_disagreement": 5
+      },
+      "wallet_disable_events": 0,
+      "cross_exchange_divergence_count": 0
+    },
+    "SUI-USDT": {
+      "symbol": "SUI-USDT",
+      "n_bars": 3500,
+      "n_trades": 162,
+      "total_pnl_usd": -3.278042287046396,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 52,
+          "n_wins": 10,
+          "n_losses": 42,
+          "win_rate": 0.1923,
+          "mean_pnl_usd": -0.019,
+          "sum_pnl_usd": -0.99,
+          "mean_hold_min": 57.9,
+          "exit_reasons": {
+            "SL": 2,
+            "TIME_STOP": 50
+          }
+        },
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 110,
+          "n_wins": 24,
+          "n_losses": 86,
+          "win_rate": 0.2182,
+          "mean_pnl_usd": -0.0208,
+          "sum_pnl_usd": -2.29,
+          "mean_hold_min": 39.4,
+          "exit_reasons": {
+            "SL": 17,
+            "TIME_STOP": 92,
+            "TP": 1
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2379,
+        "max_concurrent_cap": 760,
+        "fractal_regime_disagreement": 18
+      },
+      "wallet_disable_events": 0,
+      "cross_exchange_divergence_count": 0
+    },
+    "INJ-USDT": {
+      "symbol": "INJ-USDT",
+      "n_bars": 3500,
+      "n_trades": 175,
+      "total_pnl_usd": -3.4041710516058776,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 114,
+          "n_wins": 40,
+          "n_losses": 74,
+          "win_rate": 0.3509,
+          "mean_pnl_usd": -0.02,
+          "sum_pnl_usd": -2.28,
+          "mean_hold_min": 54.8,
+          "exit_reasons": {
+            "TIME_STOP": 92,
+            "SL": 22
+          }
+        },
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 61,
+          "n_wins": 17,
+          "n_losses": 44,
+          "win_rate": 0.2787,
+          "mean_pnl_usd": -0.0184,
+          "sum_pnl_usd": -1.12,
+          "mean_hold_min": 40.7,
+          "exit_reasons": {
+            "TIME_STOP": 49,
+            "SL": 12
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "max_concurrent_cap": 1003,
+        "no_variant_admits": 2020,
+        "exploration_wallet_disabled": 83,
+        "fractal_regime_disagreement": 34,
+        "liquidity_inference_reject": 4
+      },
+      "wallet_disable_events": 1,
+      "cross_exchange_divergence_count": 440
+    },
+    "SEI-USDT": {
+      "symbol": "SEI-USDT",
+      "n_bars": 3500,
+      "n_trades": 58,
+      "total_pnl_usd": -1.1890284732333667,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 57,
+          "n_wins": 10,
+          "n_losses": 47,
+          "win_rate": 0.1754,
+          "mean_pnl_usd": -0.0208,
+          "sum_pnl_usd": -1.19,
+          "mean_hold_min": 59.1,
+          "exit_reasons": {
+            "TIME_STOP": 55,
+            "SL": 2
+          }
+        },
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 1,
+          "n_wins": 0,
+          "n_losses": 1,
+          "win_rate": 0.0,
+          "mean_pnl_usd": -0.0033,
+          "sum_pnl_usd": -0.0,
+          "mean_hold_min": 45,
+          "exit_reasons": {
+            "TIME_STOP": 1
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2931,
+        "max_concurrent_cap": 213,
+        "exploration_wallet_disabled": 105,
+        "fractal_regime_disagreement": 12
+      },
+      "wallet_disable_events": 2,
+      "cross_exchange_divergence_count": 94
+    },
+    "DOGE-USDT": {
+      "symbol": "DOGE-USDT",
+      "n_bars": 3500,
+      "n_trades": 73,
+      "total_pnl_usd": -1.3940105367185471,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 34,
+          "n_wins": 4,
+          "n_losses": 30,
+          "win_rate": 0.1176,
+          "mean_pnl_usd": -0.0259,
+          "sum_pnl_usd": -0.88,
+          "mean_hold_min": 55.5,
+          "exit_reasons": {
+            "TIME_STOP": 31,
+            "SL": 3
+          }
+        },
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 39,
+          "n_wins": 10,
+          "n_losses": 29,
+          "win_rate": 0.2564,
+          "mean_pnl_usd": -0.0131,
+          "sum_pnl_usd": -0.51,
+          "mean_hold_min": 43.9,
+          "exit_reasons": {
+            "TIME_STOP": 37,
+            "SL": 2
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2821,
+        "exploration_wallet_disabled": 45,
+        "fractal_regime_disagreement": 5,
+        "max_concurrent_cap": 375
+      },
+      "wallet_disable_events": 1,
+      "cross_exchange_divergence_count": 0
+    },
+    "WIF-USDT": {
+      "symbol": "WIF-USDT",
+      "n_bars": 3500,
+      "n_trades": 113,
+      "total_pnl_usd": -2.3433194620524285,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 93,
+          "n_wins": 30,
+          "n_losses": 62,
+          "win_rate": 0.3226,
+          "mean_pnl_usd": -0.0236,
+          "sum_pnl_usd": -2.19,
+          "mean_hold_min": 53.7,
+          "exit_reasons": {
+            "TIME_STOP": 73,
+            "SL": 20
+          }
+        },
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 20,
+          "n_wins": 8,
+          "n_losses": 12,
+          "win_rate": 0.4,
+          "mean_pnl_usd": -0.0075,
+          "sum_pnl_usd": -0.15,
+          "mean_hold_min": 45,
+          "exit_reasons": {
+            "TIME_STOP": 20
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2357,
+        "exploration_wallet_disabled": 235,
+        "fractal_regime_disagreement": 40,
+        "max_concurrent_cap": 573,
+        "liquidity_inference_reject": 1
+      },
+      "wallet_disable_events": 3,
+      "cross_exchange_divergence_count": 1169
+    },
+    "PEPE-USDT": {
+      "symbol": "PEPE-USDT",
+      "n_bars": 3500,
+      "n_trades": 115,
+      "total_pnl_usd": -3.051766934471928,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 108,
+          "n_wins": 22,
+          "n_losses": 86,
+          "win_rate": 0.2037,
+          "mean_pnl_usd": -0.0279,
+          "sum_pnl_usd": -3.02,
+          "mean_hold_min": 54.3,
+          "exit_reasons": {
+            "SL": 19,
+            "TIME_STOP": 88,
+            "TP": 1
+          }
+        },
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 7,
+          "n_wins": 1,
+          "n_losses": 6,
+          "win_rate": 0.1429,
+          "mean_pnl_usd": -0.0049,
+          "sum_pnl_usd": -0.03,
+          "mean_hold_min": 45,
+          "exit_reasons": {
+            "TIME_STOP": 7
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2445,
+        "exploration_wallet_disabled": 206,
+        "fractal_regime_disagreement": 32,
+        "max_concurrent_cap": 521
+      },
+      "wallet_disable_events": 3,
+      "cross_exchange_divergence_count": 125
+    },
+    "ARB-USDT": {
+      "symbol": "ARB-USDT",
+      "n_bars": 3500,
+      "n_trades": 128,
+      "total_pnl_usd": -2.4637805450565993,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 128,
+          "n_wins": 40,
+          "n_losses": 87,
+          "win_rate": 0.3125,
+          "mean_pnl_usd": -0.0192,
+          "sum_pnl_usd": -2.46,
+          "mean_hold_min": 52.5,
+          "exit_reasons": {
+            "TIME_STOP": 92,
+            "SL": 30,
+            "TP": 6
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2145,
+        "max_concurrent_cap": 752,
+        "exploration_wallet_disabled": 239,
+        "fractal_regime_disagreement": 55
+      },
+      "wallet_disable_events": 3,
+      "cross_exchange_divergence_count": 117
+    },
+    "DOT-USDT": {
+      "symbol": "DOT-USDT",
+      "n_bars": 3500,
+      "n_trades": 80,
+      "total_pnl_usd": -1.5612690603080628,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 79,
+          "n_wins": 22,
+          "n_losses": 57,
+          "win_rate": 0.2785,
+          "mean_pnl_usd": -0.0193,
+          "sum_pnl_usd": -1.53,
+          "mean_hold_min": 58.6,
+          "exit_reasons": {
+            "TIME_STOP": 73,
+            "SL": 6
+          }
+        },
+        "contrarian": {
+          "variant": "contrarian",
+          "n_trades": 1,
+          "n_wins": 0,
+          "n_losses": 1,
+          "win_rate": 0.0,
+          "mean_pnl_usd": -0.0348,
+          "sum_pnl_usd": -0.03,
+          "mean_hold_min": 45,
+          "exit_reasons": {
+            "TIME_STOP": 1
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2636,
+        "fractal_regime_disagreement": 37,
+        "exploration_wallet_disabled": 196,
+        "max_concurrent_cap": 370
+      },
+      "wallet_disable_events": 3,
+      "cross_exchange_divergence_count": 91
+    },
+    "ADA-USDT": {
+      "symbol": "ADA-USDT",
+      "n_bars": 3500,
+      "n_trades": 47,
+      "total_pnl_usd": -0.7061124550300473,
+      "by_variant": {
+        "momentum": {
+          "variant": "momentum",
+          "n_trades": 47,
+          "n_wins": 12,
+          "n_losses": 35,
+          "win_rate": 0.2553,
+          "mean_pnl_usd": -0.015,
+          "sum_pnl_usd": -0.71,
+          "mean_hold_min": 57.8,
+          "exit_reasons": {
+            "TIME_STOP": 44,
+            "SL": 3
+          }
+        }
+      },
+      "rejections_by_gate": {
+        "no_variant_admits": 2920,
+        "exploration_wallet_disabled": 130,
+        "fractal_regime_disagreement": 15,
+        "max_concurrent_cap": 207
+      },
+      "wallet_disable_events": 2,
+      "cross_exchange_divergence_count": 0
+    }
+  },
+  "rejections_by_gate_aggregate": {
+    "no_variant_admits": 31426,
+    "max_concurrent_cap": 5691,
+    "fractal_regime_disagreement": 258,
+    "exploration_wallet_disabled": 1239,
+    "liquidity_inference_reject": 5
+  },
+  "wallet_disable_events_total": 18,
+  "trades_sample": [
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776500160000,
+      "ts_close_ms": 1776502860000,
+      "entry_px": 76740.3,
+      "exit_px": 76632.0,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.022,
+      "realized_ret_pct": -0.001411,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003024,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776500220000,
+      "ts_close_ms": 1776502920000,
+      "entry_px": 76720.9,
+      "exit_px": 76635.9,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0205,
+      "realized_ret_pct": -0.001108,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003011,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776500280000,
+      "ts_close_ms": 1776502980000,
+      "entry_px": 76687.9,
+      "exit_px": 76624.0,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0192,
+      "realized_ret_pct": -0.000833,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003254,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776512400000,
+      "ts_close_ms": 1776515100000,
+      "entry_px": 75838.4,
+      "exit_px": 76189.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": 0.0081,
+      "realized_ret_pct": 0.004626,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003907,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776512460000,
+      "ts_close_ms": 1776515160000,
+      "entry_px": 75807.8,
+      "exit_px": 76183.8,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": 0.0098,
+      "realized_ret_pct": 0.00496,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003271,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776529080000,
+      "ts_close_ms": 1776531780000,
+      "entry_px": 75857.3,
+      "exit_px": 75900.7,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0121,
+      "realized_ret_pct": 0.000572,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.004507,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776529140000,
+      "ts_close_ms": 1776531840000,
+      "entry_px": 75848.3,
+      "exit_px": 75907.6,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0111,
+      "realized_ret_pct": 0.000782,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.004698,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776565560000,
+      "ts_close_ms": 1776568260000,
+      "entry_px": 75435.0,
+      "exit_px": 75482.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0119,
+      "realized_ret_pct": 0.000626,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003268,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776583380000,
+      "ts_close_ms": 1776586080000,
+      "entry_px": 74915.2,
+      "exit_px": 75218.1,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": 0.0052,
+      "realized_ret_pct": 0.004043,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003303,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776604800000,
+      "ts_close_ms": 1776608400000,
+      "entry_px": 76036.2,
+      "exit_px": 75816.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0294,
+      "realized_ret_pct": -0.002893,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003589,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776604860000,
+      "ts_close_ms": 1776608460000,
+      "entry_px": 76002.4,
+      "exit_px": 75867.1,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0239,
+      "realized_ret_pct": -0.00178,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003153,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776604920000,
+      "ts_close_ms": 1776608520000,
+      "entry_px": 76173.9,
+      "exit_px": 75876.3,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0345,
+      "realized_ret_pct": -0.003907,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.00487,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776604980000,
+      "ts_close_ms": 1776608580000,
+      "entry_px": 76210.3,
+      "exit_px": 75876.3,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0369,
+      "realized_ret_pct": -0.004383,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.004797,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776607560000,
+      "ts_close_ms": 1776610260000,
+      "entry_px": 75732.9,
+      "exit_px": 76109.3,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": 0.0098,
+      "realized_ret_pct": 0.00497,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003142,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776612900000,
+      "ts_close_ms": 1776615600000,
+      "entry_px": 75727.6,
+      "exit_px": 75621.8,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.022,
+      "realized_ret_pct": -0.001397,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003183,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776612960000,
+      "ts_close_ms": 1776615660000,
+      "entry_px": 75525.9,
+      "exit_px": 75587.6,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0109,
+      "realized_ret_pct": 0.000817,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.005581,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776613020000,
+      "ts_close_ms": 1776615720000,
+      "entry_px": 75527.9,
+      "exit_px": 75572.7,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.012,
+      "realized_ret_pct": 0.000593,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.004689,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776613080000,
+      "ts_close_ms": 1776615780000,
+      "entry_px": 75607.8,
+      "exit_px": 75633.5,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0133,
+      "realized_ret_pct": 0.00034,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003787,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776617820000,
+      "ts_close_ms": 1776620520000,
+      "entry_px": 75367.5,
+      "exit_px": 75182.1,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0273,
+      "realized_ret_pct": -0.00246,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003145,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776617880000,
+      "ts_close_ms": 1776620580000,
+      "entry_px": 75380.1,
+      "exit_px": 75195.6,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0272,
+      "realized_ret_pct": -0.002448,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.00334,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776618300000,
+      "ts_close_ms": 1776621000000,
+      "entry_px": 75164.6,
+      "exit_px": 74963.3,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0284,
+      "realized_ret_pct": -0.002678,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003016,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621060000,
+      "ts_close_ms": 1776623760000,
+      "entry_px": 74963.4,
+      "exit_px": 74746.5,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0295,
+      "realized_ret_pct": -0.002893,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003169,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621120000,
+      "ts_close_ms": 1776623820000,
+      "entry_px": 74860.9,
+      "exit_px": 74785.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.02,
+      "realized_ret_pct": -0.001011,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003889,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621180000,
+      "ts_close_ms": 1776623880000,
+      "entry_px": 74663.4,
+      "exit_px": 74754.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0089,
+      "realized_ret_pct": 0.001216,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.006264,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621240000,
+      "ts_close_ms": 1776623940000,
+      "entry_px": 74833.3,
+      "exit_px": 74765.4,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0195,
+      "realized_ret_pct": -0.000907,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003448,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621300000,
+      "ts_close_ms": 1776624000000,
+      "entry_px": 74807.4,
+      "exit_px": 74760.6,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0181,
+      "realized_ret_pct": -0.000626,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003184,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776629100000,
+      "ts_close_ms": 1776631800000,
+      "entry_px": 74736.3,
+      "exit_px": 74595.6,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0244,
+      "realized_ret_pct": -0.001883,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003063,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776629160000,
+      "ts_close_ms": 1776631860000,
+      "entry_px": 74708.1,
+      "exit_px": 74706.8,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0151,
+      "realized_ret_pct": -1.7e-05,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003057,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776631500000,
+      "ts_close_ms": 1776634200000,
+      "entry_px": 74540.6,
+      "exit_px": 74780.4,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": 0.0011,
+      "realized_ret_pct": 0.003217,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003112,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776635520000,
+      "ts_close_ms": 1776637260000,
+      "entry_px": 74534.7,
+      "exit_px": 73789.353,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0649,
+      "realized_ret_pct": -0.01,
+      "hold_min": 29,
+      "exit_reason": "SL",
+      "ret_5m_at_entry": -0.003399,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776635580000,
+      "ts_close_ms": 1776638280000,
+      "entry_px": 74429.9,
+      "exit_px": 74140.6,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0344,
+      "realized_ret_pct": -0.003887,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.004402,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776636060000,
+      "ts_close_ms": 1776638760000,
+      "entry_px": 74121.1,
+      "exit_px": 74084.6,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0175,
+      "realized_ret_pct": -0.000492,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.004551,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776636120000,
+      "ts_close_ms": 1776638820000,
+      "entry_px": 74104.0,
+      "exit_px": 74069.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0173,
+      "realized_ret_pct": -0.00047,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.005154,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776636180000,
+      "ts_close_ms": 1776638880000,
+      "entry_px": 73971.7,
+      "exit_px": 74055.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0094,
+      "realized_ret_pct": 0.001129,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.006488,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776637440000,
+      "ts_close_ms": 1776640140000,
+      "entry_px": 73763.5,
+      "exit_px": 73959.3,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0017,
+      "realized_ret_pct": 0.002654,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.00339,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776639720000,
+      "ts_close_ms": 1776642420000,
+      "entry_px": 73902.5,
+      "exit_px": 73886.1,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0161,
+      "realized_ret_pct": -0.000222,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.00315,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776639780000,
+      "ts_close_ms": 1776642480000,
+      "entry_px": 73846.7,
+      "exit_px": 73924.7,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0097,
+      "realized_ret_pct": 0.001056,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003373,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776639840000,
+      "ts_close_ms": 1776642540000,
+      "entry_px": 73894.6,
+      "exit_px": 73915.8,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0136,
+      "realized_ret_pct": 0.000287,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003091,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776643500000,
+      "ts_close_ms": 1776647100000,
+      "entry_px": 74082.5,
+      "exit_px": 74302.5,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0002,
+      "realized_ret_pct": 0.00297,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003746,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776643620000,
+      "ts_close_ms": 1776647220000,
+      "entry_px": 74078.7,
+      "exit_px": 74284.1,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0011,
+      "realized_ret_pct": 0.002773,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003718,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776648780000,
+      "ts_close_ms": 1776652380000,
+      "entry_px": 74581.7,
+      "exit_px": 74454.5,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0235,
+      "realized_ret_pct": -0.001706,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003752,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776648900000,
+      "ts_close_ms": 1776652500000,
+      "entry_px": 74613.2,
+      "exit_px": 74472.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0244,
+      "realized_ret_pct": -0.00189,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.004164,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776667320000,
+      "ts_close_ms": 1776670920000,
+      "entry_px": 74778.8,
+      "exit_px": 74950.1,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0036,
+      "realized_ret_pct": 0.002291,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003092,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776667380000,
+      "ts_close_ms": 1776670980000,
+      "entry_px": 74792.6,
+      "exit_px": 74960.6,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0038,
+      "realized_ret_pct": 0.002246,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003518,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776669660000,
+      "ts_close_ms": 1776673260000,
+      "entry_px": 75030.1,
+      "exit_px": 74942.9,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0208,
+      "realized_ret_pct": -0.001162,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003693,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776669720000,
+      "ts_close_ms": 1776673320000,
+      "entry_px": 75245.7,
+      "exit_px": 74870.8,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0399,
+      "realized_ret_pct": -0.004982,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.00649,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776669780000,
+      "ts_close_ms": 1776673380000,
+      "entry_px": 75261.0,
+      "exit_px": 74854.5,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.042,
+      "realized_ret_pct": -0.005401,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.005911,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776671640000,
+      "ts_close_ms": 1776674340000,
+      "entry_px": 74763.8,
+      "exit_px": 74795.0,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": -0.0129,
+      "realized_ret_pct": 0.000417,
+      "hold_min": 45,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": -0.003099,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776676020000,
+      "ts_close_ms": 1776679620000,
+      "entry_px": 75029.5,
+      "exit_px": 75266.2,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": 0.0008,
+      "realized_ret_pct": 0.003155,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.004139,
+      "ret_7d_at_entry": 0.0
+    },
+    {
+      "variant": "momentum",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776676080000,
+      "ts_close_ms": 1776679680000,
+      "entry_px": 74994.6,
+      "exit_px": 75242.9,
+      "notional_usd": 5.0,
+      "realized_pnl_usd": 0.0015,
+      "realized_ret_pct": 0.003311,
+      "hold_min": 60,
+      "exit_reason": "TIME_STOP",
+      "ret_5m_at_entry": 0.003699,
+      "ret_7d_at_entry": 0.0
+    }
+  ]
+}
