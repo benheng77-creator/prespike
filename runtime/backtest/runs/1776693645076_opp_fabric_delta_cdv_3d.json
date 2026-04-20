@@ -1,0 +1,1280 @@
+{
+  "ts_ms": 1776693645076,
+  "universe": [
+    "BTC-USDT",
+    "ETH-USDT",
+    "SOL-USDT",
+    "SUI-USDT",
+    "INJ-USDT",
+    "SEI-USDT",
+    "DOGE-USDT",
+    "WIF-USDT",
+    "PEPE-USDT",
+    "ARB-USDT",
+    "DOT-USDT",
+    "ADA-USDT"
+  ],
+  "bar": "1m",
+  "total_bars_scanned": 42000,
+  "total_trades": 375,
+  "total_outliers": 0,
+  "total_pnl_usd": -6.87,
+  "by_variant": {
+    "contrarian": {
+      "variant": "contrarian",
+      "n_trades": 375,
+      "n_outliers": 0,
+      "win_rate": 0.216,
+      "total_pnl_usd": -6.87,
+      "mean_pnl_usd": -0.0183,
+      "mean_hold_min": 40.1,
+      "exit_reasons": {
+        "TIME_STOP": 323,
+        "SL": 51,
+        "TP": 1
+      },
+      "causal": {
+        "conservative": {
+          "policy": "conservative",
+          "n": 375,
+          "mean_delta_bp": 0.0,
+          "live_wins": 0,
+          "cf_wins": 0,
+          "ties": 375
+        },
+        "exploratory": {
+          "policy": "exploratory",
+          "n": 375,
+          "mean_delta_bp": 0.04,
+          "live_wins": 29,
+          "cf_wins": 23,
+          "ties": 323
+        },
+        "aggressive": {
+          "policy": "aggressive",
+          "n": 375,
+          "mean_delta_bp": -0.08,
+          "live_wins": 23,
+          "cf_wins": 29,
+          "ties": 323
+        }
+      }
+    },
+    "deep_value": {
+      "variant": "deep_value",
+      "n_trades": 0,
+      "n_outliers": 0,
+      "win_rate": 0.0,
+      "total_pnl_usd": 0.0,
+      "mean_pnl_usd": 0.0,
+      "mean_hold_min": 0.0,
+      "exit_reasons": {},
+      "causal": {}
+    }
+  },
+  "rejections_by_gate": {
+    "no_cdv_admits": 36580,
+    "max_concurrent_cap": 1154,
+    "fractal_regime_disagreement": 259,
+    "exploration_wallet_disabled": 1460
+  },
+  "wallet_disable_events": 21,
+  "overall_causal": {
+    "conservative": {
+      "policy": "conservative",
+      "n": 375,
+      "mean_delta_bp": 0.0,
+      "live_wins": 0,
+      "cf_wins": 0,
+      "ties": 375
+    },
+    "exploratory": {
+      "policy": "exploratory",
+      "n": 375,
+      "mean_delta_bp": 0.04,
+      "live_wins": 29,
+      "cf_wins": 23,
+      "ties": 323
+    },
+    "aggressive": {
+      "policy": "aggressive",
+      "n": 375,
+      "mean_delta_bp": -0.08,
+      "live_wins": 23,
+      "cf_wins": 29,
+      "ties": 323
+    }
+  },
+  "trades_sample": [
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776500160000,
+      "entry_px": 76740.3,
+      "notional_usd": 5.0,
+      "live_exit_px": 76632.0,
+      "live_pnl_usd": -0.022,
+      "live_ret_pct": -0.001411,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 76632.0,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.022
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 76632.0,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.022
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 76632.0,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.022
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776500220000,
+      "entry_px": 76720.9,
+      "notional_usd": 5.0,
+      "live_exit_px": 76635.9,
+      "live_pnl_usd": -0.0205,
+      "live_ret_pct": -0.001108,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 76635.9,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0205
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 76635.9,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0205
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 76635.9,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0205
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776500280000,
+      "entry_px": 76687.9,
+      "notional_usd": 5.0,
+      "live_exit_px": 76624.0,
+      "live_pnl_usd": -0.0192,
+      "live_ret_pct": -0.000833,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 76624.0,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0192
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 76624.0,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0192
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 76624.0,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0192
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776512400000,
+      "entry_px": 75838.4,
+      "notional_usd": 5.0,
+      "live_exit_px": 76189.2,
+      "live_pnl_usd": 0.0081,
+      "live_ret_pct": 0.004626,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 76189.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0081
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 76189.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0081
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 76189.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0081
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776512460000,
+      "entry_px": 75807.8,
+      "notional_usd": 5.0,
+      "live_exit_px": 76183.8,
+      "live_pnl_usd": 0.0098,
+      "live_ret_pct": 0.00496,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 76183.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0098
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 76183.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0098
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 76183.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0098
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776529080000,
+      "entry_px": 75857.3,
+      "notional_usd": 5.0,
+      "live_exit_px": 75900.7,
+      "live_pnl_usd": -0.0121,
+      "live_ret_pct": 0.000572,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75900.7,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0121
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75900.7,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0121
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75900.7,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0121
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776529140000,
+      "entry_px": 75848.3,
+      "notional_usd": 5.0,
+      "live_exit_px": 75907.6,
+      "live_pnl_usd": -0.0111,
+      "live_ret_pct": 0.000782,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75907.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0111
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75907.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0111
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75907.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0111
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776565560000,
+      "entry_px": 75435.0,
+      "notional_usd": 5.0,
+      "live_exit_px": 75482.2,
+      "live_pnl_usd": -0.0119,
+      "live_ret_pct": 0.000626,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75482.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0119
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75482.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0119
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75482.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0119
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776583380000,
+      "entry_px": 74915.2,
+      "notional_usd": 5.0,
+      "live_exit_px": 75218.1,
+      "live_pnl_usd": 0.0052,
+      "live_ret_pct": 0.004043,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75218.1,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0052
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75218.1,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0052
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75218.1,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0052
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776607560000,
+      "entry_px": 75732.9,
+      "notional_usd": 5.0,
+      "live_exit_px": 76109.3,
+      "live_pnl_usd": 0.0098,
+      "live_ret_pct": 0.00497,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 76109.3,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0098
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 76109.3,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0098
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 76109.3,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0098
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776607620000,
+      "entry_px": 75715.1,
+      "notional_usd": 5.0,
+      "live_exit_px": 76061.5,
+      "live_pnl_usd": 0.0079,
+      "live_ret_pct": 0.004575,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 76061.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0079
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 76061.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0079
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 76061.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0079
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776612900000,
+      "entry_px": 75727.6,
+      "notional_usd": 5.0,
+      "live_exit_px": 75621.8,
+      "live_pnl_usd": -0.022,
+      "live_ret_pct": -0.001397,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75621.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.022
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75621.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.022
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75621.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.022
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776612960000,
+      "entry_px": 75525.9,
+      "notional_usd": 5.0,
+      "live_exit_px": 75587.6,
+      "live_pnl_usd": -0.0109,
+      "live_ret_pct": 0.000817,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75587.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0109
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75587.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0109
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75587.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0109
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776613020000,
+      "entry_px": 75527.9,
+      "notional_usd": 5.0,
+      "live_exit_px": 75572.7,
+      "live_pnl_usd": -0.012,
+      "live_ret_pct": 0.000593,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75572.7,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.012
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75572.7,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.012
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75572.7,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.012
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776613080000,
+      "entry_px": 75607.8,
+      "notional_usd": 5.0,
+      "live_exit_px": 75633.5,
+      "live_pnl_usd": -0.0133,
+      "live_ret_pct": 0.00034,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75633.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0133
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75633.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0133
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75633.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0133
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776617820000,
+      "entry_px": 75367.5,
+      "notional_usd": 5.0,
+      "live_exit_px": 75182.1,
+      "live_pnl_usd": -0.0273,
+      "live_ret_pct": -0.00246,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75182.1,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0273
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75182.1,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0273
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75182.1,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0273
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776617880000,
+      "entry_px": 75380.1,
+      "notional_usd": 5.0,
+      "live_exit_px": 75195.6,
+      "live_pnl_usd": -0.0272,
+      "live_ret_pct": -0.002448,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 75195.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0272
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 75195.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0272
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 75195.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0272
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776618300000,
+      "entry_px": 75164.6,
+      "notional_usd": 5.0,
+      "live_exit_px": 74963.3,
+      "live_pnl_usd": -0.0284,
+      "live_ret_pct": -0.002678,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74963.3,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0284
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74963.3,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0284
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74963.3,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0284
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621060000,
+      "entry_px": 74963.4,
+      "notional_usd": 5.0,
+      "live_exit_px": 74746.5,
+      "live_pnl_usd": -0.0295,
+      "live_ret_pct": -0.002893,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74746.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0295
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74746.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0295
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74746.5,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0295
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621120000,
+      "entry_px": 74860.9,
+      "notional_usd": 5.0,
+      "live_exit_px": 74785.2,
+      "live_pnl_usd": -0.02,
+      "live_ret_pct": -0.001011,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74785.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.02
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74785.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.02
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74785.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.02
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621180000,
+      "entry_px": 74663.4,
+      "notional_usd": 5.0,
+      "live_exit_px": 74754.2,
+      "live_pnl_usd": -0.0089,
+      "live_ret_pct": 0.001216,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74754.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0089
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74754.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0089
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74754.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0089
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621240000,
+      "entry_px": 74833.3,
+      "notional_usd": 5.0,
+      "live_exit_px": 74765.4,
+      "live_pnl_usd": -0.0195,
+      "live_ret_pct": -0.000907,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74765.4,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0195
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74765.4,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0195
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74765.4,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0195
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776621300000,
+      "entry_px": 74807.4,
+      "notional_usd": 5.0,
+      "live_exit_px": 74760.6,
+      "live_pnl_usd": -0.0181,
+      "live_ret_pct": -0.000626,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74760.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0181
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74760.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0181
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74760.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0181
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776629100000,
+      "entry_px": 74736.3,
+      "notional_usd": 5.0,
+      "live_exit_px": 74595.6,
+      "live_pnl_usd": -0.0244,
+      "live_ret_pct": -0.001883,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74595.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0244
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74595.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0244
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74595.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0244
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776629160000,
+      "entry_px": 74708.1,
+      "notional_usd": 5.0,
+      "live_exit_px": 74706.8,
+      "live_pnl_usd": -0.0151,
+      "live_ret_pct": -1.7e-05,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74706.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0151
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74706.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0151
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74706.8,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0151
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776631500000,
+      "entry_px": 74540.6,
+      "notional_usd": 5.0,
+      "live_exit_px": 74780.4,
+      "live_pnl_usd": 0.0011,
+      "live_ret_pct": 0.003217,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74780.4,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0011
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74780.4,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0011
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74780.4,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": 0.0011
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776635520000,
+      "entry_px": 74534.7,
+      "notional_usd": 5.0,
+      "live_exit_px": 73789.353,
+      "live_pnl_usd": -0.0649,
+      "live_ret_pct": -0.01,
+      "live_exit_reason": "SL",
+      "live_hold_min": 29,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 73789.353,
+          "exit_reason": "SL",
+          "hold_min": 29,
+          "pnl_usd": -0.0649
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74083.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0452
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74083.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0452
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776635580000,
+      "entry_px": 74429.9,
+      "notional_usd": 5.0,
+      "live_exit_px": 74140.6,
+      "live_pnl_usd": -0.0344,
+      "live_ret_pct": -0.003887,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74140.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0344
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74140.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0344
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74140.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0344
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776636060000,
+      "entry_px": 74121.1,
+      "notional_usd": 5.0,
+      "live_exit_px": 74084.6,
+      "live_pnl_usd": -0.0175,
+      "live_ret_pct": -0.000492,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74084.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0175
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74084.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0175
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74084.6,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0175
+        }
+      },
+      "outlier": false
+    },
+    {
+      "variant": "contrarian",
+      "symbol": "BTC-USDT",
+      "ts_open_ms": 1776636120000,
+      "entry_px": 74104.0,
+      "notional_usd": 5.0,
+      "live_exit_px": 74069.2,
+      "live_pnl_usd": -0.0173,
+      "live_ret_pct": -0.00047,
+      "live_exit_reason": "TIME_STOP",
+      "live_hold_min": 45,
+      "cf": {
+        "conservative": {
+          "tp_pct": 0.015,
+          "sl_pct": -0.01,
+          "exit_px": 74069.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0173
+        },
+        "exploratory": {
+          "tp_pct": 0.02,
+          "sl_pct": -0.015,
+          "exit_px": 74069.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0173
+        },
+        "aggressive": {
+          "tp_pct": 0.03,
+          "sl_pct": -0.02,
+          "exit_px": 74069.2,
+          "exit_reason": "TIME_STOP",
+          "hold_min": 45,
+          "pnl_usd": -0.0173
+        }
+      },
+      "outlier": false
+    }
+  ]
+}
