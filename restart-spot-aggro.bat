@@ -63,6 +63,15 @@ set SPOT_EXPLORATION_WALLET_USD=30
 set SPOT_EXPLORATION_DD_KILL_USD=5
 set SPOT_EXPLORATION_VARIANTS=contrarian,deep_value
 
+REM Opportunity Fabric Sprint 3 — execution SLO promotion gate. Wilson
+REM promotion now requires realized slippage < 10bp AND fill_rate > 95%%
+REM in addition to the statistical rule. When stats pass but execution
+REM is borderline, verdict becomes 'promote_statistical' (operator
+REM signoff required) instead of auto-promote.
+set SPOT_EXEC_SLO_GATE=1
+set SPOT_EXEC_SLO_SLIPPAGE_BP=10
+set SPOT_EXEC_SLO_FILL_RATE=0.95
+
 REM Research thresholds stay advisory (11n-2): halt verdicts are tagged
 REM but never flip tier toggles unless you opt in.
 REM  set SPOT_RESEARCH_ENFORCE_HALT=1
