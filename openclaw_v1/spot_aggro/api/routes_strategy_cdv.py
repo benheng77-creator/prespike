@@ -1141,6 +1141,38 @@ def cdv_entry_provenance(
     }
 
 
+@router.get("/liquidity_inference")
+def cdv_liquidity_inference(
+    symbol: str = Query(...),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 5 — passive liquidity inference for a symbol.
+
+    Returns the composite liquidity_score 0..1 (0=tradeable, 1=avoid),
+    expected_slippage_bp, and the component breakdown (thinness,
+    spread, imbalance, realized slip from own flow, fill rate).
+
+    REGULATORY NOTE: passive inference only. No active book probing.
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import liquidity_inference as liq
+    except Exception as e:
+        return {"ok": False, "error": f"liq import: {str(e)[:200]}"}
+    r = liq.reading_for(symbol)
+    blocked, _ = liq.should_block(symbol)
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "reading": r.to_dict(),
+        "gate_enabled": liq.gate_enabled(),
+        "would_block": blocked,
+        "abort_threshold": liq.SCORE_ABORT_THRESHOLD,
+    }
+
+
 @router.get("/fractal_regime")
 def cdv_fractal_regime(
     x_cdv_role: str | None = Header(default=None),

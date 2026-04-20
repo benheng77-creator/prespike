@@ -77,6 +77,15 @@ REM Require >=2 of 3 scales (1m/5m/1h) to agree on regime sign before
 REM admission. Disagreement blocks admission when gate is ON.
 set SPOT_FRACTAL_REGIME_GATE=1
 
+REM Opportunity Fabric Sprint 5 — passive liquidity inference gate.
+REM Composite score of thinness + spread + imbalance + own-flow realized
+REM slippage + fill_rate. Score in [0, 1]: 0=tradeable, 1=avoid. Gate
+REM rejects when score >= SPOT_LIQ_ABORT_SCORE. PASSIVE ONLY — never
+REM places probe orders. Conservative activation (threshold=0.80) to
+REM avoid blocking too much in opening hours; tighten to 0.75 later.
+set SPOT_LIQ_INFERENCE_GATE=1
+set SPOT_LIQ_ABORT_SCORE=0.80
+
 REM Opportunity Fabric Sprint 7 — policy bank tiering. Metadata layer
 REM assigning each variant to conservative/exploratory/baseline.
 REM Exploratory variants (contrarian, deep_value) route through the

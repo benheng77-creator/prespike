@@ -380,6 +380,38 @@ def evaluate(
     except Exception:
         pass
 
+    # Opportunity Fabric Sprint 5 — passive liquidity inference.
+    # Rejects admission if the composite liquidity_score exceeds
+    # SPOT_LIQ_ABORT_SCORE (default 0.75 → "avoid"). Only fires when
+    # SPOT_LIQ_INFERENCE_GATE=1. Passive inference only — never places
+    # probe orders. Fail-open on any module error.
+    try:
+        from spot_aggro.governance.liquidity_inference import (
+            should_block as _liq_block,
+        )
+        sym = coin.get("symbol") if isinstance(coin, dict) else None
+        if sym:
+            blocked, liq_reading = _liq_block(sym)
+            if blocked:
+                return LiveVariantVerdict(
+                    ok=False,
+                    reason=(
+                        f"liquidity_inference_reject {sym} "
+                        f"score={liq_reading.liquidity_score:.2f} "
+                        f"exp_slip={liq_reading.expected_slippage_bp}bp"
+                    ),
+                    evidence={
+                        "variant": admitting.variant,
+                        "liquidity_score": liq_reading.liquidity_score,
+                        "expected_slippage_bp": liq_reading.expected_slippage_bp,
+                        "spread_bp": liq_reading.spread_bp,
+                        "top_depth_usd": liq_reading.top_depth_usd,
+                        "reason_detail": liq_reading.reason,
+                    },
+                )
+    except Exception:
+        pass
+
     # Opportunity Fabric Sprint 7 — policy-bank-routed exploration wallet.
     # When a tier='exploratory' variant admits and the exploration wallet
     # is disabled (24h DD tripped), block here with a specific rejection
