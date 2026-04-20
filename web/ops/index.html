@@ -11,7 +11,7 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-hh-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-ll-2026-04-20"/>
 <!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
      dashboard to their phone home screen and the iOS/Android status
      bar matches the dark theme. -->
@@ -2562,6 +2562,45 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- Phase 11n-9-ll — Governance Board. Sufficiency test vs 2%/trade
+     target, edge contribution per factor, formula-review verdict,
+     latest 24h report. Updates every 30s. -->
+<div class="c" id="c-gov-board"
+     data-lane="governance"
+     data-source-id="/spot_aggro/gov/strategy_sufficiency"
+     data-scope-id="spot_aggro:gov_board"
+     data-window-basis="last 100 trades + 24h"
+     data-refresh-basis="30s"
+     data-summary-source="sufficiency_verdict"
+     data-confidence-source="wilson_low_and_hit_rate">
+  <div class="h"><h3>Governance Board</h3><span class="sub">&gt;=2%/trade target · 24h report</span></div>
+  <div class="helper">Permanent oversight — sufficiency · edge contribution · formula review · daily report</div>
+  <div class="truth-meta">
+    <span class="lane-governance">governance</span>
+    <span>source: /spot_aggro/gov/*</span>
+    <span>scope: strategy + formula</span>
+    <span>window: last 100 trades</span>
+    <span>refresh: 30s</span>
+  </div>
+  <div class="b">
+    <div id="gb-path" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:8px;background:var(--alt);border-radius:4px">
+      <span style="color:var(--ink2);font-size:11px">PATH TO &gt;=2%/trade</span>
+      <span id="gb-path-val" style="font-weight:700;font-size:13px;color:var(--ink1);letter-spacing:.04em">—</span>
+    </div>
+    <div id="gb-sufficiency" style="font-size:11px;color:var(--ink2);margin-bottom:8px">loading…</div>
+    <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">edge contribution</div>
+    <div id="gb-edge" style="font-size:11px;color:var(--ink2);margin-bottom:8px">—</div>
+    <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">formula review</div>
+    <div id="gb-formula" style="font-size:11px;color:var(--ink2);margin-bottom:8px">—</div>
+    <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">latest daily report</div>
+    <div id="gb-daily" style="font-size:11px;color:var(--ink2);margin-bottom:8px">—</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn" id="gb-run-daily" style="font-size:10px;padding:3px 8px">Run Daily Report</button>
+      <button class="btn" id="gb-run-formula" style="font-size:10px;padding:3px 8px">Run Formula Review</button>
+    </div>
+  </div>
+</div>
+
 <!-- Phase 11n-9-hh — Resilience & Compliance (Layer 3). Canary health
      probes, hash-chain verdict, recovery playbook summary, AML-export
      hook. Read-only card; ledger verify + AML export are one-click. -->
@@ -3019,7 +3058,7 @@ const _TAB_CARDS = {
   alerts:       ["c-alerts", "c-issues", "c-infra"],
   research:     ["c-research", "c-mio", "c-universe",
                  "c-swarm", "c-llm", "c-horse-race", "c-kill-ladder",
-                 "c-model-gov", "c-resilience"],
+                 "c-model-gov", "c-resilience", "c-gov-board"],
   system:       ["c-runtime", "c-schedule", "c-settings",
                  "c-exchange"],
   formula:      [],  // rendered by its own tab-formula grid
@@ -3469,6 +3508,9 @@ async function refresh() {
 
   // Phase 11n-9-hh — paint resilience card + wire its action buttons.
   try { _refreshResilience(); _wireResilienceButtons(); } catch (e) { console.warn("_refreshResilience", e); }
+
+  // Phase 11n-9-ll — paint governance board card + wire buttons.
+  try { _refreshGovBoard(); _wireGovBoardButtons(); } catch (e) { console.warn("_refreshGovBoard", e); }
 
   // ── 1. Trading Engine Status ──
   // Phase 11h — end the "READY while engine is actually stopped"
@@ -5013,6 +5055,112 @@ async function _refreshEngineState() {
     const j = await r.json();
     if (j && typeof j === "object") window._engineStateCache = j;
   } catch (e) { /* non-fatal */ }
+}
+
+// Phase 11n-9-ll — Governance Board renderer.
+async function _refreshGovBoard() {
+  try {
+    const [suf, edge, fr, dr] = await Promise.all([
+      fetch("/spot_aggro/gov/strategy_sufficiency", {cache: "no-store"}).then(r => r.json()).catch(() => null),
+      fetch("/spot_aggro/gov/edge_contribution", {cache: "no-store"}).then(r => r.json()).catch(() => null),
+      fetch("/spot_aggro/gov/formula_review/latest?limit=1", {cache: "no-store"}).then(r => r.json()).catch(() => null),
+      fetch("/spot_aggro/gov/daily_report/latest", {cache: "no-store"}).then(r => r.json()).catch(() => null),
+    ]);
+    const pathEl = document.getElementById("gb-path-val");
+    const sufEl = document.getElementById("gb-sufficiency");
+    const edgeEl = document.getElementById("gb-edge");
+    const frEl = document.getElementById("gb-formula");
+    const drEl = document.getElementById("gb-daily");
+
+    const v = suf && suf.verdict;
+    if (pathEl && v) {
+      const rec = (v.recommendation || "?").toUpperCase();
+      const colors = {
+        KEEP: "#10b981", TUNE: "#f59e0b",
+        REPLACE: "#ef4444", INSUFFICIENT_SAMPLE: "#6e7681",
+      };
+      pathEl.textContent = rec.replace(/_/g, " ");
+      pathEl.style.color = colors[rec] || "#c9d1d9";
+    }
+    if (sufEl && v) {
+      const hr = (v.pct_hitting_target * 100).toFixed(0);
+      const wl = (v.wilson_low * 100).toFixed(0);
+      const wu = (v.wilson_upper * 100 || v.wilson_up * 100 || 0).toFixed(0);
+      const rw = (v.required_wr_for_target * 100).toFixed(0);
+      const ow = v.n_observed ? (v.n_wins / v.n_observed * 100).toFixed(0) : "0";
+      sufEl.innerHTML = (
+        `n=<b>${v.n_observed}</b> hit_rate <b>${hr}%</b> ` +
+        `(wilson ${wl}-${wu}%) ` +
+        `req_wr ${rw}% vs obs ${ow}% · ` +
+        `<span style="color:var(--ink3)">${(v.reason || '').slice(0, 120)}</span>`
+      );
+    }
+    const rpt = edge && edge.report;
+    if (edgeEl && rpt) {
+      const tp = rpt.top_positive || "—";
+      const tn = rpt.top_negative || "—";
+      edgeEl.innerHTML = (
+        `top+ <b style="color:var(--pos)">${tp}</b> · ` +
+        `top- <b style="color:var(--neg)">${tn}</b> · n=${rpt.n_trades_with_payload} · ` +
+        `<span style="color:var(--ink3)">${(rpt.recommendation || '').slice(0, 90)}</span>`
+      );
+    }
+    const fv = fr && fr.verdicts && fr.verdicts[0];
+    if (frEl) {
+      if (fv) {
+        const vcolor = {
+          keep: "var(--pos)", tune: "var(--warn)",
+          replace: "var(--neg)", insufficient_data: "var(--ink3)",
+        }[fv.verdict] || "var(--ink1)";
+        frEl.innerHTML = (
+          `<b style="color:${vcolor}">${(fv.verdict || '').toUpperCase()}</b> · ` +
+          `${(fv.headline || '').slice(0, 140)}`
+        );
+      } else {
+        frEl.textContent = "awaiting first brainstorm cycle (runs every 6h)";
+      }
+    }
+    const drp = dr && dr.report;
+    if (drEl) {
+      if (drp) {
+        drEl.innerHTML = (
+          `<b>${drp.report_date}</b> · <b>${(drp.verdict || '').toUpperCase()}</b> · ` +
+          `${(drp.headline || '').slice(0, 120)}`
+        );
+      } else {
+        drEl.textContent = "awaiting first 24h report (runs 5min after boot, then daily)";
+      }
+    }
+  } catch (e) { /* non-fatal */ }
+}
+
+function _wireGovBoardButtons() {
+  const rd = document.getElementById("gb-run-daily");
+  if (rd && !rd._wired) {
+    rd._wired = true;
+    rd.addEventListener("click", async () => {
+      const token = localStorage.getItem("spot_ops_token") || "";
+      const r = await fetch("/spot_aggro/gov/daily_report/run", {
+        method: "POST", headers: {"X-Ops-Token": token},
+      }).then(x => x.json()).catch(() => null);
+      _refreshGovBoard();
+      if (r && r.markdown) {
+        const w = window.open("", "_blank");
+        if (w) { w.document.write(`<pre style="font-family:monospace;padding:20px">${r.markdown.replace(/</g, "&lt;")}</pre>`); }
+      }
+    });
+  }
+  const rf = document.getElementById("gb-run-formula");
+  if (rf && !rf._wired) {
+    rf._wired = true;
+    rf.addEventListener("click", async () => {
+      const token = localStorage.getItem("spot_ops_token") || "";
+      await fetch("/spot_aggro/gov/formula_review/run", {
+        method: "POST", headers: {"X-Ops-Token": token},
+      });
+      _refreshGovBoard();
+    });
+  }
 }
 
 // Phase 11n-9-hh — Resilience renderer: canary probes + chain verdict.

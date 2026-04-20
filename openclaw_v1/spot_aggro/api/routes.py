@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-kk-2026-04-20"
+SERVER_BUILD = "phase-11n-9-ll-2026-04-20"
 
 
 @router.get("/build")
@@ -132,6 +132,9 @@ def spot_aggro_build() -> dict[str, Any]:
             "live_dd_kill_10usd": True,           # Phase 11n-9-ii (-$10 session DD auto-halt)
             "market_verified_fills": True,        # Phase 11n-9-jj (poll fetch_order until filled; fixes phantom positions)
             "verified_exit_from_balance": True,   # Phase 11n-9-kk (sell from live OKX balance, not engine-tracked qty)
+            "governance_board": True,             # Phase 11n-9-ll (strategy sufficiency, edge contribution, formula review, daily report)
+            "target_2pct_per_trade": True,        # Phase 11n-9-ll (>=2% per-trade target)
+            "daily_auto_report_24h": True,        # Phase 11n-9-ll (auto-generated daily governance report)
         },
     }
 
@@ -490,6 +493,111 @@ def spot_aggro_engine_state() -> dict[str, Any]:
         },
         "ts_ms": int(time.time() * 1000),
     }
+
+
+# Phase 11n-9-ll — Governance Board endpoints.
+@router.get("/gov/strategy_sufficiency")
+def spot_aggro_strategy_sufficiency(
+    target_pct: float = Query(0.02, ge=0.0, le=1.0),
+    window_n: int = Query(100, ge=5, le=1000),
+) -> dict[str, Any]:
+    """Sufficiency test: can the current strategy deliver >=target_pct
+    per closed trade? Default target: 2%/trade."""
+    try:
+        from spot_aggro.governance.strategy_sufficiency import evaluate
+        v = evaluate(target_pct=target_pct, window_n=window_n)
+        return {"ok": True, "verdict": v.to_dict()}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/gov/edge_contribution")
+def spot_aggro_edge_contribution(
+    window_n: int = Query(200, ge=10, le=2000),
+) -> dict[str, Any]:
+    """Spearman per-factor vs realized PnL. Identifies which signal
+    components are creating vs destroying edge."""
+    try:
+        from spot_aggro.governance.edge_contribution import analyze
+        r = analyze(window_n=window_n)
+        return {"ok": True, "report": r.to_dict()}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/gov/formula_review/latest")
+def spot_aggro_formula_review_latest(
+    limit: int = Query(4, ge=1, le=50),
+) -> dict[str, Any]:
+    """Last N formula-review verdicts. Daemon runs this every 6h."""
+    try:
+        from spot_aggro.governance.formula_review import latest
+        return {
+            "ok": True,
+            "verdicts": [v.to_dict() for v in latest(limit=limit)],
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/formula_review/run")
+def spot_aggro_formula_review_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Force an immediate formula-review brainstorm cycle."""
+    _require_admin(x_ops_token)
+    try:
+        from spot_aggro.governance.formula_review import run
+        v = run()
+        return {"ok": True, "verdict": v.to_dict()}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/gov/daily_report/latest")
+def spot_aggro_daily_report_latest() -> dict[str, Any]:
+    """The most recent 24h governance report (full markdown + payload)."""
+    try:
+        from spot_aggro.governance.daily_report import latest_full
+        r = latest_full()
+        if r is None:
+            return {"ok": True, "report": None,
+                    "note": "no reports generated yet"}
+        return {"ok": True, "report": r}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/gov/daily_report/list")
+def spot_aggro_daily_report_list(
+    limit: int = Query(30, ge=1, le=365),
+) -> dict[str, Any]:
+    """Recent 30 daily report summaries."""
+    try:
+        from spot_aggro.governance.daily_report import latest
+        return {"ok": True, "reports": latest(limit=limit)}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/daily_report/run")
+def spot_aggro_daily_report_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Force immediate generation of today's daily report."""
+    _require_admin(x_ops_token)
+    try:
+        from spot_aggro.governance.daily_report import generate
+        r = generate()
+        return {
+            "ok": True,
+            "report_date": r.report_date,
+            "verdict": r.verdict,
+            "headline": r.headline,
+            "markdown": r.markdown,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
 
 
 # Phase 11n-9-ii — Live variant gate state.

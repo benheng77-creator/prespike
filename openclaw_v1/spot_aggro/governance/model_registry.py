@@ -253,6 +253,7 @@ def stamp_authz(
 CONTROL_VERSION = "v2.1-phase11n-9-gg"
 CONTRARIAN_VERSION = "v1.0-phase11n-9-ee"
 MEAN_REV_VERSION = "v1.0-phase11n-9-ee"
+DEEP_VALUE_VERSION = "v1.0-phase11n-9-ii"
 
 
 def bootstrap_self_register() -> list[ModelRecord]:
@@ -288,6 +289,11 @@ def bootstrap_self_register() -> list[ModelRecord]:
             "mean_reversion", MEAN_REV_VERSION,
             code_hash_variants, feature_schema,
             notes="oversold-bounce 5-filter",
+        ))
+        out.append(register_model(
+            "deep_value", DEEP_VALUE_VERSION,
+            code_hash_variants, feature_schema,
+            notes="WR>=45% + undervalued 7d-drawdown + liquid",
         ))
         return out
     except Exception:

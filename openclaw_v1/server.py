@@ -732,6 +732,80 @@ def _start_spot_aggro_trade_readiness() -> None:
     )
 
 
+# Phase 11n-9-ll: Formula-review brainstorm daemon (6h cadence).
+@app.on_event("startup")
+def _start_spot_aggro_formula_review() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.formula_review import run as _fr_run
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("formula_review NOT started (import): %s", exc)
+        return
+    _INTERVAL_S = 6 * 3600
+    _FIRST_DELAY_S = 120
+
+    def _tick() -> None:
+        try:
+            v = _fr_run()
+            _log.info(
+                "[spot_aggro.formula_review] verdict=%s headline=%s",
+                v.verdict, (v.headline or "")[:80],
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("formula_review tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro formula_review scheduled (first in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
+# Phase 11n-9-ll: Daily 24h governance report daemon.
+@app.on_event("startup")
+def _start_spot_aggro_daily_report() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.daily_report import generate as _dr_gen
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("daily_report NOT started (import): %s", exc)
+        return
+    _INTERVAL_S = 24 * 3600
+    _FIRST_DELAY_S = 300   # 5 min after boot
+
+    def _tick() -> None:
+        try:
+            r = _dr_gen()
+            _log.info(
+                "[spot_aggro.daily_report] %s verdict=%s headline=%s",
+                r.report_date, r.verdict, (r.headline or "")[:100],
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("daily_report tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro daily_report scheduled (first in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
 # Phase 11n-9-gg: Model-registry self-registration on boot.
 @app.on_event("startup")
 def _start_spot_aggro_model_registry_bootstrap() -> None:
