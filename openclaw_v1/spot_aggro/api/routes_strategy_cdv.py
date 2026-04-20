@@ -1078,6 +1078,95 @@ def cdv_system_activity(
     }
 
 
+@router.get("/entries/{entry_id}/provenance")
+def cdv_entry_provenance(
+    entry_id: int,
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Opportunity Fabric Sprint 2 — full provenance chain for a trade.
+
+    Returns entry metadata + the provenance fingerprint + verification
+    result. Use for post-mortems ("why did this trade fire?").
+    """
+    _require_viewer(x_cdv_role, x_ops_token)
+    try:
+        from spot_aggro.governance import provenance as prov_mod
+    except Exception as e:
+        return {"ok": False, "error": f"provenance import failed: {str(e)[:200]}"}
+    raw = prov_mod.fetch_raw(entry_id)
+    if raw is None:
+        return {"ok": False, "error": f"no entry {entry_id}"}
+    verify = prov_mod.verify(entry_id)
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "entry": raw,
+        "verify": verify,
+    }
+
+
+@router.get("/provenance/recent")
+def cdv_provenance_recent(
+    limit: int = Query(20, ge=1, le=200),
+    variant: str | None = Query(None),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """List most recent trades with their provenance summary."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    import json as _json
+    con = _connect()
+    try:
+        if variant:
+            rows = con.execute(
+                "SELECT id, variant, symbol, opened_ts_ms, closed_ts_ms,"
+                "       realized_pnl_usd, provenance_json"
+                " FROM spot_live_variant_entries"
+                " WHERE variant = ?"
+                " ORDER BY COALESCE(opened_ts_ms, ts_ms) DESC LIMIT ?",
+                (variant, int(limit)),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                "SELECT id, variant, symbol, opened_ts_ms, closed_ts_ms,"
+                "       realized_pnl_usd, provenance_json"
+                " FROM spot_live_variant_entries"
+                " ORDER BY COALESCE(opened_ts_ms, ts_ms) DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+    finally:
+        con.close()
+    out = []
+    for r in rows:
+        prov = None
+        if r["provenance_json"]:
+            try:
+                prov = _json.loads(r["provenance_json"])
+            except Exception:
+                prov = None
+        out.append({
+            "entry_id": int(r["id"]),
+            "variant": r["variant"],
+            "symbol": r["symbol"],
+            "opened_ts_ms": r["opened_ts_ms"],
+            "closed_ts_ms": r["closed_ts_ms"],
+            "realized_pnl_usd": r["realized_pnl_usd"],
+            "fingerprint": (prov or {}).get("_fingerprint"),
+            "scorer_version": (prov or {}).get("scorer_version"),
+            "tier": (prov or {}).get("tier"),
+            "regime_at_admit": (prov or {}).get("regime"),
+            "has_provenance": prov is not None,
+        })
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "ts_ms": int(time.time() * 1000),
+        "count": len(out),
+        "entries": out,
+    }
+
+
 @router.get("/auto_heal")
 def cdv_auto_heal(
     limit: int = Query(30, ge=1, le=200),

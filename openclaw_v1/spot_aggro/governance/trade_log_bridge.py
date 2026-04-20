@@ -260,15 +260,52 @@ def run_once() -> BridgeResult:
                         payload, r["avg_px"], r["side"] or "",
                         r["fee_usd"], notional,
                     )
+                    # Sprint 2 activation — build provenance fingerprint
+                    # from the admission payload and attach at insert time.
+                    prov_json: str | None = None
+                    try:
+                        from spot_aggro.governance.provenance import build as build_prov
+                        prov = build_prov(
+                            variant=variant,
+                            symbol=symbol,
+                            tier=str(payload.get("tier") or r["tier"] or "") or None,
+                            scorer_version=str(payload.get("scorer_version") or "legacy_scalp_v1"),
+                            score_value=(
+                                float(payload.get("composite_score"))
+                                if payload.get("composite_score") is not None
+                                else (float(payload.get("composite"))
+                                      if payload.get("composite") is not None else None)
+                            ),
+                            score_components={
+                                k: float(v) for k, v in payload.items()
+                                if k in ("spi", "consensus", "composite", "tp", "sl")
+                                and isinstance(v, (int, float))
+                            },
+                            prefilter_verdicts={},
+                            variant_gate_evidence={
+                                "module": r["module"] or "",
+                                "side": r["side"] or "",
+                                "regime_at_admit": payload.get("entry_regime"),
+                                "regime_confidence": payload.get("regime_confidence"),
+                            },
+                            notional_usd=notional,
+                            extra={"source_trade_log_id": tl_id,
+                                   "correlation_id": r["correlation_id"]},
+                        )
+                        prov_json = prov.to_json()
+                    except Exception:
+                        prov_json = None
+
                     con.execute(
                         "INSERT INTO spot_live_variant_entries("
                         " ts_ms, opened_ts_ms, variant, symbol,"
                         " notional_usd, authz_id, status,"
-                        " slippage_bp, fill_rate, source_trade_log_id)"
-                        " VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        " slippage_bp, fill_rate, source_trade_log_id,"
+                        " provenance_json)"
+                        " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                         (ts_ms, ts_ms, variant, symbol, notional,
                          r["correlation_id"], "open",
-                         slip, 1.0, tl_id),
+                         slip, 1.0, tl_id, prov_json),
                     )
                     res.inserted += 1
 
