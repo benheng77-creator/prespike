@@ -123,6 +123,24 @@ except Exception as _spot_exc:                        # pragma: no cover
     )
 
 
+# Phase 11n-9-ss — Contrarian + Deep Value scoped panel router.
+# Strictly isolated: mounts at /strategy/contrarian_deepvalue/*,
+# feature-flag gated (FEATURE_CONTRARIAN_DEEPVALUE_PANEL), returns
+# only CDV-scoped data. Failure here MUST NOT affect existing routers.
+try:
+    from spot_aggro.api.routes_strategy_cdv import router as _cdv_router
+    app.include_router(_cdv_router)
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "CDV panel router mounted at /strategy/contrarian_deepvalue/*",
+    )
+except Exception as _cdv_exc:                         # pragma: no cover
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "CDV panel router NOT mounted: %s", _cdv_exc,
+    )
+
+
 # Phase 11e — Path A: serve the operator dashboard directly from uvicorn.
 #
 # Before this, the dashboard only existed at https://claw247-trading.pages.dev/ops/

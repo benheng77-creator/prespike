@@ -1,0 +1,623 @@
+"""Phase 11n-9-ss — Contrarian + Deep Value scoped API router.
+
+Serves ONLY data relevant to the CDV strategy. Every response is
+filtered through strategy_scope_guard. Every record carries
+strategy="contrarian_deepvalue" tag. Non-CDV variants are stripped
+from aggregate fields.
+
+Mounted at: /strategy/contrarian_deepvalue/*
+
+Feature-flag gated (FEATURE_CONTRARIAN_DEEPVALUE_PANEL) — returns
+404 when off. Admin mutations require X-CDV-Role or OPS_ADMIN_TOKEN.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import sqlite3
+import time
+from typing import Any
+
+from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi.responses import FileResponse, HTMLResponse
+
+from spot_aggro.governance.strategy_scope_guard import (
+    CDV_STRATEGY_NAMESPACE,
+    CDV_VARIANTS,
+    RBAC_ADMIN,
+    RBAC_VIEWER,
+    ScopeViolation,
+    feature_enabled,
+    filter_cdv_rows,
+    mask_non_cdv_fields,
+    rbac_require,
+    scoped_variants_sql_in_clause,
+)
+
+log = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/strategy/contrarian_deepvalue", tags=["cdv_panel"])
+
+
+def _db_path() -> str:
+    return (
+        os.environ.get("TRADE_DB_PATH")
+        or os.environ.get("CLAW_DB_PATH")
+        or "trades.db"
+    )
+
+
+def _connect() -> sqlite3.Connection:
+    con = sqlite3.connect(_db_path(), isolation_level=None, timeout=5.0)
+    con.row_factory = sqlite3.Row
+    return con
+
+
+def _feature_or_404() -> None:
+    if not feature_enabled():
+        raise HTTPException(
+            status_code=404,
+            detail="CDV panel disabled (FEATURE_CONTRARIAN_DEEPVALUE_PANEL off)",
+        )
+
+
+def _require_viewer(role_header: str | None, ops_token: str | None) -> None:
+    """Viewer access: either X-CDV-Role header matches viewer/admin,
+    OR OPS_ADMIN_TOKEN present (admin grants viewer by default)."""
+    _feature_or_404()
+    admin = os.environ.get("OPS_ADMIN_TOKEN", "")
+    if admin and ops_token == admin:
+        return
+    if role_header and (
+        role_header == RBAC_VIEWER
+        or role_header == RBAC_ADMIN
+        or role_header.startswith(RBAC_VIEWER)
+        or role_header.startswith(RBAC_ADMIN)
+    ):
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=f"role required: {RBAC_VIEWER} or {RBAC_ADMIN}",
+    )
+
+
+def _require_admin(role_header: str | None, ops_token: str | None) -> None:
+    _feature_or_404()
+    admin = os.environ.get("OPS_ADMIN_TOKEN", "")
+    if admin and ops_token == admin:
+        return
+    if role_header and (
+        role_header == RBAC_ADMIN or role_header.startswith(RBAC_ADMIN)
+    ):
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=f"role required: {RBAC_ADMIN}",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Aggregated dashboard endpoint
+# ---------------------------------------------------------------------------
+
+@router.get("/dashboard")
+def cdv_dashboard(
+    window_min: int = Query(60, ge=5, le=1440),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """One-call aggregate for the full CDV panel. Strategy-scoped."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    now_ms = int(time.time() * 1000)
+    cutoff = now_ms - window_min * 60_000
+
+    # Section 1 — header
+    header = _build_header()
+    # Section 2 — summary
+    summary = _build_summary()
+    # Sections 3 + 4 — per-variant engine views
+    contrarian = _build_variant_view("contrarian", cutoff)
+    deep_value = _build_variant_view("deep_value", cutoff)
+    # Section 5 — pipeline
+    pipeline = _build_pipeline(cutoff)
+    # Section 6 — positions
+    positions = _build_positions(cutoff)
+    # Section 7 — execution quality
+    execution = _build_execution_quality(cutoff)
+    # Section 8 — risk/governance
+    risk = _build_risk_governance(cutoff)
+    # Section 9 — daily report
+    daily = _build_daily_report()
+
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "variants": sorted(CDV_VARIANTS),
+        "ts_ms": now_ms,
+        "window_min": window_min,
+        "header": header,
+        "summary": summary,
+        "contrarian": contrarian,
+        "deep_value": deep_value,
+        "pipeline": pipeline,
+        "positions": positions,
+        "execution": execution,
+        "risk": risk,
+        "daily_report": daily,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section builders — each strategy-scoped
+# ---------------------------------------------------------------------------
+
+def _build_header() -> dict[str, Any]:
+    try:
+        from spot_aggro import _engine_instance
+        from spot_aggro.governance.engine_state_source import current_engine_state
+        est = current_engine_state()
+        if _engine_instance is not None:
+            s = _engine_instance.status() or {}
+            return {
+                "strategy": CDV_STRATEGY_NAMESPACE,
+                "mode": "live" if not s.get("dry_run") else "paper",
+                "running": not bool(s.get("halted", False)) and bool(s.get("running", True)),
+                "equity_usd": float(s.get("capital_usd") or 0),
+                "engine_state": est.get("state"),
+                "health": "ok" if not s.get("halted") else "halted",
+                "last_refresh_ts_ms": int(time.time() * 1000),
+            }
+    except Exception as e:
+        log.debug("cdv header build failed: %s", e)
+    return {
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "mode": "unknown",
+        "running": False,
+        "equity_usd": 0.0,
+        "engine_state": "idle",
+        "health": "unknown",
+        "last_refresh_ts_ms": int(time.time() * 1000),
+    }
+
+
+def _build_summary() -> dict[str, Any]:
+    """Edge state + regime + posture + readiness, CDV-scoped only."""
+    try:
+        from spot_aggro.governance.strategy_sufficiency import evaluate as suff_eval
+        s = suff_eval()
+        from spot_aggro.governance.trade_readiness import current_state as tr_state
+        tr = tr_state()
+        # Regime classification from meta module (if MIO available).
+        try:
+            from spot_aggro.governance.ensemble_meta import classify_regime
+            from spot_aggro import _engine_instance
+            regime = "unknown"
+            if _engine_instance is not None:
+                rankings = getattr(_engine_instance, "_rank_cache", []) or []
+                if rankings:
+                    regime = classify_regime(rankings[0])
+        except Exception:
+            regime = "unknown"
+        return {
+            "edge_state": s.recommendation,           # excellent|keep|tune|replace|insufficient_sample
+            "edge_reason": (s.reason or "")[:240],
+            "regime": regime,
+            "posture": "trading" if tr.get("ready") else "paused_readiness",
+            "readiness_ready": bool(tr.get("ready")),
+            "readiness_unmet": tr.get("unmet", []),
+            "n_observed": s.n_observed,
+            "avg_win_pct": s.avg_win_pct,
+            "avg_loss_pct": s.avg_loss_pct,
+            "hit_rate_floor": s.pct_hitting_target,
+            "hit_rate_stretch": s.pct_hitting_stretch,
+        }
+    except Exception as e:
+        log.debug("cdv summary failed: %s", e)
+        return {
+            "edge_state": "unknown", "edge_reason": str(e)[:200],
+            "regime": "unknown", "posture": "unknown",
+            "readiness_ready": False, "readiness_unmet": [],
+            "n_observed": 0, "avg_win_pct": 0.0, "avg_loss_pct": 0.0,
+            "hit_rate_floor": 0.0, "hit_rate_stretch": 0.0,
+        }
+
+
+def _build_variant_view(variant: str, cutoff_ms: int) -> dict[str, Any]:
+    """Single-variant engine view. Only returns rows for this variant.
+    Enforces ScopeViolation if variant is outside CDV set."""
+    if variant not in CDV_VARIANTS:
+        raise ScopeViolation(f"variant {variant!r} not in CDV scope")
+    try:
+        con = _connect()
+        try:
+            total = con.execute(
+                "SELECT COUNT(*) AS n FROM shadow_variant_authorizations"
+                " WHERE variant = ? AND ts_ms >= ?",
+                (variant, cutoff_ms),
+            ).fetchone()
+            admitted = con.execute(
+                "SELECT COUNT(*) AS n FROM shadow_variant_authorizations"
+                " WHERE variant = ? AND variant_passed = 1 AND ts_ms >= ?",
+                (variant, cutoff_ms),
+            ).fetchone()
+            rej_reasons = con.execute(
+                "SELECT reason, COUNT(*) AS n"
+                " FROM shadow_variant_authorizations"
+                " WHERE variant = ? AND variant_passed = 0 AND ts_ms >= ?"
+                " GROUP BY reason ORDER BY n DESC LIMIT 5",
+                (variant, cutoff_ms),
+            ).fetchall()
+            # Active opportunities: admitted rows for this variant with
+            # no matching exit yet (look at shadow_variant_exits).
+            active = con.execute(
+                "SELECT a.symbol, a.variant_score, a.ts_ms"
+                " FROM shadow_variant_authorizations a"
+                " LEFT JOIN shadow_variant_exits e"
+                "   ON e.correlation_id = a.live_authz_id AND e.variant = a.variant"
+                " WHERE a.variant = ? AND a.variant_passed = 1"
+                "   AND a.ts_ms >= ?"
+                "   AND e.id IS NULL"
+                " ORDER BY a.ts_ms DESC LIMIT 20",
+                (variant, cutoff_ms),
+            ).fetchall()
+        finally:
+            con.close()
+        return {
+            "variant": variant,
+            "strategy": CDV_STRATEGY_NAMESPACE,
+            "found": int(total["n"] or 0) if total else 0,
+            "admitted": int(admitted["n"] or 0) if admitted else 0,
+            "rejected": (
+                int(total["n"] or 0) - int(admitted["n"] or 0)
+                if total and admitted else 0
+            ),
+            "top_reject_reasons": [
+                {"reason": r["reason"], "count": int(r["n"])}
+                for r in rej_reasons
+            ],
+            "active_opportunities": [
+                {
+                    "symbol": a["symbol"],
+                    "score": float(a["variant_score"] or 0),
+                    "ts_ms": int(a["ts_ms"]),
+                }
+                for a in active
+            ],
+        }
+    except Exception as e:
+        log.debug("cdv variant view %s failed: %s", variant, e)
+        return {
+            "variant": variant, "strategy": CDV_STRATEGY_NAMESPACE,
+            "found": 0, "admitted": 0, "rejected": 0,
+            "top_reject_reasons": [], "active_opportunities": [],
+            "error": str(e)[:180],
+        }
+
+
+def _build_pipeline(cutoff_ms: int) -> dict[str, Any]:
+    """Decision pipeline counters — strategy-scoped to CDV variants."""
+    try:
+        con = _connect()
+        try:
+            r_total = con.execute(
+                "SELECT COUNT(*) AS n FROM shadow_variant_authorizations"
+                f" WHERE {scoped_variants_sql_in_clause()} AND ts_ms >= ?",
+                (cutoff_ms,),
+            ).fetchone()
+            r_admit = con.execute(
+                "SELECT COUNT(*) AS n FROM shadow_variant_authorizations"
+                f" WHERE {scoped_variants_sql_in_clause()} AND variant_passed = 1 AND ts_ms >= ?",
+                (cutoff_ms,),
+            ).fetchone()
+            # Approx reject bucket inference from reason substrings.
+            bucket_rows = con.execute(
+                "SELECT reason, COUNT(*) AS n"
+                " FROM shadow_variant_authorizations"
+                f" WHERE {scoped_variants_sql_in_clause()} AND variant_passed = 0 AND ts_ms >= ?"
+                " GROUP BY reason",
+                (cutoff_ms,),
+            ).fetchall()
+            blocked_depth = 0
+            blocked_regime = 0
+            blocked_gov = 0
+            for b in bucket_rows:
+                r = (b["reason"] or "").lower()
+                n = int(b["n"] or 0)
+                if "liquid" in r or "depth" in r or "spread" in r:
+                    blocked_depth += n
+                if "regime" in r or "volatile" in r or "calm" in r:
+                    blocked_regime += n
+                if "freeze" in r or "ladder" in r or "gov" in r or "gate" in r:
+                    blocked_gov += n
+        finally:
+            con.close()
+        return {
+            "scanned": int(r_total["n"] or 0) if r_total else 0,
+            "shortlisted": int(r_admit["n"] or 0) if r_admit else 0,
+            "approved": int(r_admit["n"] or 0) if r_admit else 0,
+            "rejected": (
+                int(r_total["n"] or 0) - int(r_admit["n"] or 0)
+                if r_total and r_admit else 0
+            ),
+            "blocked_by_depth": blocked_depth,
+            "blocked_by_regime": blocked_regime,
+            "blocked_by_governance": blocked_gov,
+        }
+    except Exception as e:
+        log.debug("cdv pipeline failed: %s", e)
+        return {"scanned": 0, "shortlisted": 0, "approved": 0, "rejected": 0,
+                "blocked_by_depth": 0, "blocked_by_regime": 0,
+                "blocked_by_governance": 0, "error": str(e)[:180]}
+
+
+def _build_positions(cutoff_ms: int) -> dict[str, Any]:
+    """CDV-scoped open + recent closed positions. Uses spot_live_variant_entries
+    (phase-nn ledger) for variant attribution on live trades."""
+    try:
+        con = _connect()
+        try:
+            # Table may not exist until first entry writes it.
+            cols = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+                " AND name='spot_live_variant_entries'"
+            ).fetchone()
+            if not cols:
+                return {"open": [], "recent_closed": [],
+                        "strategy_pnl_usd": 0.0,
+                        "note": "no ledger yet"}
+            opens = con.execute(
+                "SELECT ts_ms, variant, symbol, notional_usd, authz_id"
+                " FROM spot_live_variant_entries"
+                f" WHERE {scoped_variants_sql_in_clause()} AND status = 'open'"
+                " ORDER BY ts_ms DESC LIMIT 20"
+            ).fetchall()
+            closed = con.execute(
+                "SELECT ts_ms, variant, symbol, notional_usd, closed_ts_ms,"
+                " realized_pnl_usd"
+                " FROM spot_live_variant_entries"
+                f" WHERE {scoped_variants_sql_in_clause()} AND status = 'closed'"
+                " AND (closed_ts_ms IS NULL OR closed_ts_ms >= ?)"
+                " ORDER BY closed_ts_ms DESC LIMIT 20",
+                (cutoff_ms,),
+            ).fetchall()
+            pnl_sum = con.execute(
+                "SELECT COALESCE(SUM(realized_pnl_usd), 0) AS p"
+                " FROM spot_live_variant_entries"
+                f" WHERE {scoped_variants_sql_in_clause()}"
+            ).fetchone()
+        finally:
+            con.close()
+        return {
+            "open": [
+                {
+                    "ts_ms": int(r["ts_ms"]), "variant": r["variant"],
+                    "symbol": r["symbol"],
+                    "notional_usd": float(r["notional_usd"] or 0),
+                    "authz_id": r["authz_id"],
+                    "strategy": CDV_STRATEGY_NAMESPACE,
+                } for r in opens
+            ],
+            "recent_closed": [
+                {
+                    "entry_ts_ms": int(r["ts_ms"]), "variant": r["variant"],
+                    "symbol": r["symbol"],
+                    "notional_usd": float(r["notional_usd"] or 0),
+                    "closed_ts_ms": r["closed_ts_ms"],
+                    "realized_pnl_usd": float(r["realized_pnl_usd"] or 0),
+                    "strategy": CDV_STRATEGY_NAMESPACE,
+                } for r in closed
+            ],
+            "strategy_pnl_usd": float(pnl_sum["p"] or 0) if pnl_sum else 0.0,
+        }
+    except Exception as e:
+        log.debug("cdv positions failed: %s", e)
+        return {"open": [], "recent_closed": [], "strategy_pnl_usd": 0.0,
+                "error": str(e)[:180]}
+
+
+def _build_execution_quality(cutoff_ms: int) -> dict[str, Any]:
+    """Execution quality: slippage, fill quality, reject count, latency.
+    Strategy-scoped to CDV admits."""
+    try:
+        con = _connect()
+        try:
+            # Table may not exist until first entry writes.
+            has_lve = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+                " AND name='spot_live_variant_entries'"
+            ).fetchone()
+            n_fills = 0
+            n_rejects = 0
+            if has_lve:
+                n_fills_r = con.execute(
+                    "SELECT COUNT(*) AS n FROM spot_live_variant_entries"
+                    f" WHERE {scoped_variants_sql_in_clause()}"
+                    " AND status IN ('open', 'closed')"
+                    " AND ts_ms >= ?",
+                    (cutoff_ms,),
+                ).fetchone()
+                n_fills = int(n_fills_r["n"] or 0) if n_fills_r else 0
+            # Rejects: spot_reject_events in window.
+            has_re = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+                " AND name='spot_reject_events'"
+            ).fetchone()
+            if has_re:
+                n_rejects_r = con.execute(
+                    "SELECT COUNT(*) AS n FROM spot_reject_events"
+                    " WHERE ts_ms >= ?",
+                    (cutoff_ms,),
+                ).fetchone()
+                n_rejects = int(n_rejects_r["n"] or 0) if n_rejects_r else 0
+            fill_quality_pct = (
+                100.0 * n_fills / max(n_fills + n_rejects, 1)
+            )
+        finally:
+            con.close()
+        return {
+            "avg_slippage_bp": None,          # phase-tt future: compute from fills
+            "fill_quality_pct": round(fill_quality_pct, 1),
+            "rejects_total": n_rejects,
+            "fill_latency_ms": None,          # phase-tt future
+            "n_fills_in_window": n_fills,
+            "strategy": CDV_STRATEGY_NAMESPACE,
+        }
+    except Exception as e:
+        return {"avg_slippage_bp": None, "fill_quality_pct": 0,
+                "rejects_total": 0, "fill_latency_ms": None,
+                "n_fills_in_window": 0, "error": str(e)[:180]}
+
+
+def _build_risk_governance(cutoff_ms: int) -> dict[str, Any]:
+    try:
+        freeze_active = False
+        kill_level = "L0"
+        kill_events_24h = 0
+        try:
+            from spot_aggro.governance.contradiction_freeze import (
+                is_entry_frozen,
+            )
+            freeze_active = bool(is_entry_frozen())
+        except Exception:
+            pass
+        try:
+            from spot_aggro.governance.kill_ladder import current_state as kl
+            kill_level = kl().level
+        except Exception:
+            pass
+        try:
+            con = _connect()
+            try:
+                r = con.execute(
+                    "SELECT COUNT(*) AS n FROM spot_kill_ladder_state"
+                    " WHERE ts_ms >= ?",
+                    (cutoff_ms,),
+                ).fetchone()
+                kill_events_24h = int(r["n"] or 0) if r else 0
+            finally:
+                con.close()
+        except Exception:
+            pass
+        # Daily verdict from latest daily_report.
+        daily_verdict = "unknown"
+        try:
+            from spot_aggro.governance.daily_report import latest_full
+            r = latest_full()
+            if r:
+                daily_verdict = r.get("verdict", "unknown")
+        except Exception:
+            pass
+        return {
+            "freeze_active": freeze_active,
+            "kill_ladder_level": kill_level,
+            "kill_events_window": kill_events_24h,
+            "daily_verdict": daily_verdict,
+            "rollback_state": "none",
+        }
+    except Exception as e:
+        return {"freeze_active": False, "kill_ladder_level": "L0",
+                "kill_events_window": 0, "daily_verdict": "unknown",
+                "rollback_state": "none", "error": str(e)[:180]}
+
+
+def _build_daily_report() -> dict[str, Any]:
+    try:
+        from spot_aggro.governance.daily_report import latest_full
+        r = latest_full()
+        if not r:
+            return {"headline": "no report yet", "verdict": "unknown",
+                    "root_cause": "awaiting first 24h report"}
+        # Mask any non-CDV variant references.
+        payload = mask_non_cdv_fields(r.get("payload") or {})
+        return {
+            "report_date": r.get("report_date"),
+            "headline": r.get("headline", "")[:200],
+            "verdict": r.get("verdict", "unknown"),
+            "root_cause": (payload.get("root_cause") or "")[:300],
+            "biggest_blocker": (payload.get("upgrade_focus") or "")[:200],
+            "biggest_opportunity": "",     # not surfaced separately yet
+            "strategy_progress": mask_non_cdv_fields(
+                payload.get("strategy_progress") or {}
+            ),
+        }
+    except Exception as e:
+        return {"headline": "error", "verdict": "unknown",
+                "root_cause": str(e)[:200], "biggest_blocker": "",
+                "biggest_opportunity": ""}
+
+
+# ---------------------------------------------------------------------------
+# Admin mutations (governance actions)
+# ---------------------------------------------------------------------------
+
+@router.post("/gov/freeze")
+def cdv_freeze_new_entries(
+    reason: str = Query(..., min_length=3, max_length=120),
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+    x_cdv_second_operator: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Admin: freeze new CDV entries. Requires two-operator approval via
+    X-CDV-Second-Operator header (any non-empty value)."""
+    _require_admin(x_cdv_role, x_ops_token)
+    if not x_cdv_second_operator or len(x_cdv_second_operator.strip()) < 3:
+        raise HTTPException(
+            status_code=403,
+            detail="two-operator approval required: X-CDV-Second-Operator",
+        )
+    try:
+        from spot_aggro.governance.kill_ladder import escalate
+        st = escalate(
+            "L1", reason=f"cdv_panel:{reason}",
+            actor="cdv_admin_two_operator",
+            evidence={"strategy": CDV_STRATEGY_NAMESPACE,
+                      "second_operator": x_cdv_second_operator[:60]},
+        )
+        return {"ok": True, "state": st.to_dict(),
+                "strategy": CDV_STRATEGY_NAMESPACE}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.get("/health")
+def cdv_health(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Minimal health probe for the scoped panel."""
+    _require_viewer(x_cdv_role, x_ops_token)
+    return {
+        "ok": True,
+        "strategy": CDV_STRATEGY_NAMESPACE,
+        "feature_enabled": feature_enabled(),
+        "variants": sorted(CDV_VARIANTS),
+        "ts_ms": int(time.time() * 1000),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Static panel HTML
+# ---------------------------------------------------------------------------
+
+@router.get("", include_in_schema=False)
+@router.get("/", include_in_schema=False)
+def cdv_panel_index(
+    x_cdv_role: str | None = Header(default=None),
+    x_ops_token: str | None = Header(default=None),
+) -> HTMLResponse:
+    """Serve the static panel HTML. Feature-flag gated at this layer too."""
+    _feature_or_404()
+    from pathlib import Path
+    panel_path = Path(__file__).resolve().parents[3] / "web" / "strategy" / "contrarian-deepvalue" / "index.html"
+    # Fallback for repo-relative absolute path when file lives at repo root.
+    if not panel_path.exists():
+        alt = (
+            Path(__file__).resolve().parents[4]
+            / "web" / "strategy" / "contrarian-deepvalue" / "index.html"
+        )
+        if alt.exists():
+            panel_path = alt
+    if not panel_path.exists():
+        raise HTTPException(status_code=500, detail="panel html not found")
+    return HTMLResponse(panel_path.read_text(encoding="utf-8"))

@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="dashboard-build" content="cdv-panel-phase-11n-9-ss-2026-04-20"/>
+<meta name="theme-color" content="#0a0d13"/>
+<meta name="strategy-namespace" content="contrarian_deepvalue"/>
+<title>Contrarian + Deep Value — Strategy Control</title>
+<style>
+  :root {
+    --bg: #0a0d13;
+    --surface: #11151d;
+    --surface-2: #161b26;
+    --border: #1f2632;
+    --border-strong: #2a3140;
+    --ink-1: #e8edf5;
+    --ink-2: #9aa3b2;
+    --ink-3: #5c6573;
+    --accent: #4f8cff;
+    --pos: #25c28f;
+    --warn: #f0ad3f;
+    --neg: #e8574a;
+    --neutral: #5c6573;
+    --hover: rgba(79, 140, 255, 0.06);
+    --rhythm: 20px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--ink-1);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button {
+    background: var(--surface-2); color: var(--ink-1);
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { background: var(--hover); border-color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.danger { color: var(--neg); border-color: var(--neg); }
+  button.danger:hover { background: rgba(232, 87, 74, 0.1); }
+
+  /* shell */
+  .shell { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  /* top bar */
+  .topbar {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-bottom: var(--rhythm);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: calc(var(--rhythm) * 2);
+  }
+  .brand { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 12px; color: var(--ink-3); margin-left: 10px;
+               font-weight: 400; text-transform: uppercase; letter-spacing: 0.1em; }
+  .topbar-actions { display: flex; gap: 10px; align-items: center; }
+  .topbar-link { font-size: 12px; color: var(--ink-2); }
+  .refresh-indicator {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ink-3); transition: background 0.3s;
+  }
+  .refresh-indicator.ok { background: var(--pos); }
+  .refresh-indicator.warn { background: var(--warn); }
+  .refresh-indicator.err { background: var(--neg); }
+
+  /* section card */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: var(--rhythm);
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .section-title {
+    font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .section-hint { font-size: 11px; color: var(--ink-3);
+                  text-transform: uppercase; letter-spacing: 0.1em; }
+  .section-body { padding: 20px; }
+
+  /* kpi row */
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+  }
+  .kpi-tile {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .kpi-label {
+    font-size: 10px; color: var(--ink-3);
+    text-transform: uppercase; letter-spacing: 0.12em;
+    margin-bottom: 6px;
+  }
+  .kpi-value { font-size: 18px; font-weight: 600; color: var(--ink-1); }
+  .kpi-value.small { font-size: 14px; }
+  .kpi-value.pos { color: var(--pos); }
+  .kpi-value.neg { color: var(--neg); }
+  .kpi-value.warn { color: var(--warn); }
+  .kpi-value.muted { color: var(--ink-3); }
+  .kpi-sub { font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+
+  /* pill */
+  .pill {
+    display: inline-block;
+    padding: 3px 10px; border-radius: 99px;
+    font-size: 11px; font-weight: 500;
+    background: var(--surface-2); color: var(--ink-2);
+    border: 1px solid var(--border-strong);
+  }
+  .pill.pos { background: rgba(37, 194, 143, 0.1); color: var(--pos); border-color: var(--pos); }
+  .pill.neg { background: rgba(232, 87, 74, 0.1); color: var(--neg); border-color: var(--neg); }
+  .pill.warn { background: rgba(240, 173, 63, 0.1); color: var(--warn); border-color: var(--warn); }
+  .pill.muted { background: transparent; color: var(--ink-3); border-color: var(--border); }
+
+  /* table */
+  table.data { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  table.data thead th {
+    text-align: left; padding: 8px 10px;
+    font-weight: 500; font-size: 10px;
+    color: var(--ink-3);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--border);
+  }
+  table.data tbody td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    color: var(--ink-1);
+  }
+  table.data tbody tr:last-child td { border-bottom: none; }
+  table.data tbody tr:hover { background: var(--hover); }
+  .num-r { text-align: right; }
+
+  /* two-column layout (engine views) */
+  .two-col {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 720px) {
+    .shell { padding: 20px 14px 60px; }
+    .two-col { grid-template-columns: 1fr; }
+    .topbar { flex-direction: column; align-items: stretch; gap: 10px; }
+    .kpi-value { font-size: 16px; }
+  }
+
+  /* empty/error states */
+  .empty, .error-state, .loading {
+    padding: 28px 20px; text-align: center;
+    color: var(--ink-3); font-size: 12px;
+  }
+  .error-state { color: var(--neg); }
+
+  /* feature-flag banner */
+  .flag-disabled {
+    background: rgba(240, 173, 63, 0.08);
+    border: 1px solid var(--warn);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    color: var(--warn);
+    font-size: 13px;
+  }
+
+  /* footer */
+  .foot { margin-top: 28px; font-size: 11px; color: var(--ink-3);
+          text-align: center; }
+  .foot code { color: var(--ink-2); background: var(--surface-2);
+               padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div>
+      <span class="brand">Contrarian + Deep Value</span>
+      <span class="brand-sub">Strategy Control</span>
+    </div>
+    <div class="topbar-actions">
+      <a href="/ops/" class="topbar-link">← main operator panel</a>
+      <span id="topbar-status-text" style="font-size:11px;color:var(--ink-2)">—</span>
+      <span id="topbar-indicator" class="refresh-indicator" title="data freshness"></span>
+    </div>
+  </header>
+
+  <div id="flag-check"></div>
+
+  <!-- SECTION 1 — Strategy Header -->
+  <section class="section" id="sec-header">
+    <div class="section-header">
+      <h2 class="section-title">Strategy Header</h2>
+      <span class="section-hint">live status</span>
+    </div>
+    <div class="section-body">
+      <div class="kpi-row">
+        <div class="kpi-tile"><div class="kpi-label">Strategy</div>
+          <div class="kpi-value small">Contrarian + Deep Value</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Mode</div>
+          <div class="kpi-value small" id="kpi-mode">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Status</div>
+          <div class="kpi-value small" id="kpi-running">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Health</div>
+          <div class="kpi-value small" id="kpi-health">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Equity</div>
+          <div class="kpi-value" id="kpi-equity">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Last Refresh</div>
+          <div class="kpi-value small" id="kpi-lastrefresh">—</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2 — Strategy Summary -->
+  <section class="section" id="sec-summary">
+    <div class="section-header">
+      <h2 class="section-title">Strategy Summary</h2>
+      <span class="section-hint">edge · regime · posture · readiness</span>
+    </div>
+    <div class="section-body">
+      <div class="kpi-row">
+        <div class="kpi-tile"><div class="kpi-label">Edge State</div>
+          <div class="kpi-value small" id="kpi-edge">—</div>
+          <div class="kpi-sub" id="kpi-edge-reason">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Regime</div>
+          <div class="kpi-value small" id="kpi-regime">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Posture</div>
+          <div class="kpi-value small" id="kpi-posture">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Readiness</div>
+          <div class="kpi-value small" id="kpi-readiness">—</div>
+          <div class="kpi-sub" id="kpi-readiness-sub">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Avg Win %</div>
+          <div class="kpi-value" id="kpi-avgwin">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Avg Loss %</div>
+          <div class="kpi-value" id="kpi-avgloss">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Floor Hit Rate</div>
+          <div class="kpi-value" id="kpi-floorhit">—</div>
+          <div class="kpi-sub">≥1.5% target</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Stretch Hit Rate</div>
+          <div class="kpi-value" id="kpi-stretchhit">—</div>
+          <div class="kpi-sub">≥2.0% target</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTIONS 3 + 4 — Contrarian + Deep Value engines, side-by-side -->
+  <div class="two-col">
+    <section class="section" id="sec-contrarian">
+      <div class="section-header">
+        <h2 class="section-title">Contrarian Engine</h2>
+        <span class="section-hint">anti-momentum · oversold contrarian</span>
+      </div>
+      <div class="section-body">
+        <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+          <div class="kpi-tile"><div class="kpi-label">Found</div><div class="kpi-value" id="con-found">—</div></div>
+          <div class="kpi-tile"><div class="kpi-label">Admitted</div><div class="kpi-value pos" id="con-admit">—</div></div>
+          <div class="kpi-tile"><div class="kpi-label">Rejected</div><div class="kpi-value neg" id="con-rej">—</div></div>
+        </div>
+        <div class="kpi-label" style="margin-bottom:6px">Top Rejection Reasons</div>
+        <table class="data"><tbody id="con-reasons"><tr><td style="color:var(--ink-3)">—</td></tr></tbody></table>
+        <div class="kpi-label" style="margin-top:14px;margin-bottom:6px">Active Opportunities</div>
+        <table class="data"><tbody id="con-active"><tr><td style="color:var(--ink-3)">—</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="section" id="sec-deepvalue">
+      <div class="section-header">
+        <h2 class="section-title">Deep Value Engine</h2>
+        <span class="section-hint">oversold bounce · WR ≥ 55%</span>
+      </div>
+      <div class="section-body">
+        <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+          <div class="kpi-tile"><div class="kpi-label">Found</div><div class="kpi-value" id="dv-found">—</div></div>
+          <div class="kpi-tile"><div class="kpi-label">Admitted</div><div class="kpi-value pos" id="dv-admit">—</div></div>
+          <div class="kpi-tile"><div class="kpi-label">Rejected</div><div class="kpi-value neg" id="dv-rej">—</div></div>
+        </div>
+        <div class="kpi-label" style="margin-bottom:6px">Top Rejection Reasons</div>
+        <table class="data"><tbody id="dv-reasons"><tr><td style="color:var(--ink-3)">—</td></tr></tbody></table>
+        <div class="kpi-label" style="margin-top:14px;margin-bottom:6px">Active Opportunities</div>
+        <table class="data"><tbody id="dv-active"><tr><td style="color:var(--ink-3)">—</td></tr></tbody></table>
+      </div>
+    </section>
+  </div>
+
+  <!-- SECTION 5 — Decision Pipeline -->
+  <section class="section" id="sec-pipeline">
+    <div class="section-header">
+      <h2 class="section-title">Decision Pipeline</h2>
+      <span class="section-hint">scan → approve (strategy-scoped)</span>
+    </div>
+    <div class="section-body">
+      <div class="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
+        <div class="kpi-tile"><div class="kpi-label">Scanned</div><div class="kpi-value" id="pl-scanned">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Shortlisted</div><div class="kpi-value" id="pl-shortlisted">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Approved</div><div class="kpi-value pos" id="pl-approved">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Rejected</div><div class="kpi-value neg" id="pl-rejected">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Blocked · Depth</div><div class="kpi-value warn" id="pl-depth">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Blocked · Regime</div><div class="kpi-value warn" id="pl-regime">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Blocked · Gov</div><div class="kpi-value warn" id="pl-gov">—</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 6 — Position View -->
+  <section class="section" id="sec-positions">
+    <div class="section-header">
+      <h2 class="section-title">Position View</h2>
+      <span class="section-hint">strategy-scoped positions + pnl</span>
+    </div>
+    <div class="section-body">
+      <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+        <div class="kpi-tile"><div class="kpi-label">Open</div><div class="kpi-value" id="pos-open-count">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Recent Closed</div><div class="kpi-value" id="pos-closed-count">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Strategy PnL</div><div class="kpi-value" id="pos-pnl">—</div></div>
+      </div>
+      <div class="kpi-label" style="margin-bottom:6px">Open Positions</div>
+      <table class="data">
+        <thead><tr>
+          <th>Variant</th><th>Symbol</th><th class="num-r">Notional</th><th>Entry</th>
+        </tr></thead>
+        <tbody id="pos-open-body"><tr><td colspan="4" style="color:var(--ink-3)">—</td></tr></tbody>
+      </table>
+      <div class="kpi-label" style="margin-top:16px;margin-bottom:6px">Recent Closed</div>
+      <table class="data">
+        <thead><tr>
+          <th>Variant</th><th>Symbol</th><th class="num-r">Notional</th><th class="num-r">Realized PnL</th>
+        </tr></thead>
+        <tbody id="pos-closed-body"><tr><td colspan="4" style="color:var(--ink-3)">—</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 7 — Execution Quality -->
+  <section class="section" id="sec-execution">
+    <div class="section-header">
+      <h2 class="section-title">Execution Quality</h2>
+      <span class="section-hint">strategy-scoped fill quality + rejects</span>
+    </div>
+    <div class="section-body">
+      <div class="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+        <div class="kpi-tile"><div class="kpi-label">Fill Quality</div>
+          <div class="kpi-value" id="ex-fq">—</div>
+          <div class="kpi-sub">fills / (fills + rejects)</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Fills in Window</div>
+          <div class="kpi-value" id="ex-fills">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Rejects Total</div>
+          <div class="kpi-value neg" id="ex-rejects">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Avg Slippage</div>
+          <div class="kpi-value muted" id="ex-slip">—</div>
+          <div class="kpi-sub">phase-tt future</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Avg Latency</div>
+          <div class="kpi-value muted" id="ex-lat">—</div>
+          <div class="kpi-sub">phase-tt future</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 8 — Risk + Governance -->
+  <section class="section" id="sec-risk">
+    <div class="section-header">
+      <h2 class="section-title">Risk + Governance</h2>
+      <span class="section-hint">two-operator approval for freeze</span>
+    </div>
+    <div class="section-body">
+      <div class="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:14px">
+        <div class="kpi-tile"><div class="kpi-label">Freeze Active</div>
+          <div class="kpi-value small" id="risk-freeze">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Kill Ladder</div>
+          <div class="kpi-value small" id="risk-kill">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Kill Events 60m</div>
+          <div class="kpi-value warn" id="risk-killevents">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Daily Verdict</div>
+          <div class="kpi-value small" id="risk-verdict">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Rollback State</div>
+          <div class="kpi-value small" id="risk-rollback">—</div></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="danger" id="btn-freeze">Freeze New Entries (2-op)</button>
+        <button id="btn-refresh">Refresh Now</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 9 — Daily Report -->
+  <section class="section" id="sec-daily">
+    <div class="section-header">
+      <h2 class="section-title">Daily Report</h2>
+      <span class="section-hint">24h summary · keep / upgrade / pause</span>
+    </div>
+    <div class="section-body">
+      <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:14px">
+        <div class="kpi-tile"><div class="kpi-label">Report Date</div>
+          <div class="kpi-value small" id="dr-date">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Verdict</div>
+          <div class="kpi-value small" id="dr-verdict">—</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Path to Target</div>
+          <div class="kpi-value small" id="dr-path">—</div></div>
+      </div>
+      <div class="kpi-label" style="margin-bottom:4px">Headline</div>
+      <div id="dr-headline" style="font-size:13px;color:var(--ink-1);margin-bottom:14px">—</div>
+      <div class="kpi-label" style="margin-bottom:4px">Root Cause</div>
+      <div id="dr-root" style="font-size:13px;color:var(--ink-2);margin-bottom:14px">—</div>
+      <div class="kpi-label" style="margin-bottom:4px">Biggest Blocker</div>
+      <div id="dr-blocker" style="font-size:13px;color:var(--ink-2)">—</div>
+    </div>
+  </section>
+
+  <div class="foot">
+    Isolated at <code>/strategy/contrarian_deepvalue/</code> · Feature flag <code>FEATURE_CONTRARIAN_DEEPVALUE_PANEL</code>
+  </div>
+</div>
+
+<script>
+(() => {
+  const API_BASE = (window.location.pathname.includes("/strategy/") && window.location.port === "")
+    ? `${window.location.protocol}//${window.location.hostname}`
+    : `${window.location.protocol}//${window.location.hostname}:${window.location.port || 8080}`;
+  const ENDPOINT = `${API_BASE}/strategy/contrarian_deepvalue/dashboard?window_min=60`;
+  const ROLE = localStorage.getItem("cdv_role") || "";
+  const OPS = localStorage.getItem("spot_ops_token") || "";
+
+  const fmt$  = v => (v === null || v === undefined) ? "—" : `$${Number(v).toFixed(2)}`;
+  const fmtPct = v => (v === null || v === undefined) ? "—" : `${(Number(v) * 100).toFixed(1)}%`;
+  const fmtN  = v => (v === null || v === undefined) ? "—" : Number(v).toLocaleString();
+  const cap   = s => (s || "").toString().toUpperCase().replace(/_/g, " ");
+
+  const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+  function paintHeader(h) {
+    setText("kpi-mode", cap(h.mode));
+    setText("kpi-running", h.running ? "RUNNING" : "HALTED");
+    const healthEl = document.getElementById("kpi-health");
+    if (healthEl) {
+      healthEl.textContent = cap(h.health);
+      healthEl.className = `kpi-value small ${h.health === 'ok' ? 'pos' : h.health === 'halted' ? 'neg' : 'muted'}`;
+    }
+    setText("kpi-equity", fmt$(h.equity_usd));
+    const ts = new Date(h.last_refresh_ts_ms || Date.now());
+    setText("kpi-lastrefresh", ts.toLocaleTimeString());
+  }
+
+  function paintSummary(s) {
+    const edgeEl = document.getElementById("kpi-edge");
+    if (edgeEl) {
+      edgeEl.textContent = cap(s.edge_state);
+      const map = { excellent: 'pos', keep: 'pos', tune: 'warn', replace: 'neg', insufficient_sample: 'muted' };
+      edgeEl.className = `kpi-value small ${map[s.edge_state] || 'muted'}`;
+    }
+    setText("kpi-edge-reason", s.edge_reason || "—");
+    setText("kpi-regime", cap(s.regime));
+    const postureEl = document.getElementById("kpi-posture");
+    if (postureEl) {
+      postureEl.textContent = cap(s.posture);
+      postureEl.className = `kpi-value small ${s.posture === 'trading' ? 'pos' : 'warn'}`;
+    }
+    const rdEl = document.getElementById("kpi-readiness");
+    if (rdEl) {
+      rdEl.textContent = s.readiness_ready ? "READY" : "NOT READY";
+      rdEl.className = `kpi-value small ${s.readiness_ready ? 'pos' : 'warn'}`;
+    }
+    setText("kpi-readiness-sub", (s.readiness_unmet || []).join(", ") || "—");
+    setText("kpi-avgwin", fmtPct(s.avg_win_pct));
+    setText("kpi-avgloss", fmtPct(s.avg_loss_pct));
+    setText("kpi-floorhit", fmtPct(s.hit_rate_floor));
+    setText("kpi-stretchhit", fmtPct(s.hit_rate_stretch));
+  }
+
+  function paintVariant(prefix, v) {
+    setText(`${prefix}-found`, fmtN(v.found));
+    setText(`${prefix}-admit`, fmtN(v.admitted));
+    setText(`${prefix}-rej`, fmtN(v.rejected));
+    const reasonsBody = document.getElementById(`${prefix}-reasons`);
+    if (reasonsBody) {
+      const rows = (v.top_reject_reasons || []).slice(0, 5);
+      if (rows.length) {
+        reasonsBody.innerHTML = rows.map(r =>
+          `<tr><td style="color:var(--ink-2);font-size:12px">${(r.reason || '').slice(0, 80)}</td>
+          <td class="num-r" style="color:var(--ink-3);width:40px">${r.count}</td></tr>`).join('');
+      } else {
+        reasonsBody.innerHTML = `<tr><td style="color:var(--ink-3)">none in window</td></tr>`;
+      }
+    }
+    const activeBody = document.getElementById(`${prefix}-active`);
+    if (activeBody) {
+      const rows = (v.active_opportunities || []).slice(0, 5);
+      if (rows.length) {
+        activeBody.innerHTML = rows.map(r =>
+          `<tr><td style="color:var(--ink-1);font-weight:500">${r.symbol}</td>
+          <td class="num-r" style="color:var(--ink-3)">score ${Number(r.score).toFixed(3)}</td></tr>`).join('');
+      } else {
+        activeBody.innerHTML = `<tr><td style="color:var(--ink-3)">no active admits</td></tr>`;
+      }
+    }
+  }
+
+  function paintPipeline(p) {
+    setText("pl-scanned", fmtN(p.scanned));
+    setText("pl-shortlisted", fmtN(p.shortlisted));
+    setText("pl-approved", fmtN(p.approved));
+    setText("pl-rejected", fmtN(p.rejected));
+    setText("pl-depth", fmtN(p.blocked_by_depth));
+    setText("pl-regime", fmtN(p.blocked_by_regime));
+    setText("pl-gov", fmtN(p.blocked_by_governance));
+  }
+
+  function paintPositions(pos) {
+    setText("pos-open-count", fmtN((pos.open || []).length));
+    setText("pos-closed-count", fmtN((pos.recent_closed || []).length));
+    const pnlEl = document.getElementById("pos-pnl");
+    if (pnlEl) {
+      const p = pos.strategy_pnl_usd || 0;
+      pnlEl.textContent = `${p >= 0 ? '+' : ''}${fmt$(p)}`;
+      pnlEl.className = `kpi-value ${p > 0 ? 'pos' : p < 0 ? 'neg' : 'muted'}`;
+    }
+    const openBody = document.getElementById("pos-open-body");
+    if (openBody) {
+      const rows = pos.open || [];
+      openBody.innerHTML = rows.length
+        ? rows.map(r => `<tr>
+            <td>${r.variant}</td><td>${r.symbol}</td>
+            <td class="num-r">${fmt$(r.notional_usd)}</td>
+            <td style="color:var(--ink-3)">${new Date(r.ts_ms).toLocaleTimeString()}</td>
+          </tr>`).join('')
+        : `<tr><td colspan="4" style="color:var(--ink-3);text-align:center">no open positions</td></tr>`;
+    }
+    const closedBody = document.getElementById("pos-closed-body");
+    if (closedBody) {
+      const rows = pos.recent_closed || [];
+      closedBody.innerHTML = rows.length
+        ? rows.map(r => `<tr>
+            <td>${r.variant}</td><td>${r.symbol}</td>
+            <td class="num-r">${fmt$(r.notional_usd)}</td>
+            <td class="num-r" style="color:${r.realized_pnl_usd > 0 ? 'var(--pos)' : r.realized_pnl_usd < 0 ? 'var(--neg)' : 'var(--ink-2)'}">
+              ${r.realized_pnl_usd >= 0 ? '+' : ''}${fmt$(r.realized_pnl_usd)}</td>
+          </tr>`).join('')
+        : `<tr><td colspan="4" style="color:var(--ink-3);text-align:center">no recent closes</td></tr>`;
+    }
+  }
+
+  function paintExecution(e) {
+    setText("ex-fq", e.fill_quality_pct !== undefined ? `${e.fill_quality_pct}%` : "—");
+    setText("ex-fills", fmtN(e.n_fills_in_window));
+    setText("ex-rejects", fmtN(e.rejects_total));
+    setText("ex-slip", e.avg_slippage_bp !== null ? `${e.avg_slippage_bp}bp` : "n/a");
+    setText("ex-lat",  e.fill_latency_ms !== null ? `${e.fill_latency_ms}ms` : "n/a");
+  }
+
+  function paintRisk(r) {
+    const fz = document.getElementById("risk-freeze");
+    if (fz) { fz.textContent = r.freeze_active ? "ACTIVE" : "OFF";
+              fz.className = `kpi-value small ${r.freeze_active ? 'neg' : 'pos'}`; }
+    const kl = document.getElementById("risk-kill");
+    if (kl) { kl.textContent = r.kill_ladder_level || "L0";
+              kl.className = `kpi-value small ${r.kill_ladder_level === 'L0' ? 'pos' : 'warn'}`; }
+    setText("risk-killevents", fmtN(r.kill_events_window));
+    setText("risk-verdict", cap(r.daily_verdict));
+    setText("risk-rollback", cap(r.rollback_state));
+  }
+
+  function paintDaily(d) {
+    setText("dr-date", d.report_date || "—");
+    const v = document.getElementById("dr-verdict");
+    if (v) { v.textContent = cap(d.verdict);
+             v.className = `kpi-value small ${d.verdict === 'improving' ? 'pos' : d.verdict === 'degrading' ? 'neg' : 'muted'}`; }
+    const path = (d.strategy_progress || {}).path_to_target || "unknown";
+    const pel = document.getElementById("dr-path");
+    if (pel) { pel.textContent = cap(path);
+               pel.className = `kpi-value small ${path === 'realistic' || path === 'excellent' ? 'pos' : path === 'failing' ? 'neg' : 'warn'}`; }
+    setText("dr-headline", d.headline || "—");
+    setText("dr-root", d.root_cause || "—");
+    setText("dr-blocker", d.biggest_blocker || "—");
+  }
+
+  async function fetchDashboard() {
+    const ind = document.getElementById("topbar-indicator");
+    const stat = document.getElementById("topbar-status-text");
+    try {
+      const resp = await fetch(ENDPOINT, {
+        cache: "no-store",
+        headers: {
+          "X-CDV-Role": ROLE || "strategy:contrarian_deepvalue_viewer",
+          "X-Ops-Token": OPS,
+        },
+      });
+      if (resp.status === 404) {
+        document.getElementById("flag-check").innerHTML =
+          `<div class="flag-disabled">Feature flag <code>FEATURE_CONTRARIAN_DEEPVALUE_PANEL</code> is OFF. Set this env var to <code>1</code> and restart uvicorn to enable this panel.</div>`;
+        ind.className = "refresh-indicator warn";
+        stat.textContent = "panel disabled";
+        return;
+      }
+      if (resp.status === 403) {
+        document.getElementById("flag-check").innerHTML =
+          `<div class="flag-disabled">403 — RBAC denied. Set <code>localStorage.cdv_role = "strategy:contrarian_deepvalue_viewer"</code> OR <code>localStorage.spot_ops_token = "&lt;admin token&gt;"</code> in your browser console and reload.</div>`;
+        ind.className = "refresh-indicator err";
+        stat.textContent = "forbidden";
+        return;
+      }
+      if (!resp.ok) {
+        ind.className = "refresh-indicator err";
+        stat.textContent = `http ${resp.status}`;
+        return;
+      }
+      const d = await resp.json();
+      if (!d.ok) {
+        ind.className = "refresh-indicator err";
+        stat.textContent = "api !ok";
+        return;
+      }
+      ind.className = "refresh-indicator ok";
+      stat.textContent = "live";
+      document.getElementById("flag-check").innerHTML = "";
+      paintHeader(d.header || {});
+      paintSummary(d.summary || {});
+      paintVariant("con", d.contrarian || {});
+      paintVariant("dv", d.deep_value || {});
+      paintPipeline(d.pipeline || {});
+      paintPositions(d.positions || {});
+      paintExecution(d.execution || {});
+      paintRisk(d.risk || {});
+      paintDaily(d.daily_report || {});
+    } catch (e) {
+      ind.className = "refresh-indicator err";
+      stat.textContent = "network err";
+      console.warn("cdv panel fetch", e);
+    }
+  }
+
+  document.getElementById("btn-refresh")?.addEventListener("click", fetchDashboard);
+  document.getElementById("btn-freeze")?.addEventListener("click", async () => {
+    const reason = prompt("Freeze reason (min 3 chars):", "manual operator pause");
+    if (!reason || reason.length < 3) return;
+    const second = prompt("Second operator name/ID (2-op approval required):");
+    if (!second) return;
+    try {
+      const resp = await fetch(`${API_BASE}/strategy/contrarian_deepvalue/gov/freeze?reason=${encodeURIComponent(reason)}`, {
+        method: "POST",
+        headers: {
+          "X-CDV-Role": "strategy:contrarian_deepvalue_admin",
+          "X-Ops-Token": OPS,
+          "X-CDV-Second-Operator": second,
+        },
+      });
+      const d = await resp.json();
+      alert(d.ok ? `Frozen. New state: ${d.state?.level}` : `Error: ${d.detail || d.error || 'unknown'}`);
+      fetchDashboard();
+    } catch (e) { alert(`Network: ${e}`); }
+  });
+
+  // Initial + 30s refresh.
+  fetchDashboard();
+  setInterval(fetchDashboard, 30_000);
+})();
+</script>
+</body>
+</html>
