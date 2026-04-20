@@ -222,6 +222,38 @@
     </div>
   </section>
 
+  <!-- SECTION 1.5 — Trade Timer (phase-vv, live ticking) -->
+  <section class="section" id="sec-timer">
+    <div class="section-header">
+      <h2 class="section-title">Trade Timer</h2>
+      <span class="section-hint">how long since CDV last fired · live</span>
+    </div>
+    <div class="section-body">
+      <div class="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="kpi-tile">
+          <div class="kpi-label">Time Since Last Trade</div>
+          <div class="kpi-value" id="tt-elapsed" style="font-variant-numeric:tabular-nums">—</div>
+          <div class="kpi-sub" id="tt-basis">—</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Last CDV Trade</div>
+          <div class="kpi-value small" id="tt-last-variant">—</div>
+          <div class="kpi-sub" id="tt-last-at">—</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Last Closed PnL</div>
+          <div class="kpi-value" id="tt-last-pnl">—</div>
+          <div class="kpi-sub" id="tt-last-closed-at">—</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Total CDV Entries</div>
+          <div class="kpi-value" id="tt-total">—</div>
+          <div class="kpi-sub" id="tt-first-at">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- SECTION 2 — Strategy Summary -->
   <section class="section" id="sec-summary">
     <div class="section-header">
@@ -516,6 +548,77 @@
     setText("kpi-equity", fmt$(h.equity_usd));
     const ts = new Date(h.last_refresh_ts_ms || Date.now());
     setText("kpi-lastrefresh", ts.toLocaleTimeString());
+  }
+
+  // Phase 11n-9-vv — Trade Timer (live-ticking every 1s).
+  // Anchor point updated on each 30s dashboard refresh; local clock computes
+  // elapsed using Date.now() - anchor so operator sees per-second delta.
+  let _ttAnchorTs = null;                 // ms-since-epoch we tick from
+  let _ttAnchorLabel = "";                // what that anchor means
+  let _ttHasTrade = false;                // has there ever been a CDV trade?
+
+  function fmtElapsed(ms) {
+    if (ms == null || ms < 0) return "—";
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const p2 = (n) => String(n).padStart(2, "0");
+    if (h >= 24) {
+      const d = Math.floor(h / 24);
+      return `${d}d ${p2(h % 24)}:${p2(m)}:${p2(sec)}`;
+    }
+    return `${p2(h)}:${p2(m)}:${p2(sec)}`;
+  }
+
+  function paintTimer(t) {
+    _ttAnchorTs = Number(t.ticking_from_ts_ms) || null;
+    _ttAnchorLabel = t.ticking_from_label || "—";
+    _ttHasTrade = !!t.last_open_ts_ms;
+
+    setText("tt-basis", _ttAnchorLabel);
+    const lastVar = t.last_open_variant;
+    setText("tt-last-variant", lastVar ? cap(lastVar) : "NONE YET");
+    const lastOpen = t.last_open_ts_ms
+      ? new Date(t.last_open_ts_ms).toLocaleString()
+      : "no trade yet";
+    setText("tt-last-at", lastOpen);
+
+    const pnl = t.last_closed_pnl_usd;
+    const pnlEl = document.getElementById("tt-last-pnl");
+    if (pnlEl) {
+      if (pnl === null || pnl === undefined) {
+        pnlEl.textContent = "—";
+        pnlEl.className = "kpi-value muted";
+      } else {
+        pnlEl.textContent = `${pnl >= 0 ? "+" : ""}${fmt$(pnl)}`;
+        pnlEl.className = `kpi-value ${pnl >= 0 ? "pos" : "neg"}`;
+      }
+    }
+    setText("tt-last-closed-at",
+      t.last_closed_ts_ms
+        ? new Date(t.last_closed_ts_ms).toLocaleString()
+        : "—");
+
+    setText("tt-total", fmtN(t.n_total_entries || 0));
+    setText("tt-first-at",
+      t.first_open_ts_ms
+        ? `first ${new Date(t.first_open_ts_ms).toLocaleString()}`
+        : "—");
+
+    tickTimer();                          // paint immediately, don't wait 1s
+  }
+
+  function tickTimer() {
+    const el = document.getElementById("tt-elapsed");
+    if (!el) return;
+    if (!_ttAnchorTs) { el.textContent = "—"; return; }
+    const elapsed = Date.now() - _ttAnchorTs;
+    el.textContent = fmtElapsed(elapsed);
+    // Colour warning if no trade has ever fired and engine has been up >30m.
+    el.className = (!_ttHasTrade && elapsed > 30 * 60_000)
+      ? "kpi-value warn"
+      : "kpi-value";
   }
 
   function paintSummary(s) {
@@ -828,6 +931,7 @@
       stat.textContent = "live";
       document.getElementById("flag-check").innerHTML = "";
       paintHeader(d.header || {});
+      paintTimer(d.trade_timer || {});
       paintSummary(d.summary || {});
       paintVariant("con", d.contrarian || {});
       paintVariant("dv", d.deep_value || {});
@@ -871,6 +975,7 @@
   setInterval(fetchDashboard, 30_000);
   setInterval(fetchActivity, 15_000);   // faster: so operator sees daemons ticking
   setInterval(fetchXIntel, 60_000);     // exchange intelligence updates every 60s
+  setInterval(tickTimer, 1_000);        // phase-vv — live-tick trade-timer every second
 })();
 </script>
 </body>

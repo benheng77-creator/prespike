@@ -33,6 +33,17 @@ set SPOT_ALPHA_NOTIONAL_USD=25
 REM Reconciled Sweeper (11n-9-d/e): orphan positions → keep/sell/link.
 set SPOT_RECON_SWEEP_EXECUTE=1
 
+REM Phase 11n-9-vv — Path B + C horse race.
+REM Contrarian re-enabled alongside deep_value + momentum. Per-variant $25
+REM A/B cap + $3 24h auto-disable trip-wire + 40-exit Wilson promotion.
+set SPOT_LIVE_VARIANTS=contrarian,deep_value,momentum
+set SPOT_LIVE_PER_VARIANT_CAP_USD=25
+set SPOT_VARIANT_DD_KILL_USD=3
+set SPOT_PROMO_N_EXITS=40
+
+REM Isolated CDV panel visibility (phase-ss).
+set FEATURE_CONTRARIAN_DEEPVALUE_PANEL=1
+
 REM Research thresholds stay advisory (11n-2): halt verdicts are tagged
 REM but never flip tier toggles unless you opt in.
 REM  set SPOT_RESEARCH_ENFORCE_HALT=1
