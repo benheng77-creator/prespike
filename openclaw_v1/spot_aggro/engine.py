@@ -90,6 +90,9 @@ class Position:
     # v2.2: regime captured at entry so coin-memory bucket is stable even
     # if the MIO regime shifts before exit.
     entry_regime: str = "UNKNOWN"
+    # Phase 11n-9-ee: authz id bridges entry -> exit so the three-way
+    # shadow scorer can mirror PnL into every variant that admitted.
+    authz_id: str = ""
 
 
 @dataclass
@@ -800,12 +803,28 @@ class SpotAggroEngine:
             # Phase 11n-9-y: bypass now raises GateBlocked — an explicit
             # named exception so any code path that forgets to call the
             # gate is visibly wrong during regression testing.
+            _live_authz_id = ""
             try:
                 from spot_aggro.governance import pre_trade_gov
                 authz = pre_trade_gov.authorize_trade(
                     r["symbol"], "buy", tc.tier,
                     source=f"engine_entry:{tc.module}",
                 )
+                _live_authz_id = str(getattr(authz, "authz_id", ""))
+                # Phase 11n-9-ee — three-way shadow horse race. Every
+                # authz records what control / contrarian / mean_reversion
+                # would have done. Never blocks the live path (fail-open).
+                try:
+                    from spot_aggro.governance.three_way_shadow import (
+                        record_authz as _tw_record_authz,
+                    )
+                    _tw_record_authz(
+                        live_authz_id=_live_authz_id,
+                        symbol=r["symbol"], side="buy", tier=str(tc.tier),
+                        coin=r, mio=self.state.mio,
+                    )
+                except Exception:
+                    pass
                 if not authz.passed:
                     try:
                         _emit_trade(
@@ -879,6 +898,7 @@ class SpotAggroEngine:
                 trail_pct=tc.trail_pct,
                 max_hold_h=tc.max_hold_h,
                 entry_regime=r.get("_entry_regime", "UNKNOWN"),
+                authz_id=_live_authz_id,
             )
             self.state.positions[r["symbol"]] = pos
             deployed += size
@@ -1165,6 +1185,24 @@ class SpotAggroEngine:
             )
         except Exception:
             log.exception("coin_memory.record_exit failed (non-fatal)")
+        # Phase 11n-9-ee: mirror live PnL into every shadow variant that
+        # admitted this entry. Pure telemetry — never blocks.
+        try:
+            if getattr(pos, "authz_id", ""):
+                from spot_aggro.governance.three_way_shadow import (
+                    record_exit as _tw_record_exit,
+                )
+                _tw_record_exit(
+                    correlation_id=pos.authz_id,
+                    symbol=symbol,
+                    tier=pos.tier,
+                    pnl_usd=float(pnl),
+                    fee_usd=float(fee_est),
+                    notional_usd=float(pos.size_usd),
+                    payload={"reason": reason, "module": pos.module},
+                )
+        except Exception:
+            pass
         notify.pair_exit(symbol=symbol, module=pos.module, reason=reason, pnl_usd=pnl)
 
         if pos.is_blitz:

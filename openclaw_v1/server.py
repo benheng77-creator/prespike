@@ -732,6 +732,46 @@ def _start_spot_aggro_trade_readiness() -> None:
     )
 
 
+# Phase 11n-9-ee: Three-way shadow verdict daemon.
+# Computes control vs contrarian vs mean_reversion standings every 5
+# minutes and persists the verdict to shadow_variant_verdicts. First
+# variant to satisfy the promotion rule wins. Read-only; no trades.
+@app.on_event("startup")
+def _start_spot_aggro_three_way_shadow() -> None:
+    import logging as _logging
+    import threading
+    _log = _logging.getLogger(__name__)
+    try:
+        from spot_aggro.governance.three_way_shadow import evaluate as _tw_eval
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("three_way_shadow NOT started (import): %s", exc)
+        return
+    _INTERVAL_S = 300
+    _FIRST_DELAY_S = 25
+
+    def _tick() -> None:
+        try:
+            v = _tw_eval()
+            _log.info(
+                "[spot_aggro.three_way_shadow] leader=%s exits=%d verdict=%s",
+                v.leader, v.leader_exits, v.promotion_verdict,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.exception("three_way_shadow tick failed: %s", exc)
+        finally:
+            t = threading.Timer(_INTERVAL_S, _tick)
+            t.daemon = True
+            t.start()
+
+    first = threading.Timer(_FIRST_DELAY_S, _tick)
+    first.daemon = True
+    first.start()
+    _log.info(
+        "spot_aggro three_way_shadow scheduled (first run in %ds, then every %ds)",
+        _FIRST_DELAY_S, _INTERVAL_S,
+    )
+
+
 # Phase 11n-9-dd: heartbeat writer keeps equity_marks fresh even while
 # the engine is intentionally stopped, so Trading Engine + Account
 # Snapshot cards no longer flip to STALE/FAIL when the operator chooses

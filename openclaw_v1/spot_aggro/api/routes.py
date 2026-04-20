@@ -51,7 +51,7 @@ def _require_admin(x_ops_token: str | None) -> None:
 # dashboard shows a red banner identifying which side is behind.
 # Execution-only. Never touches capital. Safe to expose (reveals only the
 # build tag, which is already in the repo's HTML).
-SERVER_BUILD = "phase-11n-9-dd-2026-04-20"
+SERVER_BUILD = "phase-11n-9-ee-2026-04-20"
 
 
 @router.get("/build")
@@ -110,6 +110,8 @@ def spot_aggro_build() -> dict[str, Any]:
             "engine_state_source": True,         # Phase 11n-9-dd (canonical engine-state)
             "heartbeat_writer": True,            # Phase 11n-9-dd (equity_marks auto-heal 60s)
             "card_truth_respects_halt": True,    # Phase 11n-9-dd (IDLE not FAIL on halt)
+            "strategy_variants_three_way": True, # Phase 11n-9-ee (control/contrarian/mean-rev horse race)
+            "variant_horse_race": True,          # Phase 11n-9-ee (first-to-200 promotion)
         },
     }
 
@@ -468,6 +470,36 @@ def spot_aggro_engine_state() -> dict[str, Any]:
         },
         "ts_ms": int(time.time() * 1000),
     }
+
+
+# Phase 11n-9-ee — Three-way strategy-variant horse race.
+@router.get("/gov/three_way_shadow")
+def spot_aggro_three_way_shadow() -> dict[str, Any]:
+    """Current standings of control / contrarian / mean_reversion.
+
+    Returns the most recent persisted verdict (or computes one if none
+    exists yet). Read-only — does not trigger a new evaluation. Use
+    /gov/three_way_shadow/run to force one.
+    """
+    try:
+        from spot_aggro.governance.three_way_shadow import current_state
+        return {"ok": True, "state": current_state()}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@router.post("/gov/three_way_shadow/run")
+def spot_aggro_three_way_shadow_run(
+    x_ops_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Force a fresh evaluation of the three-way horse race. Admin-only."""
+    _require_admin(x_ops_token)
+    try:
+        from spot_aggro.governance.three_way_shadow import evaluate
+        v = evaluate()
+        return {"ok": True, "verdict": v.to_dict()}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:200]}
 
 
 @router.get("/gov/trade_readiness")

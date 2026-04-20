@@ -11,7 +11,7 @@
      they are on a fresh build by reading the BUILD pill in the header.
      Bumped any time the dashboard is changed in a way the operator must
      reload to pick up (schema changes, heatmap rebuilds, auth flow, etc.). -->
-<meta name="dashboard-build" content="phase-11n-9-dd-2026-04-20"/>
+<meta name="dashboard-build" content="phase-11n-9-ee-2026-04-20"/>
 <!-- Phase 11n-9-w fix 8 — PWA metadata so the operator can add the
      dashboard to their phone home screen and the iOS/Android status
      bar matches the dark theme. -->
@@ -2562,6 +2562,50 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- Phase 11n-9-ee — Three-way shadow horse race. Governance card,
+     zero capital. Shows standings of control / contrarian / mean_reversion
+     with a first-to-200-positive-Wilson promotion tracker. Read-only. -->
+<div class="c" id="c-horse-race"
+     data-lane="governance"
+     data-source-id="/spot_aggro/gov/three_way_shadow"
+     data-scope-id="spot_aggro:three_way_shadow"
+     data-window-basis="cumulative since deploy"
+     data-refresh-basis="5 min daemon"
+     data-summary-source="variant_wilson_bounds"
+     data-confidence-source="n_exits_and_wilson_bounds">
+  <div class="h"><h3>Strategy Horse Race</h3><span class="sub">3 variants · first to 200 positive-Wilson wins</span></div>
+  <div class="helper">control vs contrarian vs mean_reversion · shadow only, no capital</div>
+  <div class="truth-meta">
+    <span class="lane-governance">governance</span>
+    <span>source: /spot_aggro/gov/three_way_shadow</span>
+    <span>scope: shadow variant standings</span>
+    <span>window: cumulative since phase-ee deploy</span>
+    <span>refresh: 5 min daemon</span>
+  </div>
+  <div class="b">
+    <div id="horse-race-verdict" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:8px;background:var(--alt);border-radius:4px">
+      <span style="color:var(--ink2);font-size:11px">VERDICT</span>
+      <span id="hr-verdict" style="font-weight:700;font-size:12px;color:var(--ink1)">—</span>
+    </div>
+    <div id="horse-race-reason" style="color:var(--ink2);font-size:11px;margin-bottom:8px">loading…</div>
+    <table id="horse-race-table" style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;font-size:9px">
+          <th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--border)">Variant</th>
+          <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">Exits</th>
+          <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">WR</th>
+          <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">Exp (L/U)</th>
+          <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">Net PnL</th>
+          <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--border)">200</th>
+        </tr>
+      </thead>
+      <tbody id="horse-race-tbody">
+        <tr><td colspan="6" style="text-align:center;padding:8px;color:var(--ink3)">awaiting first authz…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <!-- Phase 11n-8 — Auto Orchestrator card placed at the BOTTOM of the
      grid because it's 100%-auto infrastructure (not a per-decision
      surface). Default ON via SPOT_AUTO_ORCHESTRATOR (set =0 to disable). -->
@@ -2859,7 +2903,7 @@ const _TAB_CARDS = {
                  "c-forensic", "c-forensic-v2", "c-botledger"],
   alerts:       ["c-alerts", "c-issues", "c-infra"],
   research:     ["c-research", "c-mio", "c-universe",
-                 "c-swarm", "c-llm"],
+                 "c-swarm", "c-llm", "c-horse-race"],
   system:       ["c-runtime", "c-schedule", "c-settings",
                  "c-exchange"],
   formula:      [],  // rendered by its own tab-formula grid
@@ -3297,6 +3341,9 @@ async function refresh() {
   // validator can downgrade STALE → IDLE for engine-dependent cards
   // when the operator has intentionally stopped the engine.
   try { _refreshEngineState(); } catch (e) { console.warn("_refreshEngineState", e); }
+
+  // Phase 11n-9-ee — paint the three-way shadow horse race card.
+  try { _refreshHorseRace(); } catch (e) { console.warn("_refreshHorseRace", e); }
 
   // ── 1. Trading Engine Status ──
   // Phase 11h — end the "READY while engine is actually stopped"
@@ -4840,6 +4887,62 @@ async function _refreshEngineState() {
     if (!r.ok) return;
     const j = await r.json();
     if (j && typeof j === "object") window._engineStateCache = j;
+  } catch (e) { /* non-fatal */ }
+}
+
+// Phase 11n-9-ee — Three-way shadow horse race renderer. Paints the
+// standings table, leader verdict, and progress-to-200 per variant.
+async function _refreshHorseRace() {
+  try {
+    const r = await fetch("/spot_aggro/gov/three_way_shadow", {cache: "no-store"});
+    if (!r.ok) return;
+    const j = await r.json();
+    const state = (j && j.state) || {};
+    const standings = state.standings || [];
+    const verdict = state.promotion_verdict || "insufficient";
+    const reason = state.reason || "";
+    const vEl = document.getElementById("hr-verdict");
+    const rEl = document.getElementById("horse-race-reason");
+    const tbody = document.getElementById("horse-race-tbody");
+    if (vEl) {
+      const colors = {
+        promote: "#10b981",
+        racing: "#f59e0b",
+        insufficient: "#6e7681",
+      };
+      vEl.textContent = verdict.toUpperCase();
+      vEl.style.color = colors[verdict] || "#c9d1d9";
+    }
+    if (rEl) rEl.textContent = reason || "—";
+    if (tbody) {
+      if (!standings.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:8px;color:var(--ink3)">awaiting first authz…</td></tr>';
+      } else {
+        // Leader highlight by (n_exits, expectancy) tuple.
+        const leader = state.leader;
+        const rows = standings.map(s => {
+          const pct = Math.min(100, Math.round((s.n_exits / 200) * 100));
+          const barColor = s.exp_lower > 0 ? "#10b981" : (s.expectancy > 0 ? "#f59e0b" : "#ef4444");
+          const isLeader = s.variant === leader;
+          const prefix = isLeader ? '★ ' : '';
+          const pnlColor = s.net_pnl > 0 ? "var(--pos)" : (s.net_pnl < 0 ? "var(--neg)" : "var(--ink2)");
+          return `<tr${isLeader ? ' style="background:rgba(16,185,129,0.05)"' : ''}>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);color:var(--ink1);font-weight:${isLeader?700:500}">${prefix}${s.variant}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;color:var(--ink1);font-variant-numeric:tabular-nums">${s.n_exits}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums">${(s.wr*100).toFixed(0)}%</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums;font-size:10px">${s.exp_lower.toFixed(3)} / ${s.exp_upper.toFixed(3)}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;color:${pnlColor};font-variant-numeric:tabular-nums;font-weight:600">${s.net_pnl>=0?'+':''}$${s.net_pnl.toFixed(2)}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;width:80px">
+              <div style="background:var(--border);height:8px;border-radius:4px;overflow:hidden;position:relative">
+                <div style="background:${barColor};height:100%;width:${pct}%"></div>
+              </div>
+              <span style="font-size:9px;color:var(--ink3)">${s.n_exits}/200</span>
+            </td>
+          </tr>`;
+        }).join("");
+        tbody.innerHTML = rows;
+      }
+    }
   } catch (e) { /* non-fatal */ }
 }
 

@@ -161,7 +161,15 @@ def test_build_flags_advertised():
     assert feats.get("engine_state_source") is True
     assert feats.get("heartbeat_writer") is True
     assert feats.get("card_truth_respects_halt") is True
-    assert body.get("build") == "phase-11n-9-dd-2026-04-20"
+    # Phase-dd was a milestone; later phases may bump further. Any
+    # phase-11n-9-<suffix> with suffix >= "dd" is acceptable.
+    import re
+    m = re.match(r"phase-11n-9-([a-z]+)-2026-04-20", body.get("build", ""))
+    assert m, f"missing phase-11n-9 build tag: {body.get('build')!r}"
+    suffix = m.group(1)
+    assert (len(suffix), suffix) >= (2, "dd"), (
+        f"build tag must be >= phase-dd (got {suffix})"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +191,13 @@ def test_engine_state_endpoint_returns_stable_shape():
 # ---------------------------------------------------------------------------
 
 def test_build_tag_bumped_to_dd():
-    assert 'content="phase-11n-9-dd-2026-04-20"' in HTML
+    import re
+    m = re.search(r'content="phase-11n-9-([a-z]+)-2026-04-20"', HTML)
+    assert m, "no phase-11n-9 build tag in HTML"
+    suffix = m.group(1)
+    assert (len(suffix), suffix) >= (2, "dd"), (
+        f"build tag must be >= phase-dd, got {suffix}"
+    )
 
 
 def test_card_idle_css_classes_present():
