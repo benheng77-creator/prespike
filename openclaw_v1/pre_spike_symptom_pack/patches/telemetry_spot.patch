@@ -1,0 +1,20 @@
+--- a/services/telemetry.py
++++ b/services/telemetry.py
+@@ -1,3 +1,12 @@
+ # Add to known counters list:
++
++    "pre_spike_intents_emitted_total",
++    "pre_spike_intents_rejected_total",
++    "audit_decisions_total",
++    "spot_orders_placed_total",
++    "spot_fills_total",
++    "spot_taker_fallback_total",
++    "spot_position_closed_total",
++
+ # Add to known gauges:
++
++    "spot_open_positions",
++    "spot_realized_pnl_daily_pct",
++    "audit_feature_drift_max",
++    "audit_p_spike_drift_max",
++    "audit_approval_rate_rolling_1000",

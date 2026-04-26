@@ -1,0 +1,17 @@
+# Speed-first runtime
+numpy>=1.26
+uvloop>=0.19; platform_system != 'Windows'
+orjson>=3.10
+
+# ML / research
+lightgbm>=4.3
+scikit-learn>=1.4
+scipy>=1.12
+statsmodels>=0.14
+pandas>=2.2
+
+# Plotting (research only)
+matplotlib>=3.8
+
+# Utilities
+pyyaml>=6.0

@@ -1,0 +1,33 @@
+spot_trading_enabled: false   # SET TO true ONLY AFTER PAPER WINDOW
+spot_caps:
+  max_notional_pct: 25.0
+  max_concurrent_positions: 3
+  per_trade_pct: 0.375           # 0.25x design value for first 7 days
+  min_trade_quote: 25.0
+  daily_loss_circuit_pct: 2.50
+  max_holding_hours: 24
+
+audit:
+  log_root: /var/openclaw/logs/audit/
+  retention_days: 365
+  tolerance_feature_drift: 1.0e-6
+  tolerance_p_spike_drift: 1.0e-4
+  ood_z_threshold_single: 6.0
+  ood_z_threshold_pct_features: 0.05
+  drift_alert_pct: 0.60
+  drift_window: 1000
+  bar_interval_seconds: 300
+  max_bar_age_seconds: 600
+  max_clock_skew_seconds: 5
+
+artifacts:
+  approved_versions: []          # operator must add explicitly
+  promotion_policy: operator_only
+
+approved_strategies:
+  - pre_spike_symptom_v1
+
+approved_instruments:
+  - BTC-USDT
+  - ETH-USDT
+  - SOL-USDT

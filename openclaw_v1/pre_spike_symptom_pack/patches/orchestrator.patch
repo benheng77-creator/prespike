@@ -1,0 +1,43 @@
+--- a/core/orchestrator.py
++++ b/core/orchestrator.py
+@@ -1,8 +1,12 @@
+ # Insert at top of file:
+ from services.audit_gate import AuditGate, AuditConfig, ArtifactLoader
++from services.audit_log import AuditLog
+ # ... existing imports ...
+
+ class Orchestrator:
+     def __init__(self, ...):
+         # ... existing init ...
++        self._audit_gate = None  # lazy-init via configure_audit()
+
++    def configure_audit(self, audit_gate: AuditGate) -> None:
++        self._audit_gate = audit_gate
++
+     def _process_intent(self, intent, current_window_bars):
+         # === Existing risk check ===
+         risk_ok = self.risk_manager.validate(intent)
+         if not risk_ok.approved:
+             self.tel.inc("intents_rejected_total",
+                          {"stage": "risk", "reason": risk_ok.reason})
+             return
++        # === NEW: audit gate (mandatory) ===
++        if self._audit_gate is None:
++            self.tel.inc("intents_rejected_total",
++                         {"stage": "audit", "reason": "audit_gate_missing"})
++            return
++        audit = self._audit_gate.evaluate(intent, current_window_bars)
++        if not audit.approved:
++            self.tel.inc("audit_decisions_total",
++                         {"decision": "rejected",
++                          "reason": ",".join(audit.failed_checks)})
++            return
++        intent["audit_token"] = audit.audit_token
++        self.tel.inc("audit_decisions_total", {"decision": "approved"})
+         # === Existing LLM consensus (unchanged) ===
+         if intent.get("require_llm_approval", False):
+             llm = self.llm_consensus.evaluate(intent)
+             if not llm.approve:
+                 return
+         # === Execution ===
+         self.execution.submit(intent)

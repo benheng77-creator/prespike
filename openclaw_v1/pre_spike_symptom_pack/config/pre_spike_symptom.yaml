@@ -1,0 +1,13 @@
+# Strategy-level params (read by panel; orchestrator reads strategies.yaml)
+artifact_root: /var/openclaw/models/
+active_model_version: model_v2025-04-19
+threshold_tau_offset: 0.00
+sigma_cap: 1.00
+adx_cap: 25.0
+spread_cap_bps: 10.0
+funding_cap_bps_8h: 20.0
+spot_per_trade_pct: 1.50
+spot_min_trade_quote: 25.0
+k_stop: 1.20
+k_target: 2.50
+max_holding_hours: 6

@@ -1,0 +1,16 @@
+
+# === pre_spike_symptom_v1 — append to strategies.yaml ===
+- id: pre_spike_symptom_v1
+  module: strategies.pre_spike_symptom_v1
+  class: PreSpikeSymptomStrategy
+  enabled: true
+  timeframe: 5m
+  instruments: [BTC-USDT, ETH-USDT, SOL-USDT]
+  venue: okx_spot
+  params:
+    artifact_root: /var/openclaw/models/
+    active_model_version: model_v2025-04-19
+    require_llm_approval: true
+    require_audit_approval: true   # always true; declared for clarity
+  overrides:
+    max_concurrent_per_strategy: 3
