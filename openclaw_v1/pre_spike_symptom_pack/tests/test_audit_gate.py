@@ -83,7 +83,7 @@ def test_rejects_stale_data(tmp_log_dir, monkeypatch):
     ag = _audit_gate_mod  # preserve existing test idiom
     monkeypatch.setattr(
         ag, "compute_features_research",
-        lambda bars, fc: {"atr_14": 1.0},
+        lambda bars, feature_config: {"atr_14": 1.0},
     )
     gate = AuditGate(cfg, {"atr_14": {"mu": 1.0, "sigma": 0.1}},
                      _MockArtifactLoader(0.7))
@@ -102,7 +102,7 @@ def test_rejects_feature_drift(tmp_log_dir, monkeypatch):
     ag = _audit_gate_mod  # preserve existing test idiom
     monkeypatch.setattr(
         ag, "compute_features_research",
-        lambda bars, fc: {"atr_14": 1.05, "bbw": 0.05},   # drift!
+        lambda bars, feature_config: {"atr_14": 1.05, "bbw": 0.05},   # drift!
     )
     gate = AuditGate(cfg, {"atr_14": {"mu": 1.0, "sigma": 0.1}},
                      _MockArtifactLoader(0.7))
@@ -120,7 +120,7 @@ def test_rejects_policy_violation(tmp_log_dir, monkeypatch):
     )
     ag = _audit_gate_mod  # preserve existing test idiom
     monkeypatch.setattr(ag, "compute_features_research",
-                        lambda bars, fc: {"atr_14": 1.0})
+                        lambda bars, feature_config: {"atr_14": 1.0})
     gate = AuditGate(cfg, {"atr_14": {"mu": 1.0, "sigma": 0.1}},
                      _MockArtifactLoader(0.7))
     decision = gate.evaluate(_make_intent(instrument="DOGE-USDT"),
@@ -138,7 +138,7 @@ def test_rejects_p_spike_drift(tmp_log_dir, monkeypatch):
     )
     ag = _audit_gate_mod  # preserve existing test idiom
     monkeypatch.setattr(ag, "compute_features_research",
-                        lambda bars, fc: {"atr_14": 1.0})
+                        lambda bars, feature_config: {"atr_14": 1.0})
     # Loader returns a different P than the intent claims
     gate = AuditGate(cfg, {"atr_14": {"mu": 1.0, "sigma": 0.1}},
                      _MockArtifactLoader(0.5))

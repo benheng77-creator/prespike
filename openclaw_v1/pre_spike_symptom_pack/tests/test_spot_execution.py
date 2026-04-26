@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 import pytest
 
+from ..services.spot_execution import SpotExecutionService
+
 
 @dataclass
 class _Tel:
@@ -39,7 +41,6 @@ class _MockOKX:
 
 @pytest.mark.asyncio
 async def test_rejects_without_audit_token():
-    from services.spot_execution import SpotExecutionService
     svc = SpotExecutionService(_MockOKX(), _Tel())
     intent = {"instrument": "BTC-USDT", "audit_token": None,
               "provenance": {"atr_at_entry": 100.0}}
@@ -50,7 +51,6 @@ async def test_rejects_without_audit_token():
 
 @pytest.mark.asyncio
 async def test_rejects_insufficient_balance():
-    from services.spot_execution import SpotExecutionService
     svc = SpotExecutionService(_MockOKX(balance=10.0), _Tel())
     intent = {"instrument": "BTC-USDT", "audit_token": "abc",
               "provenance": {"atr_at_entry": 100.0}}
@@ -61,7 +61,6 @@ async def test_rejects_insufficient_balance():
 
 @pytest.mark.asyncio
 async def test_idempotent_client_oid():
-    from services.spot_execution import SpotExecutionService
     okx = _MockOKX()
     svc = SpotExecutionService(okx, _Tel())
     intent = {"instrument": "BTC-USDT", "audit_token": "abc",
