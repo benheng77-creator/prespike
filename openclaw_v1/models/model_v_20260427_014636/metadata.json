@@ -1,0 +1,13 @@
+{
+  "version": "model_v_20260427_014636",
+  "created_at_utc": "2026-04-27T01:46:36.496068+00:00",
+  "rows_total": 500000,
+  "rows_train": 400000,
+  "rows_test": 100000,
+  "positive_rate_total": 0.049556,
+  "positive_rate_train": 0.04937,
+  "positive_rate_test": 0.0503,
+  "feature_count": 25,
+  "threshold_p95": 0.10760172726259028,
+  "best_iteration": 120
+}
