@@ -1367,7 +1367,7 @@
     "mpg123-decoder": "^1.0.3",
     "node-edge-tts": "^1.2.10",
     "nostr-tools": "^2.23.3",
-    "openai": "^6.33.0",
+    "openai": "^7.34.0",
     "opusscript": "^0.1.1",
     "osc-progress": "^0.3.0",
     "pdfjs-dist": "6.2.108",
