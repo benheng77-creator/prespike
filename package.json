@@ -1351,7 +1351,7 @@
     "express": "^5.2.1",
     "file-type": "22.0.0",
     "gaxios": "7.1.4",
-    "google-auth-library": "^10.6.2",
+    "google-auth-library": "^11.3.1",
     "grammy": "^1.42.0",
     "hono": "4.12.34",
     "https-proxy-agent": "^9.0.0",
